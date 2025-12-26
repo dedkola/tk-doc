@@ -5,7 +5,7 @@ import { getAllMDXFiles, groupByFolder } from "@/lib/mdx-utils";
 import Header from "@/components/header";
 import { SearchProvider } from "@/app/ui/interface/search-context";
 import { siteConfig } from "@/config/site";
-
+import { Analytics } from '@vercel/analytics/next';
 import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
@@ -102,6 +102,7 @@ export default function RootLayout({
             footer={<Footer />}
           >
             {children}
+            <Analytics />
           </LayoutClient>
         </SearchProvider>
       </body>
