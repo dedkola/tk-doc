@@ -1,55 +1,23 @@
-/**
- * Site Configuration
- *
- * Edit this file to customize your documentation site.
- * All values are centralized here for easy configuration.
- */
+import { baseConfig, type BaseSiteConfig } from "./site.base";
+import { localConfig } from "./site.local";
 
-export const siteConfig = {
-  // Site Identity
-  name: "TK Docs",
-  title: "TK Docs",
-  description: "A modern, high-performance documentation platform.",
-  url: "https://doc.tkweb.site",
+const mergeSection = <T extends Record<string, unknown>>(
+  baseSection: T,
+  localSection?: Partial<T>
+): T => ({
+  ...baseSection,
+  ...(localSection ?? {}),
+});
 
-  // Open Graph / Social Sharing
-  og: {
-    image: "",
-    imageWidth: 1200,
-    imageHeight: 630,
-  },
-
-  // Twitter / X Configuration
-  twitter: {
-    card: "summary_large_image",
-    creator: "@yourtwitterhandle",
-  },
-
-  // Analytics
-  analytics: {
-    googleAnalyticsId: "G-35JQN469E9", // e.g. G-XXXXXXXXXX
-  },
-
-  // Debug / Error Handling (no environment variables)
-  debug: {
-    // Log errors caught by the global error boundary to console
-    logErrors: false,
-    // Show detailed error messages in the error UI
-    showErrorDetails: false,
-  },
-
-  // Social Media Links (set to null or empty string to hide)
-  social: {
-    github: "https://github.com/dedkola",
-    twitter: "https://x.com/KolaSokolov",
-    linkedin: "https://www.linkedin.com/in/nikolay-sokolovskiy-it/",
-  },
-
-  // Footer
-  footer: {
-    companyName: "TK Docs",
-    copyright: `© ${new Date().getFullYear()} All rights reserved.`,
-  },
-} as const;
+export const siteConfig: BaseSiteConfig = {
+  ...baseConfig,
+  ...localConfig,
+  og: mergeSection(baseConfig.og, localConfig.og),
+  twitter: mergeSection(baseConfig.twitter, localConfig.twitter),
+  analytics: mergeSection(baseConfig.analytics, localConfig.analytics),
+  debug: mergeSection(baseConfig.debug, localConfig.debug),
+  social: mergeSection(baseConfig.social, localConfig.social),
+  footer: mergeSection(baseConfig.footer, localConfig.footer),
+};
 
 export type SiteConfig = typeof siteConfig;
