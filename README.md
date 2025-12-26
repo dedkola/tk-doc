@@ -195,30 +195,31 @@ Each folder becomes a section in the sidebar, and files within become pages.
 
 ### Configuring Your Site
 
-**Site configuration uses a layered approach with base and local configs:**
+**Site configuration uses a 3-layer approach for smooth updates:**
 
-The template uses a flexible configuration system that separates default settings from your customizations:
+We separate defaults, production overrides, and optional local changes:
 
-- **`config/site.base.ts`** - Default base configuration (don't modify)
-- **`config/site.local.ts`** - Your local overrides (customize this)
-- **`config/site.ts`** - Merged configuration (automatically combines base + local)
+- **`config/config.base.ts`** – Template defaults (do not modify)
+- **`config/config.private.ts`** – Committed, production overrides (domain, analytics, socials)
+- **`config/config.local.ts`** – Gitignored, dev-only overrides (optional)
+- **`config/site.ts`** – Aggregator that merges Base → Private → Local
 
-This approach keeps the base template clean and makes it easy to update without losing your customizations.
+This keeps updates simple and hosting predictable, with zero surprises.
 
 #### Quick Configuration
 
-1. **Copy the example file** (first time only):
+1. **Copy the example local file** (optional, for dev):
 
-   ```bash
-   cp config/site.local.example.ts config/site.local.ts
-   ```
+```bash
+cp config/config.local.example.ts config/config.local.ts
+```
 
-2. **Edit `config/site.local.ts`** to customize your site:
+2. **Edit `config/config.private.ts`** for production settings, and `config/config.local.ts` for dev-only overrides:
 
 ```typescript
-import type { BaseSiteConfig } from "./site.base";
+import type { BaseSiteConfig } from "./config.base";
 
-export const localConfig: Partial<BaseSiteConfig> = {
+export const privateConfig: Partial<BaseSiteConfig> = {
   // Basic Information
   name: "Your Site Name",
   title: "Your Site Title",
@@ -257,14 +258,14 @@ export const localConfig: Partial<BaseSiteConfig> = {
 };
 ```
 
-> **Note:** You only need to specify the fields you want to override. Any fields not specified will use the defaults from `site.base.ts`.
+> **Note:** You only need to specify fields you want to override. Unspecified fields use defaults from `config.base.ts`. Dev-only changes go in `config.local.ts`.
 
 #### Why This Approach?
 
 - **Clean separation** - Base defaults stay intact, your changes are isolated
 - **Easy updates** - Update the template without losing your customizations
 - **Type safety** - TypeScript ensures your overrides match the base config
-- **Git-friendly** - Add `site.local.ts` to `.gitignore` for environment-specific configs
+- **Git-friendly** - `config.local.ts` is gitignored; `config.private.ts` is committed for predictable hosting
 
 #### Configuration Fields Explained
 
@@ -289,16 +290,16 @@ export const localConfig: Partial<BaseSiteConfig> = {
 ✅ **Footer text** - Company name in copyright  
 ✅ **OG Image** - Used when shared on social media
 
-> **💡 Tip:** After updating `site.local.ts`, restart your dev server for changes to take effect.
+> **💡 Tip:** After updating `config/config.private.ts` or `config/config.local.ts`, restart your dev server for changes to take effect.
 
 #### Example: White-Label for a Client
 
-Create your `config/site.local.ts` with client-specific overrides:
+Edit `config/config.private.ts` with client-specific overrides:
 
 ```typescript
-import type { BaseSiteConfig } from "./site.base";
+import type { BaseSiteConfig } from "./config.base";
 
-export const localConfig: Partial<BaseSiteConfig> = {
+export const privateConfig: Partial<BaseSiteConfig> = {
   name: "Client Inc",
   title: "Client Inc Documentation",
   description: "Official documentation for Client Inc products",
@@ -329,10 +330,10 @@ That's it! All branding updates instantly across the entire site.
 
 #### Analytics (Google Analytics)
 
-Add your GA4 Measurement ID in `config/site.local.ts`:
+Add your GA4 Measurement ID in `config/config.private.ts` (production) or leave empty in `config/config.local.ts` (dev):
 
 ```typescript
-export const localConfig: Partial<BaseSiteConfig> = {
+export const privateConfig: Partial<BaseSiteConfig> = {
   // ... other config
   analytics: {
     googleAnalyticsId: "G-XXXXXXXXXX", // Replace with your GA4 ID

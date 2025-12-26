@@ -39,6 +39,7 @@ yarn-error.log*
 !.env.example
 # local config overrides
 config/site.local.ts
+config/config.local.ts
 # vercel
 .vercel
 
