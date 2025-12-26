@@ -9,7 +9,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import React from "react";
-
+import { SpeedInsights } from '@vercel/speed-insights/next';
 // Dynamic imports for non-critical components
 const Footer = dynamic(() => import("@/components/footer"), {
   ssr: true,
@@ -104,6 +104,7 @@ export default function RootLayout({
             <Analytics />
           </LayoutClient>
         </SearchProvider>
+        <SpeedInsights />
       </body>
     </html>
   );
