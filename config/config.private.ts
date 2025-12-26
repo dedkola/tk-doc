@@ -12,7 +12,7 @@ export const privateConfig: Partial<BaseSiteConfig> = {
   },
   twitter: {
     card: "summary_large_image",
-    creator: "@yourtwitterhandle",
+    creator: "@KolaSokolov",
   },
   analytics: {
     googleAnalyticsId: "G-35JQN469E9",
