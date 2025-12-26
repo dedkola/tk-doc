@@ -10,7 +10,7 @@ export const siteConfig = {
   name: "TK Docs",
   title: "TK Docs",
   description: "A modern, high-performance documentation platform.",
-  url: "https://yourdomain.com",
+  url: "https://doc.tkweb.site",
 
   // Open Graph / Social Sharing
   og: {
@@ -40,7 +40,7 @@ export const siteConfig = {
 
   // Social Media Links (set to null or empty string to hide)
   social: {
-    github: "https://github.com/yourusername",
+    github: "https://github.com/dedkola",
     twitter: "https://twitter.com/yourusername",
     linkedin: "https://linkedin.com/in/yourusername",
   },
