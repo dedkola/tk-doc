@@ -27,7 +27,7 @@ export const siteConfig = {
 
   // Analytics
   analytics: {
-    googleAnalyticsId: "", // e.g. G-XXXXXXXXXX
+    googleAnalyticsId: "G-35JQN469E9", // e.g. G-XXXXXXXXXX
   },
 
   // Debug / Error Handling (no environment variables)
@@ -41,8 +41,8 @@ export const siteConfig = {
   // Social Media Links (set to null or empty string to hide)
   social: {
     github: "https://github.com/dedkola",
-    twitter: "https://twitter.com/yourusername",
-    linkedin: "https://linkedin.com/in/yourusername",
+    twitter: "https://x.com/KolaSokolov",
+    linkedin: "https://www.linkedin.com/in/nikolay-sokolovskiy-it/",
   },
 
   // Footer
