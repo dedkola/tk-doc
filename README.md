@@ -380,10 +380,10 @@ tk-docs/
 │   ├── TableOfContents.tsx      # TOC component
 │   └── ShareButtons.tsx         # Social sharing
 ├── config/                       # Configuration files
-│   ├── site.base.ts             # Base configuration (default values)
-│   ├── site.local.example.ts    # Example local config (copy to site.local.ts)
-│   ├── site.local.ts            # Your local overrides (gitignored)
-│   └── site.ts                  # Merged config (auto-generated)
+│   ├── config.base.ts           # Base configuration (template defaults)
+│   ├── config.private.ts        # Production overrides (committed)
+│   ├── config.local.example.ts  # Example dev overrides (copy to config.local.ts)
+│   └── site.ts                  # Aggregator that merges all configs
 ├── content/                      # MDX documentation files
 │   └── component-examples.mdx   # Component showcase (reference)
 ├── hooks/                        # Custom React hooks
@@ -421,9 +421,11 @@ tk-docs/
 
 ### Quick Configuration ⚡ (Recommended)
 
-The easiest way to customize your site is using the **layered config system:**
+The easiest way to customize your site is using the **three-file config system:**
 
-👉 **Edit `config/site.local.ts`** - Override base settings for branding, titles, descriptions, and social links.
+👉 **Edit `config/config.private.ts`** - Production settings (domain, analytics, social links).
+
+👉 **Copy & edit `config/config.local.ts`** (optional) - Dev-only overrides (copy from `config.local.example.ts`).
 
 See the [Configuring Your Site](#configuring-your-site) section above for all options.
 
