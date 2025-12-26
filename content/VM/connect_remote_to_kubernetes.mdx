@@ -1,0 +1,37 @@
+---
+title: Using microk8s remotely with VS Code and Webstorm
+description: Using microk8s remotely with VS Code and Webstorm
+tags: [microk8s, k8s, ubuntu, kubectl, remote]
+---
+
+### Bind IP to microk8s
+
+```bash copy {3,4}
+sudo nano /var/snap/microk8s/current/args/kube-apiserver
+
+--advertise-address=<your_server_ip>
+--bind-address=0.0.0.0
+```
+
+### Restart MicroK8s to apply changes:
+
+```bash
+sudo microk8s stop
+sudo microk8s start
+```
+
+###  Generate the kubeconfig File
+
+```bash copy
+sudo microk8s kubectl config view --raw > ~/.kube/config
+```
+
+### Copy config to your local machine
+
+```bash copy
+
+scp admin@192.168.0.100:/home/admin/.kube/config ~/.kube/config
+
+export KUBECONFIG=~/.kube/config
+```
+

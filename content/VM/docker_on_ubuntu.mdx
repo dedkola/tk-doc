@@ -1,0 +1,44 @@
+---
+title: Install Docker Desktop on Ubuntu
+description: Install Docker Desktop on Ubuntu
+tags: [docker, ubuntu, container, containerization, docker desktop]
+---
+
+### Update and install required packages
+
+```bash copy
+sudo apt update && \
+sudo apt install -y apt-transport-https ca-certificates curl software-properties-common
+```
+
+[From official Docker guide](https://docs.docker.com/engine/install/ubuntu/#install-using-the-convenience-script)
+
+```bash copy
+curl -fsSL https://get.docker.com -o get-docker.sh
+
+sudo sh ./get-docker.sh
+```
+
+```bash copy {3,4}
+dockerd-rootless-setuptool.sh install
+
+export PATH=/usr/bin:$PATH
+export DOCKER_HOST=unix:///run/user/1000/docker.sock
+```
+
+
+### Install Docker Desktop
+
+From Official Docker Desktop [Download](https://docs.docker.com/desktop/setup/install/linux/ubuntu/)
+
+### Sign in
+
+```bash copy
+
+gpg --generate-key
+
+### init pub key
+
+pass init #your pub key
+```
+Now you can sign in  Docker Desktop

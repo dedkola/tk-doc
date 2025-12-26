@@ -1,0 +1,34 @@
+---
+title: Fix Unifi DHCP lease IP for Unraid VM clonned from template or snapshot
+description: Fix Unifi DHCP lease IP for Unraid VM clonned from template or snapshot
+tags: [unifi, dhcp, unraid, vm, ip, lease]
+---
+
+Every cloned VM in Unraid get from Unifi Cloud Gateway same IP address.
+To fix this issue you need to change the DHCP lease with simple trick.
+Set identification by MAC address. Need new IP just switch change Mac and you good to go.
+
+```bash copy
+sudo rm /var/lib/dhcp/dhclient.leases
+```
+
+add ID by mac address
+
+```bash copy
+sudo nano nano /etc/netplan/00-installer-config.yaml
+
+      dhcp-identifier: mac
+```
+
+this should be like this
+
+```bash copy {5}
+network:
+  ethernets:
+    ens2:
+      dhcp4: true
+      dhcp-identifier: mac
+  version: 2
+```
+
+Shut down. Clone as many as you want this VM. Now every clone of VM will have different IP address.

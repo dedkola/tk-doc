@@ -1,0 +1,26 @@
+---
+title: Fix dual boot time reset between Fedora and Windows
+description: Resolve the issue of system time resetting when dual booting between Fedora and Windows by configuring Fedora to use local time.
+tags: [linux, fedora, dual-boot, time, windows, rtc, localtime]
+---
+
+When dual booting between Fedora and Windows, you may encounter an issue where the system time resets or appears incorrect when switching between the two operating systems. This is often due to Windows using local time for the hardware clock (RTC), while Linux typically uses UTC.
+
+To fix this issue, you can configure Fedora to use local time for the hardware clock. Follow these steps:
+
+## Fix Windows Time Settings
+
+1. Open the Registry Editor by pressing `Win + R`, typing `regedit`, and pressing Enter.
+2. Navigate to the following path:
+   `HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\TimeZoneInformation`
+3. Right-click on the right pane, select `New > DWORD (32-bit) Value`, and name it `RealTimeIsUniversal`.
+4. Double-click on `RealTimeIsUniversal` and set its value to `1`.
+5. Close the Registry Editor and restart your computer.
+
+## Configure Fedora to Use Local Time
+
+```bash
+timedatectl set-local-rtc 1 --adjust-system-clock
+```
+
+This command tells Fedora to treat the hardware clock as local time.

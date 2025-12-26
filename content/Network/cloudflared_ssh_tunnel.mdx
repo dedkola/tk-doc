@@ -1,0 +1,78 @@
+---
+title: Cloudflared SSH Tunnel
+description: Guide to setting up an SSH tunnel using Cloudflared for secure remote access.
+tags: ['cloudflared', 'ssh', 'tunnel']  
+---
+
+
+### Install Cloudflared
+
+```bash copy
+curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb -o cloudflared.deb
+sudo dpkg -i cloudflared.deb
+```
+
+### Authenticate Cloudflared
+
+```bash copy
+cloudflared tunnel login
+```
+
+### Create a Tunnel
+
+```bash copy
+cloudflared tunnel create <TUNNEL_NAME>
+```
+
+### Configure the Tunnel
+
+```bash copy
+nano ~/.cloudflared/config.yml
+```
+Add the following configuration
+
+```yaml copy
+tunnel: ssh-tunnel
+credentials-file: /home/youruser/.cloudflared/<tunnel-uuid>.json
+
+ingress:
+  - hostname: ssh.example.com
+    service: ssh://localhost:22
+  - service: http_status:404
+```
+```bash copy
+sudo cp ~/.cloudflared/config.yml /etc/cloudflared/config.yml
+```
+
+### Route DNS
+```bash copy
+cloudflared tunnel route dns ssh-tunnel ssh.example.com
+```
+### Install as a Service
+
+```bash
+sudo cloudflared service install
+sudo systemctl start cloudflared
+sudo systemctl enable cloudflared
+```
+
+
+### Connect via SSH
+
+```bash copy
+
+cloudflared access ssh --hostname ssh.example.com
+```
+
+or connect native by ssh
+
+```bash copy
+nano ~/.ssh/config
+```
+Add the following configuration
+
+```bash copy
+Host ssh.example.com
+  ProxyCommand /usr/local/bin/cloudflared access ssh --hostname %h
+  User yourlinuxuser
+```

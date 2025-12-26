@@ -1,0 +1,40 @@
+---
+title: Docker autostart container in Windows
+description: Docker containers can be configured to automatically restart on system reboot
+tags: [docker, container, autostart, restart]
+---
+
+### By default, it's not enabled.
+
+Docker containers do not automatically restart when the system reboots or the Docker service restarts. To ensure important containers (such as Home Assistant) are always running, you can set a restart policy. The `--restart=always` flag tells Docker to always restart the container unless it is explicitly stopped. This is useful for services that should be highly available or run continuously.
+
+#### Compose and stacks
+
+If you use `docker-compose` or Compose V2, set the restart behavior in your compose file using the `restart:` key (for example `restart: unless-stopped`). For swarm services or stacks, restart policy configuration lives under `deploy.restart_policy` and has different semantics; consult your compose or swarm documentation when running services in those modes.
+
+#### Troubleshooting common issues
+
+- **Container explicitly stopped:** If a container was stopped manually (for example with `docker stop`), some restart policies will not override that explicit action.
+- **Docker didn't start first:** If Docker Desktop or the Docker service didn't start before other services, containers won't be restarted — verify Docker itself starts at boot/login.
+- **Crash loops:** If a container repeatedly exits with errors, it may enter a rapid restart loop; inspect logs with `docker logs <container-name>` and consider `on-failure` with a retry limit while diagnosing the root cause.
+- **Container recreated:** Recreating or replacing a container (e.g., via `docker-compose up --force-recreate`) can remove any previous restart-policy configuration.
+
+#### Caveats and recommendations
+
+`--restart=always` will attempt to keep a container running indefinitely, which is useful for critical services but can hide problems if a container repeatedly fails. For unstable services, consider `on-failure` with a maximum retry count or fix the underlying failure before applying an unconditional restart. When using system-level supervisors or orchestrators, coordinate restart settings to avoid conflicting behavior.
+
+Other restart policies include:
+
+You can set the restart policy when creating a container:
+
+```bash
+# Example: create a container with restart policy
+
+docker run -d --restart=always --name homeassistant homeassistant/home-assistant:latest
+```
+
+Or update an existing container:
+
+```bash copy
+docker update --restart=always homeassistant
+```

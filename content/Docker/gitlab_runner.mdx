@@ -1,0 +1,30 @@
+---
+title: Run GitLab Runner in Docker
+description: Run GitLab Runner in Docker
+tags: [gitlab, docker, gitlab-runner]
+---
+
+### Run container
+
+```bash
+
+docker run -d --name gitlab-runner --restart always -v /srv/gitlab-runner/config:/etc/gitlab-runner -v /var/run/docker.sock:/var/run/docker.sock gitlab/gitlab-runner:latest
+```
+
+### Register runner
+
+```bash
+docker exec -it gitlab-runner gitlab-runner register
+```
+
+Notes about the run command:
+
+- --restart always ensures the container restarts on host reboot or failures.
+- Mounting /var/run/docker.sock allows the runner to spawn Docker containers for jobs; this gives the runner access to the host Docker daemon — consider security implications and use a dedicated host or restricted environment.
+- Use a dedicated volume for /srv/gitlab-runner/config to persist runner configuration and tokens.
+
+Notes about registering:
+
+- The `gitlab-runner register` command is interactive: you'll be prompted for GitLab instance URL, registration token, runner description, tags, and executor type (e.g., docker).
+- For non-interactive / automated registration, consider using environment variables or the --non-interactive flags with the appropriate parameters; consult the GitLab Runner docs for exact flags.
+- After registration the configuration will be saved under the mounted config directory so it persists across container restarts.

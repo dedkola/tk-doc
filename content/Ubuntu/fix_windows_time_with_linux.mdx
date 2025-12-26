@@ -1,0 +1,13 @@
+---
+title: Fix Windows system time when it installed alongside with Linux
+description: How to fix Windows system time with Linux
+tags: [windows, linux, time, ubuntu, ntp]
+---
+
+On Windows set timezone to manual
+
+### On Linux:
+
+```bash
+timedatectl set-local-rtc 1 --adjust-system-clock
+```

@@ -1,0 +1,51 @@
+---
+title: Install Zsh, p10k, Oh My Zsh on Ubuntu
+description: A step-by-step guide to installing Zsh, Powerlevel10k theme, and Oh My Zsh framework on Ubuntu.
+tags: [Ubuntu, Zsh, Powerlevel10k, Oh My Zsh, terminal customization]
+---
+
+## Install Zsh
+
+```bash
+sudo apt update && sudo apt install -y zsh
+```
+
+## Install Oh My Zsh
+
+```bash
+sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
+```
+
+## Install Powerlevel10k
+
+```bash
+git clone --depth=1 https://github.com/romkatv/powerlevel10k.git ${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/themes/powerlevel10k
+```
+
+## Set theme in .zshrc
+
+```bash
+sed -i 's/ZSH_THEME=".\*"/ZSH_THEME="powerlevel10k\/powerlevel10k"/' ~/.zshrc
+```
+
+## Change default shell to Zsh
+
+```bash
+chsh -s $(which zsh)
+```
+
+## Run setup wizard
+
+```bash
+exec zsh
+```
+
+## Edit config Zsh to view dot files
+
+```bash
+nano ~/.zshrc
+# Add the following line at the end of the file
+
+setopt globdots
+
+```

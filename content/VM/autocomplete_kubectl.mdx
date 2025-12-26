@@ -1,0 +1,24 @@
+---
+title: "Kubectl Autocomplete"
+description: "Enable kubectl command-line autocompletion for enhanced productivity."
+keywords:  [kubectl, autocomplete, command-line, productivity]
+---
+
+### bash
+```bash copy
+echo 'source <(kubectl completion bash)' >> ~/.bashrc
+echo 'alias k=kubectl' >> ~/.bashrc
+echo 'complete -o default -F __start_kubectl k' >> ~/.bashrc
+```
+
+
+### zsh
+
+```bash copy
+autoload -Uz compinit
+compinit
+source <(kubectl completion zsh)
+alias k=kubectl
+compdef __start_kubectl k
+```
+

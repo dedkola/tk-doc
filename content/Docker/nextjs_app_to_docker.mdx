@@ -1,0 +1,104 @@
+---
+title: Docker build image with Node.js app
+description: Build Docker image with Node.js app using Dockerfile and docker-compose.yaml
+tags: [docker, nodejs, nextjs, dockerfile, docker-compose]
+---
+
+Welcome! This guide will walk you through building and running a Next.js app inside a Docker container. Whether you're new to Docker or just want a quick reference, you'll find step-by-step instructions and explanations below.
+
+You can find all the example files [here](https://github.com/dedkola/salsa/tree/main/Docker/nextjs_to_docker_container).
+
+---
+
+## Step 1: Define Services with Docker Compose
+
+The `docker-compose.yaml` file helps you manage multi-container Docker applications. Here, we define a single service for our Next.js app.
+
+```yaml copy
+version: "3"
+services:
+  nextjs:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "5000:3000"
+    environment:
+      - NODE_ENV=production
+```
+
+---
+
+## Step 2: Create a Dockerfile
+
+The `Dockerfile` contains instructions for building your app image. It sets up Node.js, clones your project, installs dependencies, and prepares the app for production.
+
+```docker copy
+FROM node:20-bullseye
+WORKDIR /app
+RUN apt update && apt install git
+RUN apt update && apt install -y git && rm -rf /var/lib/apt/lists/*
+
+RUN rm -rf /app/* && if [ ! -d "/app/.git" ]; then git clone https://github.com/dedkola/nextjs-docs.git /app; else cd /app && git pull; fi
+
+RUN npm install
+RUN npm run build
+EXPOSE 3000
+CMD ["npm", "start"]
+```
+
+---
+
+## Step 3: Build the Docker Image
+
+Use the following command to build your Docker image. The `--no-cache` flag ensures a fresh build every time.
+
+```bash copy
+docker build -t nextjs:latest . --no-cache
+```
+
+---
+
+## Step 4: Run Your App in a Container
+
+Start your container and map port 5000 on your machine to port 3000 in the container. This lets you access your app at `localhost:5000`.
+
+```bash copy
+docker run -p 5000:3000 -d nextjs
+```
+
+---
+
+## Step 5: Tag Your Image
+
+Tagging helps you organize and version your images, especially before pushing to a registry like Docker Hub.
+
+docker tag image_name:tag username/repo:repo_tag
+
+```bash copy
+docker tag nextjs:latest your-username/nextjs:latest
+```
+
+---
+
+## Step 6: Push to Docker Hub
+
+Share your image with others by pushing it to Docker Hub.
+
+```bash copy
+docker push your-username/nextjs:latest
+```
+
+---
+
+## Step 7: Pull and Use the Image
+
+Anyone can pull your image and run the container using the following reference:
+
+```bash copy
+dedkola/nextjs:latest
+```
+
+---
+
+Feel free to experiment and modify these files for your own projects. Docker makes it easy to package and share your applications!

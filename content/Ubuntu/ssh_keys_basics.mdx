@@ -1,0 +1,44 @@
+---
+title: Basic usage of SSH keys import, export, and generate
+description: Basic usage of SSH keys  export, and generate
+tags: [ssh, keys, import, export, generate]
+---
+
+# Basic usage of SSH keys import, export, and generate
+
+## Create SSH keys
+
+```bash copy
+ssh-keygen -t rsa -b 4096 -C "laptop@vlan1"
+```
+
+# Export public key to remote server
+
+```bash copy
+cat ~/.ssh/id_rsa.pub | ssh user@192.168.0.13 'cat >> .ssh/authorized_keys'
+```
+
+## Other troubleshooting
+
+### Allow Password authentication
+
+```bash copy
+sudo nano /etc/ssh/sshd_config
+PasswordAuthentication yes
+sudo systemctl restart ssh
+```
+or
+```bash copy
+PermitRootLogin yes
+```
+
+### Install ssh server
+
+```bash copy
+sudo apt install openssh-server
+```
+
+### Re-generate SSH keys or complete missing keys
+```bash copy
+sudo ssh-keygen -A
+```

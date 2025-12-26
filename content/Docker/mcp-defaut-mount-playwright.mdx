@@ -1,0 +1,96 @@
+---
+title: "Modifying MCP Gateway to Use Playwright with Custom Directory"
+description:
+  "A guide to modifying the MCP Gateway to use the Playwright server with a custom
+  directory for persistent storage."
+tags:
+  - Docker
+  - MCP Gateway
+  - Playwright
+  - Containers
+  - Mounting
+---
+
+To modify the MCP Gateway to use the Playwright server with a custom directory (e.g., mounting a persistent directory), you need to update the MCP catalog and configure the Playwright server entry:
+
+### Export the Current MCP Catalog
+
+Export the official MCP catalog to a local YAML file for editing:
+
+    ```bash
+     docker mcp catalog show docker-mcp --format yaml > docker-mcp.yaml
+    ```
+
+### Modify the Playwright Server Entry
+
+Open the docker-mcp.yaml file in a text editor and locate the Playwright server entry. It will look something like this:
+
+```yaml
+- name: playwright
+  image: mcp/server-playwright:latest
+  description: "Playwright server for browser automation"
+```
+
+Add a volumes section to mount a persistent directory. For example:
+
+```yaml
+- name: playwright
+  image: mcp/server-playwright:latest
+  description: "Playwright server for browser automation"
+  volumes:
+    - /path/to/your/local/directory:/app
+```
+
+Replace /path/to/your/local/directory with the path to your desired persistent directory.
+
+### Mount Playwright screenshots Directory
+
+```bash
+    volumes:
+      - /path/to/your/local/directory:/tmp
+```
+
+### Import the Modified Catalog
+
+After editing the catalog, import it back into the MCP Gateway:
+
+```bash
+docker mcp catalog import docker-mcp.yaml
+
+```
+
+### Enable the Playwright Server
+
+Enable the Playwright server in the MCP Gateway:
+
+```bash
+     docker mcp server enable playwright
+```
+
+### Verify the Configuration
+
+List the enabled servers to ensure the Playwright server is active:
+
+```bash
+docker mcp server list
+```
+
+### Logging
+
+```bash
+docker mcp gateway run --verbose --log-calls
+```
+
+
+
+
+
+### Sources:
+
+• https://www.docker.com/blog/build-custom-mcp-catalog/
+
+• https://github.com/docker/mcp-gateway/blob/main/docs/catalog.md
+
+```
+
+```

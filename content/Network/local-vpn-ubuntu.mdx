@@ -1,0 +1,83 @@
+---
+title: Local VM Ubuntu with Proton VPN gateway
+description: Local VM Ubuntu with Proton VPN gateway
+tags: [ubuntu, vpn, protonvpn]
+---
+
+### IP forward
+
+
+```bash copy
+sudo sysctl -w net.ipv4.ip_forward=1
+sudo nano /etc/sysctl.conf
+net.ipv4.ip_forward=1
+```
+
+### Iptables
+
+```bash copy
+sudo iptables -t nat -A POSTROUTING -o tun0 -j MASQUERADE
+```
+
+```bash copy
+sudo apt install iptables-persistent
+sudo service netfilter-persistent save
+sudo ufw allow in on tun0 from any to any
+sudo ufw allow out on tun0 from any to any
+```
+
+### Ubuntu server
+By default all ports are closed.
+Open it
+
+```bash copy
+sudo iptables -P INPUT ACCEPT
+sudo iptables -P OUTPUT ACCEPT
+sudo iptables -P FORWARD ACCEPT
+sudo iptables-save > /etc/iptables/rules.v4
+```
+
+```bash copy
+sudo ufw disable
+sudo ufw default allow incoming
+sudo ufw default allow outgoing
+sudo ufw enable
+```
+
+
+### OpenVPN
+
+```bash
+sudo apt install openvpn 
+sudo apt install openresolv
+sudo wget "https://raw.githubusercontent.com/ProtonVPN/scripts/master/update-resolv-conf.sh" -O "/etc/openvpn/update-resolv-conf"
+sudo chmod +x "/etc/openvpn/update-resolv-conf"
+```
+
+### OpenVPN config
+
+```bash
+sudo mv /path/to/your/file.ovpn /etc/openvpn/client.conf
+sudo systemctl enable openvpn-client@client.service
+sudo systemctl start openvpn-client@client.service
+sudo systemctl status openvpn-client@client.service
+```
+
+Then, modify the .ovpn file (/etc/openvpn/client.conf) to include this line:
+
+```bash
+sudo nano /etc/openvpn/credentials.txt
+```
+
+```
+auth-user-pass /etc/openvpn/credentials.txt
+```
+
+
+
+### Test
+
+```bash
+ curl ip.me
+```
+

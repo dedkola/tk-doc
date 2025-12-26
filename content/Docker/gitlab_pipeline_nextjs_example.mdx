@@ -1,0 +1,56 @@
+---
+title: GitLab Pipeline Next.js Example
+description: GitLab CI/CD pipeline example for Next.js
+tags: [gitlab, gitlab-ci, nextjs, pipeline, ci]
+---
+
+### Example GitLab CI/CD pipeline for Next.js
+
+This is a ready-to-use GitLab CI configuration for a typical Next.js project. The YAML block below is left unchanged — it shows a basic workflow with an installation step, a build step and a parallel job. Read the short notes after the example to understand each section and adapt it to your project.
+
+```yaml
+image: node:latest
+
+stages:
+  - install
+  - build
+  - parallel
+
+cache:
+  key: ${CI_COMMIT_REF_SLUG}
+  paths:
+    - node_modules/
+
+install-deps:
+  stage: install
+  script:
+    - npm install
+
+build-site:
+  stage: build
+  script:
+    - npm run build
+  dependencies:
+    - install-deps
+  artifacts:
+    paths:
+      - .next/
+      - out/ # include if you're using `next export`
+    expire_in: 1 hour
+
+parallel-job:
+  stage: parallel
+  script:
+    - echo "I'm running at the same time as build-site!"
+```
+
+Notes:
+
+- image: The base Node image used for jobs; change the tag to match your Node.js version.
+- stages: Defines the pipeline stages order (install → build → parallel).
+- cache: Speeds up npm installs by persisting node_modules between runs.
+- install-deps: Installs project dependencies (runs npm install).
+- build-site: Runs the Next.js build (npm run build), saves .next/ and out/ as artifacts for later jobs.
+- parallel-job: Example of a job that runs in the same pipeline stage as others (demonstrates parallelism).
+
+Adapt the scripts, artifacts and cache to fit your repository layout and CI goals. Keep the YAML block above unchanged when copying into .gitlab-ci.yml.

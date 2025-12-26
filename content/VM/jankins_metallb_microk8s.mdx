@@ -1,0 +1,43 @@
+---
+title: Install Jenkins Helm on Microk8s Metallb
+description: Install Jenkins Helm on Microk8s Metallb
+tags: [jenkins, helm, microk8s, metallb, k8s, ubuntu]
+---
+
+### Enable Metallb
+
+```bash copy
+microk8s enable metallb
+```
+Full installation with modules go here -> [MicroK8s install with Helm and OneDev](/docs/vm/microk8s_helm_onedev)
+
+### Install helm
+```bash copy
+sudo snap install helm --classic
+```
+
+### Install Jenkins
+```bash copy
+helm repo add jenkins https://charts.jenkins.io
+helm repo update
+```
+
+### Deploy Jenkins
+
+```bash copy
+helm install jenkins jenkins/jenkins --namespace jenkins --create-namespace --set controller.serviceType=LoadBalancer
+
+```
+
+### Get IP
+
+```bash copy
+kubectl get services -n jenkins
+```
+
+### Get password
+
+```bash copy
+printf $(kubectl get secret --namespace jenkins jenkins -o jsonpath="{.data.jenkins-admin-password}" | base64 --decode);echo
+
+```

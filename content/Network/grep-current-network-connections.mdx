@@ -1,0 +1,15 @@
+---
+title: Grep connects by netstat
+description: Grep current network connections by netstat
+tags: [network, grep, netstat]
+---
+
+```bash copy
+netstat -ant | grep tcp | tr -s ' ' ' ' | awk '{print $6}' | sort | uniq -c
+```
+
+### Connections by protocol
+
+```bash copy
+netstat -an | grep -E 'tcp|udp' | tr -s ' ' ' ' | awk '{print $1}' | sort | uniq -c
+```

@@ -1,0 +1,25 @@
+---
+title: Basic Bash monitoring tools
+description: Basic Bash monitoring tools
+tags: [network, monitoring, bash]
+---
+
+```bash copy
+# Check active connections and socket states
+ss -ant
+ss -s
+netstat -tapn | wc -l
+
+# Monitor network bandwidth
+iftop -i eth0
+
+# Capture packets for inspection
+tcpdump -i eth0 -n -c 100
+
+# View kernel logs for network errors
+dmesg | grep TCP
+
+# View connection and error metrics
+cat /proc/net/snmp
+cat /proc/net/netstat
+```

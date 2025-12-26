@@ -1,0 +1,29 @@
+---
+title: Docker HomeAssistant on Windows install
+description: Home Assistant from Docker Desktop is not supported to open port 8123. Easy fix to expose port from CLI.
+tags: [docker, homeassistant, windows, cli]
+---
+
+## Problem explained
+
+On Windows [Home Assistant](https://www.home-assistant.io/) Docker Desktop starts without open port 8123
+
+### Quick checklist (what to do)
+
+1. Stop and remove any existing Home Assistant container:
+   - `docker stop homeassistant && docker rm homeassistant`
+2. Run the container from the CLI (use the command shown below). Running from CLI ensures Docker applies the `-p 8123:8123` mapping correctly.
+3. Verify the container is running with `docker ps` and open http://localhost:8123 in your browser.
+4. If the site is unreachable:
+   - Ensure Windows Firewall allows inbound TCP on port 8123 (or temporarily disable to test).
+   - Run the CLI as Administrator if you see permission errors binding ports.
+   - If using WSL2 and localhost forward doesn't work, add a port proxy on Windows:
+     `netsh interface portproxy add v4tov4 listenaddress=0.0.0.0 listenport=8123 connectaddress=<WSL_IP> connectport=8123`
+     (replace `<WSL_IP>` with the IP reported by `ip addr` inside WSL.)
+5. The command in the section below already maps the config directory and sets timezone. Verify the host path `C:\homeassistant` exists and has appropriate permissions.
+
+### Expose port from CLI
+
+```bash copy
+docker run -d -p 8123:8123 --privileged --volume "C:\homeassistant:/config" --name homeassistant -e "TZ=Europe/Paris" ghcr.io/home-assistant/home-assistant:stable
+```

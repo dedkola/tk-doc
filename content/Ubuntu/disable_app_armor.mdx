@@ -1,0 +1,18 @@
+---
+title: Disable APP Armor in Ubuntu
+description: Disable app_armor on Ubuntu 24.04.01 also works with older releases
+tags: [ubuntu, app_armor, disable]
+---
+
+## Disable app_armor
+
+```bash copy
+sudo nano /etc/default/grub
+GRUB_CMDLINE_LINUX="apparmor=0"
+sudo update-grub
+```
+## Check is AA enabled?
+
+```bash copy
+aa-enabled
+```

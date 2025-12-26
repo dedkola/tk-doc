@@ -1,0 +1,22 @@
+---
+title: Delete posts in WordPress DB to light up the database
+description: Delete posts in WordPress DB to light up the database
+tags: [wordpress, mysql, database, shrink]
+---
+
+Delete posts in WordPress DB except 100 first and last 100
+
+```sql
+DELETE FROM wp_posts
+WHERE ID NOT IN (
+    SELECT ID FROM (
+        -- Retain the first 100 rows
+        SELECT ID FROM wp_posts ORDER BY ID ASC LIMIT 100
+    ) AS first_100
+    UNION
+    SELECT ID FROM (
+        -- Retain the last 100 rows
+        SELECT ID FROM wp_posts ORDER BY ID DESC LIMIT 100
+    ) AS last_100
+);
+```

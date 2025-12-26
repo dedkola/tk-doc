@@ -1,0 +1,99 @@
+---
+title: Black Screen Of Death (BSOD) on AMD/NVIDIA Hybrid Graphics Fedora Systems
+description: Troubleshooting Black Screen Of Death (BSOD) issues on Fedora systems with AMD/NVIDIA hybrid graphics.
+tags:
+  - Fedora
+  - Troubleshooting
+  - Graphics
+  - AMD
+  - NVIDIA
+  - Hybrid Graphics
+  - BSOD
+  - Black Screen Of Death
+  - Linux
+---
+
+If you are experiencing a **Black Screen Of Death (BSOD)** on your Fedora system with AMD/NVIDIA hybrid graphics, don't worry—this is a common issue and can often be resolved with a few simple steps. The problem is usually caused by conflicts between the open-source `nouveau` driver and proprietary NVIDIA drivers.
+
+Follow these steps to troubleshoot and potentially fix the issue:
+
+### Edit GRUB to Disable Nouveau Driver
+
+**Reboot your system.**
+
+**Access the GRUB menu:**  
+ When your computer starts, you will see the GRUB boot menu. Use the arrow keys to highlight the Fedora entry.
+
+**Edit the boot parameters:**  
+ Press `e` to edit the selected Fedora entry. This will allow you to temporarily change the boot options for this session.
+
+**Locate the Linux line:**  
+ Find the line that starts with `linux`. This line contains the kernel parameters.
+
+**Append the following parameters at the end of the line:**  
+ These parameters will disable the problematic `nouveau` driver and prevent it from loading, which can help resolve the black screen issue.
+
+```bash
+rd.driver.blacklist=nouveau modprobe.blacklist=nouveau nomodeset
+```
+
+**Boot with the new parameters:**  
+ After adding the parameters, press `Ctrl + X` or `F10` to boot with these settings.
+
+---
+
+**Note:**  
+This change is temporary and only applies to the current boot. If this resolves your issue, you may want to make these changes permanent by editing your GRUB configuration file (`/etc/default/grub`) and regenerating the GRUB config.
+
+### Install NVIDIA Drivers
+
+Once you have successfully booted into your Fedora system, you should install the proprietary NVIDIA drivers to ensure proper functionality of your hybrid graphics setup.
+You can install the NVIDIA drivers using the following commands:
+
+```bash
+sudo dnf install akmod-nvidia xorg-x11-drv-nvidia-cuda
+
+```
+
+### Enable NVIDIA Dynamic Power Management
+
+```bash
+sudo nano /etc/modprobe.d/nvidia-power-management.conf
+```
+
+```bash
+options nvidia NVreg_DynamicPowerManagement=0x02
+```
+
+### Make the changes permanent
+
+**Open the GRUB configuration file for editing:**
+
+```bash
+sudo nano /etc/default/grub
+```
+
+**Find the line starting with `GRUB_CMDLINE_LINUX`:**  
+ It will look something like this:
+
+```bash
+GRUB_CMDLINE_LINUX="rhgb quiet"
+```
+
+**Add the parameters to the line:**  
+ Modify it to include the parameters you added earlier:
+
+```bash
+GRUB_CMDLINE_LINUX="rhgb quiet rd.driver.blacklist=nouveau modprobe.blacklist=nouveau nomodeset"
+```
+
+**Save the file and exit the editor.**
+**Regenerate the GRUB configuration:**  
+ Run the following command to update the GRUB configuration:
+
+```bash
+sudo grub2-mkconfig -o /boot/grub2/grub.cfg
+```
+
+**Reboot your system:**  
+ Restart your computer to apply the changes.

@@ -1,0 +1,72 @@
+---
+title: Install Nginx on microK8s with Metallb using Kubernetes Deployment
+description: Install Nginx on microK8s with Metallb using Kubernetes Deployment
+tags: [nginx, metallb, microk8s, k8s, ubuntu, container]
+---
+
+### Deploy Nginx container on microK8s
+Create file `nginx-deployment.yaml` with the following content:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:latest
+        ports:
+        - containerPort: 80
+```
+### Apply deployment
+```bash copy
+microk8s kubectl apply -f nginx-deployment.yaml
+```
+### Check deployment
+```bash copy
+microk8s kubectl get pods
+```
+
+### Expose the Deployment Using MetalLB
+Create file `nginx-service.yaml` with the following content:
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-service
+spec:
+  selector:
+    app: nginx
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 80
+  type: LoadBalancer
+```
+### Apply the Service:
+
+```bash copy
+microk8s kubectl apply -f nginx-service.yaml
+```
+### Check service and external IP
+```bash copy
+microk8s kubectl get service nginx-service
+```
+### Check cluster health
+
+```bash
+microk8s inspect
+```
+
+
+

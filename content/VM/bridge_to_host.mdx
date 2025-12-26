@@ -1,0 +1,33 @@
+---
+title: Bridge to Host Network in VM
+description: How to add a bridge to host network in virtual machines using libvirt and virt-manager.
+tags: ['bridge', 'host', 'network', 'vm', 'libvirt', 'virt-manager']
+---
+
+### Create a Bridge Network
+
+```bash copy
+
+# Delete existing br0 (clean start)
+sudo nmcli connection delete br0 || true
+
+# Delete existing standalone enp114s0 connection
+sudo nmcli connection delete enp114s0 || true
+
+# Create a new bridge named br0
+sudo nmcli connection add type bridge ifname br0 con-name br0
+
+# Add your physical interface to the bridge
+sudo nmcli connection add type ethernet ifname enp114s0 master br0 con-name enp114s0
+
+# Configure the bridge to get IP via DHCP from your router
+sudo nmcli connection modify br0 ipv4.method auto ipv6.method ignore
+
+# Make sure both auto-connect
+sudo nmcli connection modify br0 connection.autoconnect yes
+sudo nmcli connection modify enp114s0 connection.autoconnect yes
+
+# Bring it up
+sudo nmcli connection up br0
+sudo nmcli connection up enp114s0
+```

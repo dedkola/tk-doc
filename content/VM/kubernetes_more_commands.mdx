@@ -1,0 +1,84 @@
+---
+title: Microk8s Kubernetes More Commands for mostly debugging and troubleshooting
+description: Kubernetes More Commands for mostly debugging and troubleshooting
+tags: [kubernetes, troubleshooting, logs, debugging, kubectl, microk8s, minikube]
+---
+
+### Get Kubernetes API
+Ensure the Pod CIDR is consistent across the cluster. Check the API server flags
+
+```bash
+cat /var/snap/microk8s/current/args/kube-apiserver
+```
+
+
+### Check the CoreDNS configuration
+
+```bash
+microk8s kubectl describe configmap -n kube-system coredns
+```
+
+### Check if the CNI is working
+
+```bash
+microk8s kubectl get pods -n kube-system
+```
+
+### Debug CrashLoopBackOff Pods
+
+```bash
+microk8s kubectl describe pod -n kube-system coredns-7896dbf49-87b67
+```
+
+### Refresh Certificates
+
+```bash
+sudo microk8s refresh-certs --cert server.crt
+```
+
+Available certificate options:
+'server.crt': refreshes the server certificate
+'front-proxy-client.crt': refreshes the front proxy client certificate
+'ca.crt': refreshes the root CA and all certificates created from it.
+Warning: refreshing the root CA requires nodes to leave and re-join the cluster
+
+### Inspect cluster
+
+```bash
+microk8s inspect
+```
+
+### Print config
+
+```bash
+sudo microk8s kubectl config view --raw
+```
+### Check logs cluster agent
+
+```bash
+journalctl -u snap.microk8s.daemon-cluster-agent
+```
+### Get all Pods info
+
+```bash
+microk8s kubectl get pods -A -o wide
+```
+
+
+## Monitoring
+
+### Enabling the Metrics Server in MicroK8s
+
+```bash
+microk8s enable metrics-server
+```
+### Check nodes usage
+
+```bash
+microk8s kubectl top nodes
+```
+### Check pods usage
+
+```bash
+microk8s kubectl top pods -A
+```

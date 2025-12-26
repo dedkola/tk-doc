@@ -1,0 +1,43 @@
+---
+title: Update to NextJs 15 slug params
+description: This document explains the update to NextJs 15 slug params and addresses the issues related to unresolved variables `fs` and `path`.
+tags: [nextjs, slug, params, update]
+---
+
+Function like this
+
+```typescript copy
+export default async function Docs({
+  params,
+}: {
+  params: { docSlug: string };
+}) {
+  const content = await fs.readFile(
+    path.join(process.cwd(), "src/docs", `${params.docSlug}.mdx`),
+    "utf-8"
+  );
+}
+```
+
+On using slug params got error
+
+```bash copy
+
+Type error: Type '{ params: { docSlug: string; }; }' does not satisfy the constraint 'PageProps'. Types of property 'params' are incompatible.
+```
+
+### Easy fix based on upgrade guide https://nextjs.org/docs/app/building-your-application/upgrading/version-15#async-request-apis-breaking-change
+
+```typescript copy
+export default async function Docs({
+  params,
+}: {
+  params: Promise<{ docSlug: string }>;
+}) {
+  const { docSlug } = await params;
+  const content = await fs.readFile(
+    path.join(process.cwd(), "src/docs", `${docSlug}.mdx`),
+    "utf-8"
+  );
+}
+```

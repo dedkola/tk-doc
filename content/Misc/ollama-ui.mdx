@@ -1,0 +1,34 @@
+---
+title: Ollama installed on Linux with WebUI
+description: Guide to installing Ollama on Linux with a web user interface.
+tags:
+  - ollama
+  - linux
+  - webui
+  - ubuntu
+  - fedora
+  - llm
+  - ai
+---
+
+### Install Ollama
+
+```bash
+curl -fsSL https://ollama.com/install.sh | sh
+```
+
+### Start Ollama service
+
+```bash
+sudo systemctl start ollama
+sudo systemctl enable ollama
+```
+
+### Install Ollama WebUI
+
+```bash
+docker run -d --name open-webui \
+  -p 3000:8080 \
+  -v open-webui:/app/backend/data \
+  --add-host=host.docker.internal:host-gateway \
+  ghcr.io/open-webui/open-webui:main

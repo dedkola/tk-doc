@@ -1,0 +1,93 @@
+---
+title: Open standart ports on Ubuntu Server
+description: Open standart ports on Ubuntu Server
+tags: [ubuntu, server, ports, ufw]
+---
+
+```bash copy
+sudo ufw enable
+
+sudo ufw allow 80
+sudo ufw allow 443
+sudo ufw allow 22
+#ntp
+sudo ufw allow 123
+#DNS
+sudo ufw allow 5353
+sudo ufw allow 53
+#postgresql
+sudo ufw allow 5432
+#mysql
+sudo ufw allow 3306
+```
+
+### Allow MongoDB (port 27017)
+
+```bash copy
+sudo ufw allow 27017
+```
+
+### Allow Email Ports
+
+```bash copy
+sudo ufw allow 25
+sudo ufw allow 143
+sudo ufw allow 993
+sudo ufw allow 110
+sudo ufw allow 995
+```
+
+### Reload UFW
+
+```bash copy
+sudo ufw reload
+```
+
+### Check UFW status to confirm rules
+
+```bash copy
+sudo ufw status
+```
+
+### Enable Logging for Monitoring
+
+```bash copy
+sudo ufw logging on
+```
+
+### Unify Network Server ports
+
+```bash copy
+
+# Allow UniFi Controller HTTP and HTTPS ports
+sudo ufw allow 8080    # Device communication
+sudo ufw allow 8443    # UniFi controller management interface (HTTPS)
+
+# Allow UniFi Discovery
+sudo ufw allow 10001   # Device discovery on the network
+
+# Allow MongoDB (UniFi Database)
+sudo ufw allow 27017   # Default MongoDB port for UniFi services
+
+# Allow UniFi Video / Protect ports
+sudo ufw allow 7443    # Web interface for UniFi Protect
+sudo ufw allow 554     # Camera streaming (RTSP)
+sudo ufw allow 8000    # Camera streaming
+sudo ufw allow 7444    # Camera streaming
+
+# Allow SNMP (for monitoring purposes)
+sudo ufw allow 161     # SNMP monitoring
+
+# Allow UniFi Talk (VoIP - SIP and RTP)
+sudo ufw allow 5060    # SIP (Session Initiation Protocol) for voice
+sudo ufw allow 5061    # Secure SIP (SIP over TLS)
+sudo ufw allow 16384:32767/udp  # RTP (Real-Time Protocol) for voice streaming
+sudo ufw allow 3478
+sudo ufw allow 5514
+sudo ufw allow 6789
+sudo ufw allow 27117
+sudo ufw allow 5656:5699/udp
+sudo ufw allow 1900
+sudo ufw allow 7550
+sudo ufw allow 7442
+```

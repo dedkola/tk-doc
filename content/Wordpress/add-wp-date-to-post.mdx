@@ -1,0 +1,34 @@
+---
+title: WordPress RSS date time
+description: Add date time to WordPress RSS feed
+tags: [wordpress, rss, date, time]
+---
+
+The first example shows how to format the last build date of an RSS feed
+using the post's creation date in RFC 2822 format (required by RSS specification).
+
+```php copy
+<lastBuildDate>
+    <?php echo mysql2date(' r', $post->post_date, false); ?>
+</lastBuildDate>
+```
+
+The second example demonstrates formatting individual post publication dates
+with a specific timezone offset (+0300) and custom date format for RSS pubDate elements.
+
+```php copy
+<pubDate>
+    <?php echo mysql2date( 'D, d M Y H:i:s +0300',
+    get_post_time( 'Y-m-d H:i:s', true ), false ); ?>
+</pubDate>
+```
+
+Key Functions Used:
+
+- mysql2date(): Converts MySQL datetime to specified format
+- get_post_time(): Retrieves post time in specified format
+
+Format Specifications:
+
+- 'r' format: RFC 2822 formatted date (e.g., "Thu, 21 Dec 2000 16:01:07 +0200")
+- 'D, d M Y H:i:s +0300': Custom format with timezone offset

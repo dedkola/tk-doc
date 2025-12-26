@@ -1,0 +1,18 @@
+---
+title: Add specific rooms/areas to Home Assistant for vacuum cleaner
+description: Add specific rooms or areas to Home Assistant for your vacuum cleaner
+tags: [homeassistant, vacuum, deebot, ecovacs]
+---
+
+### Add Script to Home Assistant
+
+HA UI -> Settings -> Automation & Scenes -> Scripts -> Create New Script ->
+Add action -> Perform action -> Action = Vacuum:send_command -> Targets = Entity: vaccum:deebot -> Command = clean -> Parameters =
+
+```yaml copy
+act: start
+content: "4"
+type: spotArea
+```
+
+content "var" - based on Deebot attributes = room IDs.

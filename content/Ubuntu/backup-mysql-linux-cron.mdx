@@ -1,0 +1,75 @@
+---
+title: Backup MySQL Databases on Linux using Cron
+description: A guide on how to set up automated backups for MySQL databases on a Linux server using cron jobs.
+tags:
+  - MySQL
+  - Backup
+  - Linux
+  - Cron
+  - bash
+  - cron
+---
+
+## Create bash script for backup
+
+
+
+```bash
+
+#!/bin/bash
+
+BACKUP_DIR="/root/mysql-backup"
+DATE=$(date +"%Y-%m-%d_%H-%M")
+
+# Get list of databases (skip system DBs)
+DATABASES=$(mysql --defaults-file=/root/.my.cnf -e "SHOW DATABASES;" | grep -Ev "Database|information_schema|performance_schema|mysql|sys")
+
+# Create backup directory if missing
+mkdir -p "$BACKUP_DIR"
+
+for DB in $DATABASES; do
+    FILE="$BACKUP_DIR/${DB}-${DATE}.sql"
+
+    echo "Backing up $DB ..."
+
+    mysqldump --defaults-file=/root/.my.cnf \
+        --single-transaction \
+        --quick \
+        --routines \
+        "$DB" > "$FILE"
+
+    gzip "$FILE"
+done
+
+# Optional: remove backups older than 7 days
+find "$BACKUP_DIR" -type f -name "*.gz" -mtime +7 -delete
+```
+
+## Create MySQL credentials file
+
+```bash
+cat <<EOF > /root/.my.cnf
+[client]
+user=your_mysql_username
+password=your_mysql_password
+EOF
+chmod 600 /root/.my.cnf
+```
+
+## Make the backup script executable
+
+```bash
+chmod +x /root/mysql-backup.sh
+```
+## Set up cron job for automated backups
+
+```bash
+crontab -e
+0 20 * * * /root/mysql-backup.sh
+```
+
+## Download backups
+
+```bash
+0 20 * * * rsync -avz -e ssh root@IP-HOST:/root/mysql-backup /mnt/c/backup2025/sql
+```

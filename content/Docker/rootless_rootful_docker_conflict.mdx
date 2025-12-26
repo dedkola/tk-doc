@@ -1,0 +1,38 @@
+---
+title: Fix rootless and rootful Docker conflict Portainer install on Linux
+description: Fix rootless and rootful Docker conflict Portainer install on Linux
+tags: [docker, rootless, rootful, conflict, portainer, linux]
+---
+
+If you are running Docker in both rootless and rootful modes on your Linux system, you might encounter conflicts when trying to install Portainer. This guide will help you run Portainer using the rootless Docker socket, ensuring it works smoothly without interfering with your rootful Docker setup.
+
+## Step 1: Find your rootless Docker socket
+
+Docker running in rootless mode uses a different socket location. To find it, run:
+
+```bash
+echo $XDG_RUNTIME_DIR/docker.sock
+```
+
+This command will print the path to your rootless Docker socket. You will need this path to correctly mount the socket for Portainer.
+
+## Step 2: Restart Portainer with the correct socket
+
+To run Portainer using the rootless Docker socket, use the following command. This ensures Portainer communicates with your rootless Docker instance:
+
+```bash
+docker run -d \
+  -p 8000:8000 \
+  -p 9443:9443 \
+  --name=portainer \
+  --restart=always \
+  -v $XDG_RUNTIME_DIR/docker.sock:/var/run/docker.sock \
+  -v portainer_data:/data \
+  portainer/portainer-ce:2.21.5
+```
+
+This command starts Portainer in detached mode, maps the necessary ports, and mounts the rootless Docker socket and persistent data volume.
+
+---
+
+By following these steps, you can avoid conflicts between rootless and rootful Docker installations and ensure Portainer works as expected on your Linux system.

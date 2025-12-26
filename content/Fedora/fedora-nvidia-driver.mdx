@@ -1,0 +1,56 @@
+---
+title: Install NVIDIA Driver on Fedora
+description: A step-by-step guide to installing the NVIDIA proprietary driver on Fedora systems.
+tags:
+  - Fedora
+  - NVIDIA
+  - Driver Installation
+  - Graphics
+  - Linux
+---
+
+
+### Enable RPM Fusion Repositories
+
+```bash
+sudo dnf install \
+https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm \
+https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm
+```
+### Update System
+
+```bash
+sudo dnf update -y
+```
+
+
+### Install NVIDIA Driver
+
+```bash
+sudo dnf install akmod-nvidia xorg-x11-drv-nvidia-cuda
+```
+### Install  NVIDIA VA-API Driver
+
+```bash
+sudo dnf install nvidia-vaapi-driver
+```
+
+Then build the kernel modules:
+
+```bash 
+sudo akmods --force
+sudo dracut --force
+```
+
+## Enable NVIDIA Dynamic Power Management
+
+
+```bash
+sudo nano /etc/modprobe.d/nvidia-power-management.conf
+```
+
+with
+```bash 
+options nvidia NVreg_DynamicPowerManagement=0x02
+```
+Save and reboot

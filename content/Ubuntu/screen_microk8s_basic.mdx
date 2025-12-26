@@ -1,0 +1,28 @@
+---
+title: Usinng Screen with MicroK8s dashboard proxy example
+description: Usinng Screen with MicroK8s dashboard proxy example with basic commands
+tags: [screen, microk8s, k8s, ubuntu, dashboard]
+---
+
+
+### Create screen session
+
+```bash copy
+screen -S dashboard-proxy
+```
+
+### Detach from screen session
+
+```bash copy
+# Press Ctrl+A and then press D
+```
+### Attach to screen session
+
+```bash copy
+screen -r dashboard-proxy
+```
+### Delete screen session
+
+```bash copy
+screen -X -S dashboard-proxy quit
+```

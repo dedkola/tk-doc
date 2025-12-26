@@ -1,0 +1,60 @@
+---
+title: K3s add node
+description: Instructions on how to add a node to a K3s cluster.
+keywords: [k3s, add node, cluster, instructions]
+---
+
+This guide walks you through adding a new agent node to an existing K3s cluster. You'll need access to both the master node and the new agent node.
+
+## Prerequisites
+
+- An existing K3s cluster with at least one master/server node
+- Root or sudo access on both the master and agent nodes
+- Network connectivity between the nodes on port 6443
+
+## Step 1: Get the Node Token
+
+On your **K3s master/server node**, retrieve the cluster token that will authenticate the new agent:
+
+```bash copy
+sudo cat /var/lib/rancher/k3s/server/node-token
+```
+
+This command displays the secure token required for agent nodes to join the cluster. Copy this token - you'll need it in the next step.
+
+## Step 2: Add the Agent Node
+
+On your **new agent node**, run the following command to install K3s and join the cluster:
+
+```bash copy
+curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION=v1.26.7+k3s1 INSTALL_K3S_EXEC="agent --server https://192.168.3.2:6443 --node-ip 192.168.3.3 --node-external-ip 192.168.3.3" K3S_TOKEN=K105b9c68df80752c8f9d498097b764a35f9ba2c0220b2ea8951cef3aca111d9f33::server:2855bde078f38f3964f3f36e6e37dfbb K3S_NODE_NAME=agent sh -
+```
+
+### Important: Customize These Values
+
+Before running the command, replace the following values with your own:
+
+- **`INSTALL_K3S_VERSION`**: Specify the K3s version (use `v1.26.7+k3s1` or match your master node version)
+- **`--server https://192.168.3.2:6443`**: Replace `192.168.3.2` with your master node's IP address
+- **`--node-ip 192.168.3.3`**: Replace `192.168.3.3` with this agent node's IP address
+- **`--node-external-ip 192.168.3.3`**: Replace with this agent node's external-facing IP (usually the same as node-ip)
+- **`K3S_TOKEN`**: Replace with the token from Step 1
+- **`K3S_NODE_NAME`**: Choose a descriptive name for this agent node
+
+### What This Command Does
+
+1. Downloads the K3s installation script
+2. Installs K3s in agent mode (not as a server)
+3. Configures the agent to connect to your master node
+4. Registers the node with your specified name and IP addresses
+5. Automatically starts the K3s agent service
+
+## Verify the Node Joined
+
+Back on your **master node**, verify the new agent appears in the cluster:
+
+```bash
+kubectl get nodes
+```
+
+You should see your new agent node listed with a "Ready" status after a few moments.

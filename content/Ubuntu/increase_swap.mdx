@@ -1,0 +1,22 @@
+---
+title: Icrease Swap in Ubuntu
+description: How to increase swap in Ubuntu
+tags: [ubuntu, swap]
+---
+
+### Setup Swap File
+```bash
+sudo swapoff -a
+sudo fallocate -l 40G /swapfile
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+```
+
+
+### Write it to permanent storage
+
+```bash
+sudo nano /etc/fstab
+/swapfile none swap sw 0 0
+```

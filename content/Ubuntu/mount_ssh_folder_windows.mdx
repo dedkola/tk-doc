@@ -1,0 +1,21 @@
+---
+title: Mount SSH folder on Windows
+description: Mount SSH folder on Windows
+tags: [ssh, windows, mount, folder, ubuntu]
+---
+
+### Install SSHFS
+
+```bash
+winget install SSHFS-Win.SSHFS-Win
+```
+
+### Mount folder
+
+```bash
+net use Z: \\sshfs\user@host\path
+
+# or
+
+\\sshfs\usr@192.168.0.167
+```

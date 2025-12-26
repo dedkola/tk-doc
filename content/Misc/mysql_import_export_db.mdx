@@ -1,0 +1,17 @@
+---
+title: Mysql Import/Export Database
+description: How to import and export a MySQL database using the command line.
+tags: [mysql, database, import, export]
+---
+
+
+### Dump a MySQL database to file
+```bash copy
+mysqldump -u username -p database_name > data-dump.sql
+```
+
+### Import a MySQL database from file
+```bash copy
+mysql -u username -p new_database < data-dump.sql
+```
+

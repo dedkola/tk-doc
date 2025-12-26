@@ -1,0 +1,29 @@
+---
+title: Fedora VM Server. Best Proxmox and VMware Setup
+description: VM server based on Fedora 42 server edition. No need Proxmox or VMware ESXi.
+tags: ['fedora', 'vm', 'server', 'kvm', 'libvirt', 'virt-manager', 'proxmox', 'vmware', 'podman', 'cockpit', 'virtualization', 'containers']
+---
+
+
+### Setup Fedora VM Server  
+
+```bash copy
+sudo dnf install @virtualization
+sudo systemctl enable --now libvirtd
+```
+
+
+### Tools
+
+```bash copy
+sudo dnf install cockpit cockpit-machines
+sudo systemctl enable --now cockpit.socket
+```
+
+### Podman container
+
+```bash copy
+sudo dnf install podman
+podman machine init
+podman machine start
+```

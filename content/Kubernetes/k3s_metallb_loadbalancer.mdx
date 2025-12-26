@@ -1,0 +1,283 @@
+---
+title: K3s with LoadBalancer MetalLB
+description: K3s with LoadBalancer MetalLB setup
+tags:
+  [k3s, kubernetes, lightweight, distribution, layer2, metallb, loadbalancer]
+---
+
+## Introduction
+
+MetalLB is a load-balancer implementation for bare metal Kubernetes clusters. It provides a network load-balancer implementation that integrates with standard network equipment, allowing services of type `LoadBalancer` to work in environments that don't have cloud provider integration.
+
+This guide walks you through setting up MetalLB with K3s using Layer 2 mode, which is the simplest configuration and works in most environments.
+
+## Prerequisites
+
+- K3s cluster installed and running
+- kubectl configured to communicate with your cluster
+- A range of available IP addresses on your local network
+
+### Fix permissions after install
+
+After installing K3s, you need to make the kubeconfig file readable so kubectl can access it:
+
+```bash
+# Make the K3s config file readable by the current user
+sudo chmod 644 /etc/rancher/k3s/k3s.yaml
+```
+
+## Installing MetalLB
+
+### Install MetalLB by manifest
+
+MetalLB can be installed using a single manifest file. Always check the [official MetalLB documentation](https://metallb.universe.tf/installation/) for the latest version.
+
+```bash
+# Apply the MetalLB manifest to install all necessary components
+kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.14.9/config/manifests/metallb-native.yaml
+```
+
+This command installs:
+
+- MetalLB controller (manages IP address assignments)
+- MetalLB speaker (announces IP addresses on your network)
+- Necessary CRDs (Custom Resource Definitions)
+
+Wait for MetalLB pods to be ready:
+
+```bash
+# Check if MetalLB pods are running
+kubectl get pods -n metallb-system
+```
+
+## Configuring MetalLB
+
+### Create IP Address Pool and Layer 2 Advertisement
+
+MetalLB needs two pieces of configuration:
+
+1. **IPAddressPool**: Defines the range of IP addresses MetalLB can assign to LoadBalancer services
+2. **L2Advertisement**: Tells MetalLB to announce these IPs using Layer 2 (ARP/NDP)
+
+#### Step 1: Create the IP Address Pool
+
+Create a file defining the IP address range that MetalLB will use:
+
+```bash
+# Create the IPAddressPool configuration file
+nano ipaddresspool.yaml
+```
+
+Add the following content (adjust the IP range to match your network):
+
+```yaml
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: first-pool
+  namespace: metallb-system
+spec:
+  addresses:
+    # Define the range of IPs MetalLB can assign
+    # Make sure these IPs are available and not used by DHCP
+    - 10.11.0.100-10.11.0.130
+```
+
+> **Important**: Choose IP addresses that are:
+>
+> - On the same subnet as your Kubernetes nodes
+> - Outside your DHCP server's range to avoid conflicts
+> - Not already in use by other devices
+
+#### Step 2: Create the Layer 2 Advertisement
+
+Create a file to configure Layer 2 mode:
+
+```bash
+# Create the L2Advertisement configuration file
+nano layer2.yaml
+```
+
+Add the following content:
+
+```yaml
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata:
+  name: example
+  namespace: metallb-system
+# This tells MetalLB to announce IPs from all pools using Layer 2 (ARP)
+# No additional spec needed for basic Layer 2 configuration
+```
+
+### Apply configuration
+
+Now apply both configuration files to your cluster:
+
+```bash
+# Apply the IP address pool configuration
+kubectl apply -f ipaddresspool.yaml
+
+# Apply the Layer 2 advertisement configuration
+kubectl apply -f layer2.yaml
+```
+
+Verify the configuration was applied successfully:
+
+```bash
+# Check IPAddressPool
+kubectl get ipaddresspool -n metallb-system
+
+# Check L2Advertisement
+kubectl get l2advertisement -n metallb-system
+```
+
+## Testing MetalLB
+
+To test if MetalLB is working correctly, create a simple LoadBalancer service:
+
+```bash
+# Create a test deployment and service
+kubectl create deployment nginx --image=nginx
+kubectl expose deployment nginx --port=80 --type=LoadBalancer
+```
+
+Check if an external IP was assigned:
+
+```bash
+# Watch for the EXTERNAL-IP to be assigned (may take a few seconds)
+kubectl get svc nginx
+```
+
+You should see an IP address from your configured range (e.g., `10.11.0.100`) in the `EXTERNAL-IP` column. You can then access the service using that IP address from any device on your network.
+
+## Troubleshooting
+
+If MetalLB is not assigning IPs:
+
+1. **Check MetalLB pods are running**:
+
+   ```bash
+   kubectl get pods -n metallb-system
+   ```
+
+2. **Check MetalLB logs**:
+
+   ```bash
+   kubectl logs -n metallb-system -l app=metallb
+   ```
+
+3. **Verify your IP range doesn't conflict** with existing network devices
+4. **Ensure Layer 2 connectivity** between your nodes and the network
+
+## Next Steps
+
+Now that you have MetalLB running in Layer 2 mode, you can explore more advanced features to optimize your load balancing setup:
+
+### Configure Multiple IP Pools for Different Services
+
+You can create multiple IP address pools to segregate services or organize them by environment (production, staging, development). This is useful when you want:
+
+- **Different IP ranges for different types of services** (e.g., public-facing services in one range, internal services in another)
+- **Resource isolation** between teams or projects
+- **Better network organization** for easier troubleshooting and monitoring
+
+**Example: Creating a second IP pool**
+
+```yaml
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: production-pool
+  namespace: metallb-system
+spec:
+  addresses:
+    - 10.11.0.200-10.11.0.220
+---
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: development-pool
+  namespace: metallb-system
+spec:
+  addresses:
+    - 10.11.0.221-10.11.0.240
+```
+
+Services will automatically use IPs from the first available pool unless you specify otherwise using pool selectors (see below).
+
+### Set Up BGP Mode for More Advanced Networking Scenarios
+
+BGP (Border Gateway Protocol) mode is a more sophisticated alternative to Layer 2 mode. It's recommended for production environments and offers several advantages:
+
+**Benefits of BGP mode:**
+
+- **Better scalability**: Doesn't rely on ARP/NDP announcements
+- **No single point of failure**: Multiple routers can announce the same IP
+- **True load balancing**: Traffic can be distributed across multiple nodes
+- **Works across subnets**: Not limited to Layer 2 network segments
+
+**When to use BGP mode:**
+
+- Production environments with proper network infrastructure
+- Networks with BGP-capable routers (most enterprise routers support BGP)
+- Multi-datacenter or multi-subnet deployments
+- When you need high availability without relying on ARP
+
+**Note**: BGP mode requires coordination with your network team to configure BGP peering between MetalLB and your network routers. See the [official MetalLB BGP documentation](https://metallb.universe.tf/configuration/#bgp-configuration) for detailed setup instructions.
+
+### Add IP Pool Selectors to Control Which Services Use Which Pools
+
+Pool selectors allow you to explicitly assign services to specific IP pools using labels or annotations. This gives you fine-grained control over IP allocation.
+
+**Use cases for pool selectors:**
+
+- Ensure production services always use production IP ranges
+- Route public-facing services through specific IPs with proper firewall rules
+- Separate services by department or project
+
+**Example: Using pool selectors with service annotations**
+
+First, update your IPAddressPool to require a selector:
+
+```yaml
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: production-pool
+  namespace: metallb-system
+spec:
+  addresses:
+    - 10.11.0.200-10.11.0.220
+  # Only assign IPs to services with matching label
+  autoAssign: false
+---
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata:
+  name: production-l2
+  namespace: metallb-system
+spec:
+  ipAddressPools:
+    - production-pool
+```
+
+Then, when creating a service, specify which pool to use:
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: production-app
+  annotations:
+    metallb.universe.tf/address-pool: production-pool
+spec:
+  type: LoadBalancer
+  ports:
+    - port: 80
+      targetPort: 8080
+  selector:
+    app: production-app
+```
+
+This ensures your service gets an IP from the designated pool, providing better organization and preventing accidental IP allocation from the wrong range.

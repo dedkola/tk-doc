@@ -1,0 +1,18 @@
+---
+title: Resize disk on existing Unraid VM Linux
+description: How to resize disk on existing Unraid VM Linux
+tags: [unraid, vm, linux, resize, disk, ubuntu]
+---
+
+You need manually resize LVM partition on Unraid VM Linux.
+
+```bash
+sudo vgdisplay
+sudo lvextend -l +100%FREE /dev/ubuntu-vg/ubuntu-lv
+sudo lvdisplay
+df -T /
+## for ext4
+sudo resize2fs /dev/ubuntu-vg/ubuntu-lv
+##
+df -h /
+```

@@ -1,0 +1,42 @@
+---
+title: MySQL Database Import
+description: Quick large MySQL database import
+tags: [mysql, import, large, database]
+---
+
+### For quick large MySQL database import use:
+
+Manual mode by copy paste in terminal.
+
+### Start of file
+
+```bash copy
+sed -i '1s/^/SET autocommit = 0;\n/' dump.sql
+```
+
+### End of file
+
+```bash copy
+echo 'COMMIT;' >> dump.sql
+```
+
+### Or create bash script to run the above commands.
+
+```bash copy
+#!/bin/bash
+# Check if filename is provided as argument
+if [ $# -eq 0 ]; then
+    echo "Usage: $0 <filename>"
+    exit 1
+fi
+
+filename=$1
+
+# Add 'SET autocommit = 0;' at the beginning of the file
+sed -i '1s/^/SET autocommit = 0;\n/' "$filename"
+
+# Append 'echo 'COMMIT;' to the end of the file
+echo 'COMMIT;' >> "$filename"
+
+echo "Now import it. quickly :)"
+```

@@ -1,0 +1,27 @@
+---
+title: Proxy DOT. Dns over Tls Cloudlfare with Unbound
+description: Proxy DOT. Dns over Tls Cloudlfare with Unbound
+tags: [dns, unbound, cloudflare, tls]
+---
+
+
+**Unbound** config /etc/unbound/unbound.conf.d/my.conf
+
+```bash copy
+server:
+    use-syslog: yes
+    logfile: "/var/log/unbound.log"
+    verbosity: 2
+    username: "nobody"
+    interface: 0.0.0.0
+    access-control: 0.0.0.0/0 allow
+    prefetch: yes
+forward-zone:
+    name: .
+    forward-tls-upstream: yes
+    tls-cert-bundle: "/etc/ssl/certs/ca-certificates.crt"
+    forward-addr: 1.1.1.1@853#cloudflare-dns.com
+    forward-addr: 1.0.0.1@853#cloudflare-dns.com
+```
+
+

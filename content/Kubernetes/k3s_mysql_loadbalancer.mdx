@@ -1,0 +1,78 @@
+---
+title: Deploy Mysql with LoadBalancer MetalLb in K3s
+description: Deploy Mysql with LoadBalancer MetalLb in K3s
+tags: [k3s, mysql, loadbalancer, metallb, kubernetes]
+---
+
+### Deploy Mysql container
+
+```bash
+nano mysql.yaml
+```
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mysql
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      containers:
+      - name: mysql
+        image: mysql:latest
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          value: "123"
+        ports:
+        - containerPort: 3306
+```
+
+### Expose Mysql to LAN
+```bash
+kubectl expose deploy mysql --port 3306 --target-port 3306 --type LoadBalancer
+```
+### Or get all in one
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mysql
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      containers:
+      - name: mysql
+        image: mysql:latest
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          value: "123"
+        ports:
+        - containerPort: 3306
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql
+spec:
+  type: LoadBalancer
+  selector:
+    app: mysql
+  ports:
+  - port: 3306
+    targetPort: 3306
+```

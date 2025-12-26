@@ -1,0 +1,55 @@
+---
+title: WSL basic CLI commands
+description: WSL basic CLI commands
+tags: [wsl, windows, linux]
+---
+
+List of installed VMs
+
+```bash copy
+wsl -l -v
+```
+
+List of all online distro
+
+```bash copy
+wsl -l -o
+wsl --list --online
+```
+
+List of installed VMs
+
+```bash copy
+wsl --list --verbose
+```
+
+Attach to specific instance
+
+```bash copy
+wsl -d InstanceName
+```
+
+To set default distro for wsl
+
+```bash copy
+wsl --set-default <Distribution Name>
+wsl --install -d Ubuntu-22.04
+```
+
+Delete wsl instance
+
+```bash copy
+wsl --unregister <DistributionName>
+```
+
+WSL status
+
+```bash copy
+wsl --status
+```
+
+Attach disk to wsl
+
+```bash copy
+wsl --mount <DiskPath>
+```

@@ -1,0 +1,20 @@
+---
+title: Change GRUB boot order in Ubuntu
+description: Change the default boot order of the GRUB menu in Ubuntu
+tags: [ubuntu, grub, boot, order]
+---
+
+# Change GRUB boot order in Ubuntu
+
+With Ubuntu, you can change the boot order of the GRUB menu. This is useful if you have multiple operating systems installed on your computer and you want to change the default boot order.
+In my case **Windows 11** and **Ubuntu 24.04.01**, the default boot order is set to Windows 11. If you want to change the default boot order to Ubuntu, you can follow these steps.
+
+## Change GRUB boot order
+
+```bash copy
+sudo nano /etc/default/grub
+GRUB_DEFAULT=4
+sudo update-grub
+```
+
+windows set as line 4 so change it to 0 for Ubuntu.

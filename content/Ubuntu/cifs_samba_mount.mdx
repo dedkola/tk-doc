@@ -1,0 +1,16 @@
+---
+title: Mount Samba share on Ubuntu using CIFS
+description: Mount Samba share on Ubuntu using CIFS
+tags: [samba, cifs, ubuntu, smb]
+---
+
+Mount Samba share on Ubuntu using CIFS
+```bash
+mkdir /mnt/samba
+sudo mount -t cifs //192.168.0.5/sataDrive /mnt/samba -o username=usr,password=123
+```
+### Make it permanent
+```bash
+sudo nano /etc/fstab
+//192.168.0.5/sataDrive /mnt/samba cifs username=usr,password=123,uid=1000,gid=1000,rw,iocharset=utf8,vers=3.0 0 0
+```
