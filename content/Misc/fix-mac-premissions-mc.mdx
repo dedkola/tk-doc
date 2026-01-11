@@ -1,0 +1,22 @@
+---
+title: Fix permissions on Mac for Midnight Commander install by Brew
+description: A quick guide to fix permissions issues on Mac when installing Midnight Commander via Homebrew.
+tags: [Mac, Homebrew, Midnight Commander, Permissions]
+---
+
+### Install Midnight Commander via Homebrew 
+
+```bash copy
+brew install midnight-commander
+```
+
+### Fix Permissions Issues
+
+```bash copy
+
+sudo chown -R $(whoami) /Users/$(whoami)/.local
+sudo chown -R $(whoami) /Users/$(whoami)/.cache
+sudo chown -R $(whoami) /Users/$(whoami)/.config
+
+```
+
