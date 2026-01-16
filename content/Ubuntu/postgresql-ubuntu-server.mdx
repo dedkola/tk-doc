@@ -1,0 +1,683 @@
+---
+title: Install PostgreSQL on Ubuntu server
+description: Install PostgreSQL on Ubuntu server
+tags: [ubuntu, postgresql]
+---
+
+
+# Install PostgreSQL on Ubuntu server
+
+PostgreSQL is a powerful, open-source object-relational database management system (ORDBMS) that uses and extends the SQL language. It's known for its reliability, data integrity, and robust feature set including ACID compliance, complex queries, foreign keys, triggers, updatable views, transactional integrity, and multiversion concurrency control (MVCC).
+
+## System Requirements
+
+Before installation, ensure your Ubuntu server meets these minimum requirements:
+- **Disk Space**: At least 100 MB for basic installation, plus space for your databases
+- **RAM**: Minimum 256 MB, recommended 1 GB or more for production workloads
+- **CPU**: Any modern processor; performance scales with cores for concurrent queries
+- **Supported Ubuntu Versions**: 18.04 LTS, 20.04 LTS, 22.04 LTS, 24.04 LTS
+
+
+```bash copy
+sudo apt update
+sudo apt install postgresql postgresql-client
+```
+
+This command installs:
+- **postgresql**: The core database server package
+- **postgresql-client**: Command-line client tools for interacting with PostgreSQL
+- **postgresql-contrib**: Additional utilities and extensions (automatically included as dependency)
+
+The installation process automatically:
+1. Creates a `postgres` system user and group
+2. Initializes a database cluster in `/var/lib/postgresql/<version>/main/`
+3. Starts the PostgreSQL service
+4. Enables the service to start on boot
+
+### Verify Installation and Service Status
+
+Check if PostgreSQL service is running:
+
+```bash copy
+sudo systemctl status postgresql
+```
+
+View PostgreSQL service logs for troubleshooting:
+
+```bash copy
+sudo journalctl -u postgresql -n 50 --no-pager
+```
+
+### Check PostgreSQL version
+
+```bash  copy
+
+psql --version
+```
+
+You can also check the server version while connected:
+
+```bash copy
+sudo -u postgres psql -c "SELECT version();"
+```
+
+## Configure PostgreSQL for Remote Access
+
+By default, PostgreSQL only accepts connections from localhost for security reasons. To enable remote access, you need to modify two configuration files.
+
+### Understanding postgresql.conf
+
+The `postgresql.conf` file contains server-wide configuration parameters. Key sections include:
+- **Connection Settings**: Network interfaces, port, max connections
+- **Resource Usage**: Memory, disk, kernel resources
+- **Write-Ahead Log**: WAL settings for durability and replication
+- **Query Tuning**: Planner and execution parameters
+
+```bash copy
+
+sudo nano /etc/postgresql/14/main/postgresql.conf #check version folder
+listen_addresses = '*'
+```
+
+**Important Configuration Parameters to Consider:**
+
+```bash copy
+# Connection Settings
+listen_addresses = '*'          # Listen on all network interfaces
+port = 5432                      # Default PostgreSQL port
+max_connections = 100            # Maximum concurrent connections
+
+# Memory Settings (adjust based on available RAM)
+shared_buffers = 256MB          # RAM used for caching data
+effective_cache_size = 1GB      # Estimate of OS + PostgreSQL cache
+work_mem = 4MB                  # Memory per query operation
+maintenance_work_mem = 64MB     # Memory for maintenance operations
+
+# Write-Ahead Log
+wal_level = replica             # Minimal, replica, or logical
+max_wal_size = 1GB             # Maximum WAL size before checkpoint
+```
+
+After editing, restart PostgreSQL to apply changes.
+
+### Understanding pg_hba.conf (Host-Based Authentication)
+
+The `pg_hba.conf` file controls client authentication. Each line specifies:
+- **Connection Type**: `local` (Unix socket), `host` (TCP/IP), `hostssl` (SSL/TLS only)
+- **Database**: Which database(s) the rule applies to
+- **User**: Which user(s) can connect
+- **Address**: IP address or CIDR range (for TCP/IP connections)
+- **Authentication Method**: How to authenticate (trust, md5, scram-sha-256, peer, etc.)
+
+**Authentication Methods Explained:**
+- `peer`: Uses OS username (local connections only)
+- `md5`: MD5-hashed password (legacy, less secure)
+- `scram-sha-256`: Modern password authentication (recommended)
+- `trust`: No authentication (dangerous, use only for testing)
+- `reject`: Always reject connection
+
+### Create template
+
+```bash copy
+sudo -u postgres psql template1
+ALTER USER postgres with encrypted password 'password';
+
+sudo nano /etc/postgresql/14/main/pg_hba.conf
+#add line with LAN subnet
+hostssl template1       postgres        0.0.0.0/0        scram-sha-256
+#or
+#allow all to all
+host    all             all             0.0.0.0/0               md5
+```
+
+**Security Best Practices for pg_hba.conf:**
+
+Instead of allowing all IPs (`0.0.0.0/0`), restrict access to specific networks:
+
+```bash copy
+# Allow from specific IP
+host    all             all             192.168.1.100/32        scram-sha-256
+
+# Allow from subnet (e.g., local network)
+host    all             all             192.168.1.0/24          scram-sha-256
+
+# Require SSL for remote connections
+hostssl all             all             0.0.0.0/0               scram-sha-256
+
+# Local connections use peer authentication
+local   all             postgres                                peer
+```
+
+The order of rules matters - PostgreSQL uses the first matching rule. Place more specific rules before general ones.
+
+```bash  copy
+sudo systemctl restart postgresql
+```
+
+### Configure Firewall
+
+If using UFW (Uncomplicated Firewall), allow PostgreSQL traffic:
+
+```bash copy
+sudo ufw allow 5432/tcp
+sudo ufw status
+```
+
+For more specific access control:
+
+```bash copy
+# Allow from specific IP
+sudo ufw allow from 192.168.1.100 to any port 5432
+
+# Allow from subnet
+sudo ufw allow from 192.168.1.0/24 to any port 5432
+```
+
+### Check connection to db
+
+```bash copy
+
+psql --host 10.0.0.144 --username postgres --password --dbname template1
+```
+
+Alternative connection string formats:
+
+```bash copy
+# Using connection URI
+psql postgresql://postgres:password@10.0.0.144:5432/template1
+
+# Using environment variables
+export PGHOST=10.0.0.144
+export PGUSER=postgres
+export PGDATABASE=template1
+psql
+
+# Test connection without interactive shell
+psql -h 10.0.0.144 -U postgres -d template1 -c "SELECT current_database(), current_user;"
+```
+
+### Connection Troubleshooting
+
+If connection fails, check these common issues:
+
+**1. Service not running:**
+```bash copy
+sudo systemctl status postgresql
+sudo systemctl start postgresql
+```
+
+**2. Port not listening:**
+```bash copy
+sudo ss -tunlp | grep 5432
+# Should show: LISTEN 0.0.0.0:5432
+```
+
+**3. Firewall blocking:**
+```bash copy
+sudo ufw status
+sudo iptables -L -n | grep 5432
+```
+
+**4. Check PostgreSQL logs:**
+```bash copy
+sudo tail -f /var/log/postgresql/postgresql-14-main.log
+```
+
+### Create new database with user
+
+```bash copy
+
+sudo -u postgres psql
+CREATE DATABASE db;
+CREATE USER usr WITH ENCRYPTED PASSWORD '123';
+GRANT ALL PRIVILEGES ON DATABASE db TO usr;
+```
+
+## Database and User Management
+
+### Understanding PostgreSQL Roles and Privileges
+
+PostgreSQL uses "roles" for authentication. A role can be a user or a group. Key attributes:
+- **LOGIN**: Role can connect to database
+- **SUPERUSER**: Bypass all permission checks
+- **CREATEDB**: Can create databases
+- **CREATEROLE**: Can create other roles
+- **REPLICATION**: Can initiate streaming replication
+
+### Advanced User Creation Examples
+
+Create user with specific privileges:
+
+```bash copy
+# User with database creation privilege
+CREATE USER developer WITH ENCRYPTED PASSWORD 'dev_pass' CREATEDB;
+
+# User with limited connection
+CREATE USER readonly WITH ENCRYPTED PASSWORD 'read_pass' CONNECTION LIMIT 5;
+
+# User with expiration date
+CREATE USER temp_user WITH ENCRYPTED PASSWORD 'temp_pass' VALID UNTIL '2026-12-31';
+
+# Create role (group) and add users to it
+CREATE ROLE app_users;
+GRANT CONNECT ON DATABASE db TO app_users;
+GRANT app_users TO usr;
+```
+
+### Grant Specific Schema Privileges
+
+For better security, grant privileges at schema and table levels:
+
+```bash copy
+# Connect to the database
+\c db
+
+# Grant schema usage
+GRANT USAGE ON SCHEMA public TO usr;
+
+# Grant SELECT on all existing tables
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO usr;
+
+# Grant SELECT on all future tables
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO usr;
+
+# Grant specific privileges on specific table
+GRANT SELECT, INSERT, UPDATE ON specific_table TO usr;
+
+# Grant all privileges on schema
+GRANT ALL PRIVILEGES ON SCHEMA public TO usr;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO usr;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO usr;
+```
+
+### Database Management Commands
+
+Useful commands for database administration:
+
+```bash copy
+# List all databases
+\l
+# or
+SELECT datname FROM pg_database;
+
+# List all users/roles
+\du
+# or
+SELECT rolname, rolsuper, rolcreatedb, rolcanlogin FROM pg_roles;
+
+# Check database size
+SELECT pg_database.datname, pg_size_pretty(pg_database_size(pg_database.datname)) 
+FROM pg_database ORDER BY pg_database_size(pg_database.datname) DESC;
+
+# Check table sizes in current database
+SELECT schemaname, tablename, 
+       pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) AS size
+FROM pg_tables 
+ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
+
+# Show active connections
+SELECT pid, usename, application_name, client_addr, state, query_start 
+FROM pg_stat_activity 
+WHERE state = 'active';
+
+# Kill a connection
+SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE pid = 12345;
+```
+
+## Backup and Restore
+
+### Backup Strategies
+
+**1. Logical Backup with pg_dump:**
+
+```bash copy
+# Backup single database
+pg_dump -h localhost -U postgres -d db -F c -f /backup/db_backup.dump
+
+# Backup with compression
+pg_dump -h localhost -U postgres -d db -F c -Z 9 -f /backup/db_compressed.dump
+
+# Backup as SQL script
+pg_dump -h localhost -U postgres -d db -f /backup/db_backup.sql
+
+# Backup specific tables
+pg_dump -h localhost -U postgres -d db -t table1 -t table2 -f /backup/tables.sql
+
+# Backup all databases
+pg_dumpall -h localhost -U postgres -f /backup/all_databases.sql
+
+# Backup only schema (no data)
+pg_dump -h localhost -U postgres -d db --schema-only -f /backup/schema.sql
+
+# Backup only data (no schema)
+pg_dump -h localhost -U postgres -d db --data-only -f /backup/data.sql
+```
+
+**2. Physical Backup with pg_basebackup:**
+
+```bash copy
+# Create base backup for PITR (Point-in-Time Recovery)
+pg_basebackup -h localhost -U postgres -D /backup/base -F tar -z -P
+```
+
+### Restore Operations
+
+```bash copy
+# Restore from custom format dump
+pg_restore -h localhost -U postgres -d db -c /backup/db_backup.dump
+
+# Restore from SQL script
+psql -h localhost -U postgres -d db -f /backup/db_backup.sql
+
+# Restore all databases
+psql -h localhost -U postgres -f /backup/all_databases.sql
+
+# Restore with verbose output and error handling
+pg_restore -h localhost -U postgres -d db -v --single-transaction /backup/db_backup.dump
+```
+
+### Automated Backup Script
+
+Create a daily backup script:
+
+```bash copy
+# Create backup script
+sudo nano /usr/local/bin/postgres_backup.sh
+```
+
+Add the following content:
+
+```bash
+#!/bin/bash
+BACKUP_DIR="/backup/postgresql"
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+DAYS_TO_KEEP=7
+
+mkdir -p $BACKUP_DIR
+
+# Backup all databases
+pg_dumpall -U postgres | gzip > $BACKUP_DIR/all_databases_$TIMESTAMP.sql.gz
+
+# Remove old backups
+find $BACKUP_DIR -name "all_databases_*.sql.gz" -mtime +$DAYS_TO_KEEP -delete
+
+# Log completion
+echo "$(date): Backup completed successfully" >> /var/log/postgres_backup.log
+```
+
+Make it executable and schedule:
+
+```bash copy
+sudo chmod +x /usr/local/bin/postgres_backup.sh
+
+# Add to crontab (runs daily at 2 AM)
+sudo crontab -e
+# Add line:
+0 2 * * * /usr/local/bin/postgres_backup.sh
+```
+
+## Performance Tuning
+
+### Memory Configuration
+
+Adjust based on available system RAM:
+
+```bash copy
+# For system with 4GB RAM
+shared_buffers = 1GB                    # 25% of RAM
+effective_cache_size = 3GB              # 75% of RAM
+maintenance_work_mem = 256MB            # For VACUUM, CREATE INDEX
+work_mem = 10MB                         # Per operation
+
+# For system with 16GB RAM
+shared_buffers = 4GB
+effective_cache_size = 12GB
+maintenance_work_mem = 1GB
+work_mem = 20MB
+```
+
+### Connection Pool Configuration
+
+```bash copy
+max_connections = 100                    # Maximum concurrent connections
+superuser_reserved_connections = 3       # Reserved for superuser
+
+# Consider using connection pooler (PgBouncer) for high-traffic applications
+```
+
+### Query Performance Monitoring
+
+```bash copy
+# Enable slow query logging
+log_min_duration_statement = 1000        # Log queries taking > 1 second
+
+# Show query execution time
+\timing on
+
+# Analyze query performance
+EXPLAIN ANALYZE SELECT * FROM large_table WHERE id = 12345;
+
+# Find slow queries
+SELECT query, calls, total_time, mean_time, max_time
+FROM pg_stat_statements
+ORDER BY mean_time DESC
+LIMIT 10;
+```
+
+### Vacuum and Analyze
+
+Regular maintenance is crucial for performance:
+
+```bash copy
+# Manual vacuum
+VACUUM VERBOSE tablename;
+
+# Aggressive vacuum to reclaim space
+VACUUM FULL tablename;
+
+# Analyze table statistics for query planner
+ANALYZE tablename;
+
+# Vacuum and analyze together
+VACUUM ANALYZE tablename;
+
+# Enable autovacuum (should be enabled by default)
+autovacuum = on
+autovacuum_max_workers = 3
+autovacuum_naptime = 1min
+```
+
+## Security Hardening
+
+### SSL/TLS Configuration
+
+Enable encrypted connections:
+
+```bash copy
+# Generate self-signed certificate (for testing)
+sudo openssl req -new -x509 -days 365 -nodes -text -out /etc/postgresql/14/main/server.crt -keyout /etc/postgresql/14/main/server.key -subj "/CN=postgresql"
+
+sudo chown postgres:postgres /etc/postgresql/14/main/server.{crt,key}
+sudo chmod 600 /etc/postgresql/14/main/server.key
+
+# Enable SSL in postgresql.conf
+ssl = on
+ssl_cert_file = '/etc/postgresql/14/main/server.crt'
+ssl_key_file = '/etc/postgresql/14/main/server.key'
+
+# Require SSL in pg_hba.conf
+hostssl all all 0.0.0.0/0 scram-sha-256
+```
+
+### Password Policies
+
+```bash copy
+# Set password encryption
+password_encryption = scram-sha-256
+
+# Enforce strong passwords (install pgcrypto extension)
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+# Check password strength before setting
+SELECT password_hash = crypt('newpassword', gen_salt('bf'));
+```
+
+### Audit Logging
+
+```bash copy
+# Enable comprehensive logging
+log_connections = on
+log_disconnections = on
+log_duration = on
+log_line_prefix = '%t [%p]: user=%u,db=%d,app=%a,client=%h '
+log_statement = 'all'                    # Log all statements (verbose)
+# or
+log_statement = 'ddl'                    # Log only DDL statements
+```
+
+## Extensions and Additional Features
+
+### Commonly Used Extensions
+
+```bash copy
+# Connect to database
+sudo -u postgres psql -d db
+
+# Install popular extensions
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";      # UUID generation
+CREATE EXTENSION IF NOT EXISTS "pg_trgm";        # Trigram text search
+CREATE EXTENSION IF NOT EXISTS "hstore";         # Key-value store
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";       # Cryptographic functions
+CREATE EXTENSION IF NOT EXISTS "pg_stat_statements"; # Query statistics
+
+# List installed extensions
+\dx
+
+# Get extension details
+\dx+ pg_trgm
+```
+
+### Full-Text Search Example
+
+```bash copy
+# Create table with full-text search
+CREATE TABLE articles (
+    id SERIAL PRIMARY KEY,
+    title TEXT,
+    body TEXT,
+    search_vector tsvector
+);
+
+# Create index for fast searching
+CREATE INDEX idx_fts ON articles USING gin(search_vector);
+
+# Update search vector automatically
+CREATE TRIGGER tsvector_update BEFORE INSERT OR UPDATE ON articles
+FOR EACH ROW EXECUTE FUNCTION
+tsvector_update_trigger(search_vector, 'pg_catalog.english', title, body);
+
+# Search example
+SELECT title FROM articles WHERE search_vector @@ to_tsquery('postgresql & database');
+```
+
+## Monitoring and Maintenance
+
+### System Catalog Queries
+
+```bash copy
+# Check database activity
+SELECT * FROM pg_stat_activity;
+
+# Check table statistics
+SELECT * FROM pg_stat_user_tables;
+
+# Check index usage
+SELECT schemaname, tablename, indexname, idx_scan
+FROM pg_stat_user_indexes
+ORDER BY idx_scan ASC;
+
+# Find unused indexes
+SELECT schemaname, tablename, indexname
+FROM pg_stat_user_indexes
+WHERE idx_scan = 0 AND indexname NOT LIKE 'pg_toast%';
+
+# Check cache hit ratio (should be > 90%)
+SELECT 
+    sum(heap_blks_hit) / nullif(sum(heap_blks_hit) + sum(heap_blks_read), 0) AS cache_hit_ratio
+FROM pg_statio_user_tables;
+```
+
+### Health Check Script
+
+```bash copy
+# Create health check script
+cat > /usr/local/bin/pg_health_check.sh << 'EOF'
+#!/bin/bash
+echo "=== PostgreSQL Health Check ==="
+echo "Service Status:"
+systemctl status postgresql --no-pager | grep Active
+
+echo -e "\nDisk Usage:"
+df -h /var/lib/postgresql
+
+echo -e "\nDatabase Sizes:"
+sudo -u postgres psql -c "SELECT datname, pg_size_pretty(pg_database_size(datname)) FROM pg_database ORDER BY pg_database_size(datname) DESC;"
+
+echo -e "\nActive Connections:"
+sudo -u postgres psql -c "SELECT count(*) FROM pg_stat_activity WHERE state = 'active';"
+
+echo -e "\nCache Hit Ratio:"
+sudo -u postgres psql -c "SELECT sum(heap_blks_hit) / nullif(sum(heap_blks_hit) + sum(heap_blks_read), 0) AS cache_hit_ratio FROM pg_statio_user_tables;"
+EOF
+
+chmod +x /usr/local/bin/pg_health_check.sh
+```
+
+## Common Operations Reference
+
+### Quick Command Reference
+
+```bash copy
+# Start/Stop/Restart service
+sudo systemctl start postgresql
+sudo systemctl stop postgresql
+sudo systemctl restart postgresql
+sudo systemctl reload postgresql      # Reload config without restart
+
+# Check PostgreSQL process
+ps aux | grep postgres
+
+# Connect as postgres user
+sudo -i -u postgres
+psql
+
+# Execute SQL from command line
+psql -U postgres -d db -c "SELECT version();"
+
+# Import CSV data
+\copy tablename FROM '/path/to/file.csv' DELIMITER ',' CSV HEADER;
+
+# Export to CSV
+\copy (SELECT * FROM tablename) TO '/path/to/output.csv' WITH CSV HEADER;
+
+# Change database owner
+ALTER DATABASE db OWNER TO new_owner;
+
+# Rename database
+ALTER DATABASE old_name RENAME TO new_name;
+
+# Drop database (with active connections)
+SELECT pg_terminate_backend(pg_stat_activity.pid)
+FROM pg_stat_activity
+WHERE pg_stat_activity.datname = 'db' AND pid <> pg_backend_pid();
+DROP DATABASE db;
+```
+
+## Resources and Further Reading
+
+- **Official Documentation**: https://www.postgresql.org/docs/
+- **PostgreSQL Wiki**: https://wiki.postgresql.org/
+- **Performance Tuning**: PGTune (https://pgtune.leopard.in.ua/)
+- **Monitoring Tools**: pgAdmin, pgBadger, pg_stat_statements
+- **Connection Pooling**: PgBouncer, pgpool-II
+

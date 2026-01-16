@@ -1,16 +1,231 @@
 ---
-title: Mount Samba share on Ubuntu using CIFS
-description: Mount Samba share on Ubuntu using CIFS
-tags: [samba, cifs, ubuntu, smb]
+title: How to Mount Samba Share on Ubuntu using CIFS Protocol - Complete Guide
+description: Learn how to mount Samba/SMB network shares on Ubuntu using CIFS protocol. Step-by-step guide with permanent mounting, security options, and troubleshooting tips for Linux system administrators.
+tags: [samba, cifs, ubuntu, smb, network share, linux mount, fstab, file sharing, smb protocol]
+keywords: mount samba ubuntu, cifs mount linux, smb share ubuntu, network drive linux, fstab samba, persistent mount ubuntu
 ---
 
-Mount Samba share on Ubuntu using CIFS
+# Mount Samba Share on Ubuntu using CIFS Protocol
+
+This guide demonstrates how to mount Samba (SMB/CIFS) network shares on Ubuntu Linux systems. CIFS (Common Internet File System) is the standard protocol for accessing Windows file shares and Samba servers from Linux.
+
+## Understanding CIFS and Samba
+
+**CIFS (Common Internet File System)** is a network file-sharing protocol based on SMB (Server Message Block). It allows Linux systems to mount remote Windows or Samba shares as if they were local directories. The `cifs-utils` package provides the necessary tools for mounting CIFS shares on Linux.
+
+## Prerequisites
+
+Before mounting Samba shares, ensure the CIFS utilities are installed:
+
+```bash
+sudo apt update
+sudo apt install cifs-utils
+```
+
+## Basic Temporary Mount
+
+To mount a Samba share temporarily (until reboot), create a mount point and use the `mount` command:
+
 ```bash
 mkdir /mnt/samba
 sudo mount -t cifs //192.168.0.5/sataDrive /mnt/samba -o username=usr,password=123
 ```
-### Make it permanent
+
+**Command breakdown:**
+- `-t cifs` - Specifies the filesystem type as CIFS
+- `//192.168.0.5/sataDrive` - The remote share path (server IP/hostname and share name)
+- `/mnt/samba` - Local mount point directory
+- `-o username=usr,password=123` - Mount options for authentication
+
+## Secure Credentials Management
+
+For better security, avoid storing passwords in plain text. Use a credentials file instead:
+
+```bash
+# Create a secure credentials file
+sudo nano /etc/samba/credentials
+
+# Add your credentials:
+username=usr
+password=123
+domain=WORKGROUP
+```
+
+```bash
+# Secure the credentials file (readable only by root)
+sudo chmod 600 /etc/samba/credentials
+sudo chown root:root /etc/samba/credentials
+```
+
+```bash
+# Mount using the credentials file
+sudo mount -t cifs //192.168.0.5/sataDrive /mnt/samba -o credentials=/etc/samba/credentials,uid=1000,gid=1000
+```
+
+## Permanent Mount Configuration
+
+To automatically mount the Samba share at boot, add an entry to `/etc/fstab`:
+
 ```bash
 sudo nano /etc/fstab
 //192.168.0.5/sataDrive /mnt/samba cifs username=usr,password=123,uid=1000,gid=1000,rw,iocharset=utf8,vers=3.0 0 0
+```
+
+### Understanding fstab Mount Options
+
+| Option | Description |
+|--------|-------------|
+| `uid=1000` | Sets the owner UID (use `id -u` to find yours) |
+| `gid=1000` | Sets the owner GID (use `id -g` to find yours) |
+| `rw` | Mount as read-write (use `ro` for read-only) |
+| `iocharset=utf8` | Character encoding for file names |
+| `vers=3.0` | SMB protocol version (2.0, 2.1, 3.0, 3.1.1) |
+| `0 0` | Dump and fsck options (always 0 for network shares) |
+
+### Recommended fstab Entry with Credentials File
+
+For improved security and reliability, use this enhanced configuration:
+
+```bash
+# Using credentials file (recommended)
+//192.168.0.5/sataDrive /mnt/samba cifs credentials=/etc/samba/credentials,uid=1000,gid=1000,file_mode=0755,dir_mode=0755,vers=3.0,_netdev,x-systemd.automount 0 0
+```
+
+**Additional options explained:**
+- `file_mode=0755` - Permission mode for files (rwxr-xr-x)
+- `dir_mode=0755` - Permission mode for directories
+- `_netdev` - Wait for network to be available before mounting
+- `x-systemd.automount` - Mount automatically when accessed (on-demand)
+- `nofail` - Continue boot even if mount fails (add if optional)
+
+### Apply fstab Changes
+
+After editing `/etc/fstab`, test your configuration:
+
+```bash
+# Test mount all entries in fstab
+sudo mount -a
+
+# Verify the mount
+df -h | grep samba
+mount | grep samba
+
+# Check if files are accessible
+ls -la /mnt/samba
+```
+
+## Advanced Mount Options
+
+### Guest Access (No Authentication)
+
+```bash
+# Temporary guest mount
+sudo mount -t cifs //192.168.0.5/public /mnt/public -o guest,uid=1000,gid=1000
+
+# fstab entry for guest access
+//192.168.0.5/public /mnt/public cifs guest,uid=1000,gid=1000,_netdev 0 0
+```
+
+### Domain Authentication
+
+```bash
+# Mount with domain credentials
+sudo mount -t cifs //server.domain.com/share /mnt/domain -o username=user,password=pass,domain=DOMAIN
+
+# fstab with domain
+//server.domain.com/share /mnt/domain cifs credentials=/etc/samba/domain-creds,domain=DOMAIN,uid=1000,gid=1000 0 0
+```
+
+### Performance Tuning Options
+
+```bash
+# High-performance mount options
+//192.168.0.5/sataDrive /mnt/samba cifs credentials=/etc/samba/credentials,uid=1000,gid=1000,vers=3.1.1,cache=loose,actimeo=30 0 0
+```
+
+**Performance options:**
+- `cache=loose` - More aggressive caching for better performance
+- `cache=strict` - Strict cache coherency (safer but slower)
+- `cache=none` - Disable caching (not recommended)
+- `actimeo=30` - Attribute cache timeout in seconds
+
+## Troubleshooting
+
+### Check CIFS Version Support
+
+```bash
+# List available SMB protocol versions
+sudo modinfo cifs | grep version
+
+# Test connection with specific version
+sudo mount -t cifs //192.168.0.5/share /mnt/test -o username=usr,password=123,vers=2.1
+```
+
+### Debug Mount Issues
+
+```bash
+# Enable verbose output for debugging
+sudo mount -t cifs //192.168.0.5/share /mnt/samba -o username=usr,password=123,vers=3.0 -vvv
+
+# Check system logs for errors
+sudo dmesg | grep CIFS
+sudo journalctl -u systemd-networkd -f
+```
+
+### Common Error Solutions
+
+**Error: "mount error(13): Permission denied"**
+```bash
+# Verify credentials and share permissions
+smbclient -L //192.168.0.5 -U usr
+
+# Try different protocol version
+sudo mount -t cifs //192.168.0.5/share /mnt/samba -o username=usr,password=123,vers=1.0
+```
+
+**Error: "mount error(2): No such file or directory"**
+```bash
+# Check if server is reachable
+ping 192.168.0.5
+
+# Verify share name
+smbclient -L //192.168.0.5 -U usr -N
+```
+
+**Error: "Host is down"**
+```bash
+# Install and use smbclient for testing
+sudo apt install smbclient
+smbclient //192.168.0.5/sataDrive -U usr
+```
+
+## Unmounting Samba Shares
+
+```bash
+# Unmount a specific share
+sudo umount /mnt/samba
+
+# Force unmount if busy
+sudo umount -l /mnt/samba  # Lazy unmount
+sudo umount -f /mnt/samba  # Force unmount
+
+# Check what's using the mount
+lsof +D /mnt/samba
+```
+
+
+## Checking Mount Status
+
+```bash
+# View all mounted filesystems
+mount | grep cifs
+
+# Check mount details
+findmnt /mnt/samba
+
+# Show space usage
+df -h /mnt/samba
+
+# Test read/write access
+touch /mnt/samba/test.txt && rm /mnt/samba/test.txt
 ```

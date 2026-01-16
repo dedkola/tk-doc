@@ -13,6 +13,9 @@
 !.yarn/plugins
 !.yarn/releases
 !.yarn/versions
+playwright-report/
+test-results/
+tests/
 
 # testing
 /coverage

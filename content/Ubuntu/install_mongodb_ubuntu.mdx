@@ -1,8 +1,33 @@
 ---
 title: Install MongoDB 7.0 on Ubuntu 22.04 Jammy
-description: Install MongoDB 7.0 on Ubuntu 22.04 Jammy
-tags: [mongodb, ubuntu, 22.04, jammy]
+description: Complete guide to installing and configuring MongoDB 7.0 on Ubuntu 22.04 Jammy with production-ready settings
+tags: [mongodb, ubuntu, 22.04, jammy, database, nosql]
 ---
+
+## Overview
+
+MongoDB is a popular open-source NoSQL document database that stores data in flexible, JSON-like documents. This guide covers the installation of MongoDB 7.0 Community Edition on Ubuntu 22.04 LTS (Jammy Jellyfish) and includes production-ready configuration steps for optimal performance and security.
+
+**Key Features of MongoDB 7.0:**
+- Enhanced time-series collections
+- Queryable encryption
+- Improved change streams
+- Better performance with clustered collections
+- Native support for aggregation pipeline operators
+
+## Prerequisites
+
+- Ubuntu 22.04 LTS (Jammy Jellyfish)
+- Root or sudo privileges
+- At least 2GB of RAM (4GB+ recommended for production)
+- Sufficient disk space (recommended: 10GB+ for data storage)
+- Active internet connection for package downloads
+
+## Installation Steps
+
+### Step 1: Install Required Dependencies
+
+First, ensure the required packages for secure key management are installed:
 
 ```bash copy
 sudo apt-get install gnupg curl
@@ -15,13 +40,43 @@ sudo apt-get update
 sudo apt-get install -y mongodb-org
 ```
 
-### Check limits
+**What this does:**
+- `gnupg`: GNU Privacy Guard for secure key management
+- `curl`: Downloads the MongoDB GPG key from the official server
+- `--dearmor`: Converts the ASCII-armored key to binary format
+- The repository is added with proper GPG signature verification
+- `mongodb-org` is a meta-package that includes: `mongodb-org-server`, `mongodb-org-mongos`, `mongodb-org-shell`, `mongodb-org-tools`, and `mongodb-org-database`
+
+### Step 2: Verify Installation
+
+After installation, verify MongoDB was installed correctly:
+
+```bash
+mongod --version
+mongosh --version
+```
+
+Expected output should show MongoDB version 7.0.x.
+
+## System Optimization for Production
+
+MongoDB requires specific system resource limits to perform optimally, especially in production environments. The default Linux limits are often insufficient for database workloads.
+
+### Check Current System Limits
+
+Review your current system resource limits to see what needs to be adjusted:
 
 ```bash copy
 ulimit -a
 ```
 
-### Set system limits
+This displays all current limits including:
+- **open files** (`nofile`): Maximum number of open file descriptors
+- **max user processes** (`nproc`): Maximum number of processes
+- **virtual memory** (`vmem`): Maximum amount of virtual memory
+- **file size** (`fsize`): Maximum size of files that can be created
+
+### Configure User-Level Resource Limits
 
 ```bash copy
 sudo nano /etc/security/limits.conf
@@ -42,7 +97,18 @@ sudo nano /etc/security/limits.conf
 *       hard    vmem    unlimited
 ```
 
-### Set Global Limits for System Services
+**Explanation of limits:**
+- `nofile` (64000): Allows MongoDB to handle many concurrent connections and open database files
+- `nproc` (64000): Ensures sufficient processes for MongoDB's multi-threaded operations
+- `memlock` (unlimited): Allows MongoDB to lock memory pages to RAM, preventing swapping
+- `stack` (unlimited): Stack size for thread operations
+- `fsize` (unlimited): Removes file size restrictions for database files
+- `cpu` (unlimited): No CPU time restrictions
+- `vmem` (unlimited): Virtual memory limit
+
+**Note:** The asterisk (*) applies these limits to all users. For production, consider creating a dedicated `mongodb` user and applying limits specifically to that user.
+
+### Configure Systemd Service Limits
 
 ```bash copy
 sudo nano /etc/systemd/system.conf
@@ -58,26 +124,68 @@ DefaultLimitCPU=infinity
 DefaultLimitVMEM=infinity
 ```
 
-### Modify the PAM limits
+These settings apply to all systemd services. The `system.conf` affects system services, while `user.conf` affects user services.
+
+### Enable PAM Limits Module
 
 ```bash copy
 sudo nano /etc/pam.d/common-session
 session required pam_limits.so
 ```
 
-### Restart systemd
+The PAM (Pluggable Authentication Module) limits module ensures that the limits defined in `/etc/security/limits.conf` are applied during user login sessions.
+
+### Apply Changes and Reload Systemd
 
 ```bash copy
 sudo systemctl daemon-reload
 ```
 
-# Reboot
+This reloads the systemd daemon to apply the new configuration changes.
+
+## System Reboot and MongoDB Service Management
+
+### Reboot the System
+
+After making these system-level changes, a reboot is recommended to ensure all limits take effect:
+
+```bash
+sudo reboot
+```
+
+### Start and Enable MongoDB Service
+
+After the system restarts, start MongoDB and enable it to run on system boot:
 
 ```bash copy
 sudo systemctl start mongod
 sudo systemctl enable mongod
 ```
-### Listen on all interfaces
+
+**Service management commands:**
+- `start`: Starts the MongoDB service immediately
+- `enable`: Configures MongoDB to start automatically on system boot
+- `status`: Check service status with `sudo systemctl status mongod`
+- `stop`: Stop the service with `sudo systemctl stop mongod`
+- `restart`: Restart the service with `sudo systemctl restart mongod`
+
+### Verify MongoDB is Running
+
+```bash
+sudo systemctl status mongod
+```
+
+You should see "active (running)" in the output. Additionally, check the MongoDB logs:
+
+```bash
+sudo tail -f /var/log/mongodb/mongod.log
+```
+
+## Network Configuration
+
+### Configure Network Binding
+
+By default, MongoDB only listens on localhost (127.0.0.1) for security reasons. To allow remote connections, modify the network binding:
 
 ```bash copy
 sudo nano /etc/mongod.conf
@@ -85,7 +193,45 @@ sudo nano /etc/mongod.conf
   bindIp: 0.0.0.0
 ```
 
-### Create user root
+**Security Warning:** Binding to `0.0.0.0` allows connections from any network interface. This is convenient for development but **not recommended for production** without proper firewall rules and authentication enabled.
+
+**Alternative secure configurations:**
+- Bind to specific IP: `bindIp: 127.0.0.1,192.168.1.100` (localhost + specific private IP)
+- Use firewall rules to restrict access to specific IP addresses
+- Always enable authentication (covered below)
+
+### MongoDB Configuration File Structure
+
+The `/etc/mongod.conf` file uses YAML format. Key sections include:
+
+```yaml
+# Storage settings
+storage:
+  dbPath: /var/lib/mongodb
+  journal:
+    enabled: true
+
+# Network settings
+net:
+  port: 27017
+  bindIp: 127.0.0.1
+
+# Security settings
+security:
+  authorization: enabled
+
+# Logging
+systemLog:
+  destination: file
+  path: /var/log/mongodb/mongod.log
+  logAppend: true
+```
+
+## Authentication and User Management
+
+MongoDB authentication ensures only authorized users can access your databases. After modifying network settings, it's crucial to set up proper authentication.
+
+### Create Root Administrator User
 
 ```bash copy
 
@@ -99,14 +245,46 @@ db.createUser({
 })
 ```
 
+**Understanding MongoDB Roles:**
+- `root`: Provides superuser access to all databases and administrative functions
+- `readWrite`: Read and write access to a specific database
+- `read`: Read-only access to a specific database
+- `dbAdmin`: Database administration (indexes, stats, etc.)
+- `userAdmin`: Manage users and roles
+- `clusterAdmin`: Cluster administration for sharded or replica set deployments
 
-### Restart MongoDB
+**Security Best Practice:** Never use simple passwords like "123" in production. Use strong passwords with a mix of uppercase, lowercase, numbers, and special characters (minimum 16 characters recommended).
+
+### Enable Authentication in Configuration
+
+After creating the admin user, enable authentication in the MongoDB configuration:
+
+```bash
+sudo nano /etc/mongod.conf
+```
+
+Add or modify the security section:
+
+```yaml
+security:
+  authorization: enabled
+```
 
 ```bash copy
 sudo systemctl restart mongod
 ```
 
-### Create additional user
+After restart, all connections will require authentication. To connect with the admin user:
+
+```bash
+mongosh -u admin -p 123
+# Or for better security, enter password interactively:
+mongosh -u admin -p
+```
+
+### Create Application-Specific Database Users
+
+Best practice is to create separate users for each application or database with minimal necessary privileges:
 
 ```bash copy
 db.createUser({
@@ -116,7 +294,37 @@ db.createUser({
 })
 ```
 
-### Change password for user
+This creates a user with read/write access limited to the `mydatabase` database. The user cannot access other databases or perform administrative tasks.
+
+**Additional user creation examples:**
+
+```bash
+# Create a read-only user for reporting
+db.createUser({
+  user: "reporter",
+  pwd: "SecurePassword456!",
+  roles: [{ role: "read", db: "mydatabase" }]
+})
+
+# Create a user with access to multiple databases
+db.createUser({
+  user: "multidb_user",
+  pwd: "AnotherSecurePass789!",
+  roles: [
+    { role: "readWrite", db: "database1" },
+    { role: "read", db: "database2" }
+  ]
+})
+
+# Create a database administrator (not server admin)
+db.createUser({
+  user: "dbadmin",
+  pwd: "DbAdminPass321!",
+  roles: [{ role: "dbAdmin", db: "mydatabase" }]
+})
+```
+
+### Update User Password
 
 ```bash copy
 
@@ -125,10 +333,293 @@ use admin
 db.updateUser("admin", { pwd: "123" })
 ```
 
-### Check users
+You can also update other user properties:
+
+```bash
+# Update user roles
+db.updateUser("usr", { 
+  roles: [
+    { role: "readWrite", db: "mydatabase" },
+    { role: "read", db: "anotherdatabase" }
+  ]
+})
+
+# Grant additional roles to existing user
+db.grantRolesToUser("usr", [
+  { role: "dbAdmin", db: "mydatabase" }
+])
+
+# Revoke roles from user
+db.revokeRolesFromUser("usr", [
+  { role: "dbAdmin", db: "mydatabase" }
+])
+```
+
+### List and Manage Users
 
     ```bash copy
     use admin
     db.getUsers()
     ```
+
+Additional user management commands:
+
+```bash
+# Get information about a specific user
+db.getUser("admin")
+
+# Delete a user
+db.dropUser("username")
+
+# List all users across all databases (requires admin privileges)
+use admin
+db.system.users.find()
+```
+
+## Additional Configuration and Optimization
+
+### Firewall Configuration (UFW)
+
+If you're allowing remote connections, configure the firewall to restrict access:
+
+```bash
+# Allow MongoDB port from specific IP
+sudo ufw allow from 192.168.1.0/24 to any port 27017
+
+# Or allow from specific IP address
+sudo ufw allow from 192.168.1.50 to any port 27017
+
+# Enable firewall
+sudo ufw enable
+
+# Check firewall status
+sudo ufw status
+```
+
+### Performance Tuning
+
+#### Disable Transparent Huge Pages (THP)
+
+MongoDB recommends disabling THP for better performance:
+
+```bash
+# Create a systemd service to disable THP
+sudo nano /etc/systemd/system/disable-thp.service
+```
+
+Add the following content:
+
+```ini
+[Unit]
+Description=Disable Transparent Huge Pages (THP)
+DefaultDependencies=no
+After=sysinit.target local-fs.target
+Before=mongod.service
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c 'echo never | tee /sys/kernel/mm/transparent_hugepage/enabled > /dev/null'
+ExecStart=/bin/sh -c 'echo never | tee /sys/kernel/mm/transparent_hugepage/defrag > /dev/null'
+
+[Install]
+WantedBy=basic.target
+```
+
+Enable the service:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable disable-thp
+sudo systemctl start disable-thp
+```
+
+#### Configure Swappiness
+
+Reduce swap usage for better database performance:
+
+```bash
+# Check current swappiness
+cat /proc/sys/vm/swappiness
+
+# Set swappiness to 1 (persistent)
+echo "vm.swappiness = 1" | sudo tee -a /etc/sysctl.conf
+sudo sysctl -p
+```
+
+### Connection String Examples
+
+Once authentication is enabled, connect to MongoDB using connection strings:
+
+```bash
+# Basic connection
+mongosh "mongodb://admin:123@localhost:27017/admin"
+
+# Connection with authentication database specified
+mongosh "mongodb://usr:123@localhost:27017/mydatabase?authSource=admin"
+
+# Remote connection
+mongosh "mongodb://usr:123@192.168.1.100:27017/mydatabase"
+
+# Connection string for applications (Node.js example)
+mongodb://usr:password@localhost:27017/mydatabase?authSource=admin
+```
+
+### Monitoring and Maintenance
+
+#### Check Database Statistics
+
+```bash
+# Connect to MongoDB
+mongosh -u admin -p
+
+# Show all databases
+show dbs
+
+# Switch to a database
+use mydatabase
+
+# Show collections
+show collections
+
+# Get database stats
+db.stats()
+
+# Get collection stats
+db.collectionName.stats()
+
+# Check current operations
+db.currentOp()
+
+# Server status
+db.serverStatus()
+```
+
+#### Enable MongoDB Logs Rotation
+
+Configure log rotation to prevent log files from consuming too much disk space:
+
+```bash
+sudo nano /etc/logrotate.d/mongod
+```
+
+Add the following:
+
+```
+/var/log/mongodb/mongod.log {
+  daily
+  rotate 7
+  compress
+  delaycompress
+  notifempty
+  missingok
+  sharedscripts
+  postrotate
+    /bin/kill -SIGUSR1 $(cat /var/run/mongodb/mongod.pid 2>/dev/null) 2>/dev/null || true
+  endscript
+}
+```
+
+### Backup and Restore
+
+#### Create a Backup
+
+```bash
+# Backup all databases
+mongodump --username admin --password 123 --authenticationDatabase admin --out /backup/mongodb/$(date +%Y%m%d)
+
+# Backup specific database
+mongodump --username usr --password 123 --authenticationDatabase admin --db mydatabase --out /backup/mongodb/mydatabase
+
+# Backup specific collection
+mongodump --db mydatabase --collection mycollection --out /backup/mongodb/
+```
+
+#### Restore from Backup
+
+```bash
+# Restore all databases
+mongorestore --username admin --password 123 --authenticationDatabase admin /backup/mongodb/20260114/
+
+# Restore specific database
+mongorestore --username admin --password 123 --authenticationDatabase admin --db mydatabase /backup/mongodb/mydatabase
+
+# Drop existing data before restoring
+mongorestore --drop --username admin --password 123 --authenticationDatabase admin /backup/mongodb/
+```
+
+## Troubleshooting
+
+### Common Issues and Solutions
+
+#### MongoDB Service Won't Start
+
+```bash
+# Check service status and logs
+sudo systemctl status mongod
+sudo journalctl -u mongod -n 50
+
+# Check log file
+sudo tail -100 /var/log/mongodb/mongod.log
+
+# Verify permissions
+sudo chown -R mongodb:mongodb /var/lib/mongodb
+sudo chown -R mongodb:mongodb /var/log/mongodb
+```
+
+#### Connection Refused
+
+1. Verify MongoDB is running: `sudo systemctl status mongod`
+2. Check bind IP in `/etc/mongod.conf`
+3. Verify firewall rules: `sudo ufw status`
+4. Check if port is listening: `sudo netstat -tulpn | grep 27017`
+
+#### Authentication Failed
+
+1. Verify user exists: `db.getUsers()` (as admin)
+2. Ensure using correct authentication database
+3. Check if authorization is enabled in config
+4. Verify password is correct
+
+### Performance Issues
+
+```bash
+# Check system resources
+htop
+df -h
+free -h
+
+# MongoDB profiling
+use mydatabase
+db.setProfilingLevel(2)  # Log all operations
+db.system.profile.find().pretty()
+
+# Analyze slow queries
+db.system.profile.find({ millis: { $gt: 100 } }).sort({ ts: -1 })
+
+# Check index usage
+db.collection.explain("executionStats").find({field: "value"})
+```
+
+## Security Checklist
+
+- ✅ Enable authentication
+- ✅ Use strong passwords (16+ characters)
+- ✅ Create separate users for different applications
+- ✅ Apply principle of least privilege (minimal roles)
+- ✅ Configure firewall rules
+- ✅ Bind to specific IP addresses (not 0.0.0.0 in production)
+- ✅ Enable SSL/TLS for encrypted connections
+- ✅ Keep MongoDB updated
+- ✅ Regular backups
+- ✅ Monitor logs for suspicious activity
+- ✅ Disable MongoDB HTTP status interface
+- ✅ Use VPN or SSH tunneling for remote access
+
+## References and Additional Resources
+
+- [MongoDB Official Documentation](https://docs.mongodb.com/manual/)
+- [MongoDB Security Checklist](https://docs.mongodb.com/manual/administration/security-checklist/)
+- [MongoDB Production Notes](https://docs.mongodb.com/manual/administration/production-notes/)
+- [MongoDB Performance Best Practices](https://www.mongodb.com/basics/best-practices)
+- [MongoDB University](https://university.mongodb.com/) - Free courses and certifications
 

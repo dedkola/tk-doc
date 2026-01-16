@@ -1,8 +1,25 @@
 ---
 title: Basic Bash monitoring tools
-description: Basic Bash monitoring tools
-tags: [network, monitoring, bash]
+description: Basic Bash monitoring tools for network diagnostics and performance analysis
+tags: [network, monitoring, bash, diagnostics, tcp, performance]
 ---
+
+## Overview
+
+Network monitoring is essential for diagnosing connectivity issues, analyzing performance bottlenecks, and understanding traffic patterns. These bash-based tools provide low-level access to network statistics without requiring complex monitoring solutions.
+
+## Socket and Connection Monitoring
+
+### Understanding Socket States
+
+Sockets represent endpoints for network communication. The Linux kernel maintains various states for TCP connections (ESTABLISHED, TIME_WAIT, CLOSE_WAIT, etc.) which are crucial for diagnosing connection issues.
+
+**Key socket states to monitor:**
+- **ESTABLISHED**: Active connection with data transfer
+- **TIME_WAIT**: Connection closed but waiting to ensure remote TCP received acknowledgment
+- **CLOSE_WAIT**: Remote end has closed the connection, waiting for local application to close
+- **SYN_SENT/SYN_RECV**: Connection establishment in progress
+- **FIN_WAIT**: Connection termination in progress
 
 ```bash copy
 # Check active connections and socket states
@@ -22,4 +39,297 @@ dmesg | grep TCP
 # View connection and error metrics
 cat /proc/net/snmp
 cat /proc/net/netstat
+```
+
+## Tool Explanations
+
+### ss (Socket Statistics)
+
+The `ss` command is the modern replacement for `netstat`, providing faster socket statistics from kernel space.
+
+- **`ss -ant`**: Shows all (`-a`) numeric (`-n`) TCP (`-t`) sockets, avoiding DNS resolution for faster output
+- **`ss -s`**: Displays summary statistics including total sockets, TCP connections in various states, UDP sockets, and raw sockets
+
+### netstat
+
+Legacy but still widely used tool for network statistics. The pipe to `wc -l` counts total active connections, useful for detecting connection leaks or DDoS attacks.
+
+### iftop (Interface TOP)
+
+Real-time bandwidth monitoring tool that displays current bandwidth usage on a network interface. Essential for:
+- Identifying bandwidth-heavy connections
+- Detecting unexpected traffic patterns
+- Monitoring upload/download rates per connection
+- The `-i eth0` flag specifies the interface to monitor (replace with your interface name like `enp0s3`, `wlan0`, etc.)
+
+### tcpdump
+
+Powerful packet analyzer that captures raw network traffic at the data link layer. The command shown:
+- **`-i eth0`**: Captures on ethernet interface eth0
+- **`-n`**: Disables name resolution for faster capture
+- **`-c 100`**: Limits capture to 100 packets
+
+**Use cases**: Protocol analysis, debugging application-level issues, security investigation, verifying packet delivery
+
+### dmesg (Diagnostic Message)
+
+Kernel ring buffer contains low-level system messages. Filtering for TCP messages reveals:
+- Connection timeouts
+- TCP retransmission issues
+- Socket buffer overflows
+- Network driver errors
+- Kernel-level connection problems
+
+### /proc/net/ Statistics
+
+These pseudo-files expose kernel network stack statistics:
+
+**`/proc/net/snmp`**: SNMP MIB-II statistics including:
+- IP packet counts (received, delivered, forwarded, discarded)
+- ICMP message types and counts
+- TCP segments (sent, received, retransmitted)
+- UDP datagram statistics
+
+**`/proc/net/netstat`**: Extended TCP/IP statistics including:
+- SYN cookies usage
+- TCP Fast Open statistics
+- Packet loss and recovery metrics
+- Memory pressure indicators
+- TCP congestion control events
+
+## Best Practices
+
+1. **Baseline your metrics**: Run these tools during normal operation to establish baseline values
+2. **Combine tools**: Use `ss` for quick state checks, `tcpdump` for deep packet inspection, and `iftop` for bandwidth analysis
+3. **Time correlation**: When investigating issues, correlate timestamps across different tools
+4. **Interface selection**: Always verify you're monitoring the correct network interface
+5. **Privilege requirements**: Most tools require root/sudo for full functionality
+
+## Common Diagnostic Scenarios
+
+- **High TIME_WAIT states**: May indicate application not reusing connections properly
+- **Growing CLOSE_WAIT**: Application not closing sockets after remote disconnect
+- **Retransmission spikes** in `/proc/net/netstat`: Network quality issues or congestion
+- **Bandwidth saturation** in `iftop`: Need for QoS or capacity planning
+
+## Advanced Connection Analysis
+
+### Monitoring Specific Applications and Ports
+
+Track network activity for specific applications using process IDs and port numbers:
+
+```bash copy
+# Find connections by process name
+ss -tnp | grep nginx
+lsof -i -n | grep ESTABLISHED
+
+# Monitor specific port
+ss -tnp state established '( dport = :80 or sport = :80 )'
+netstat -an | grep :443 | grep ESTABLISHED | wc -l
+
+# Check which process is listening on a port
+lsof -i :8080
+ss -tlnp | grep :3306
+
+# List all listening ports with process info
+ss -tulpn
+netstat -tulpn
+```
+
+### Continuous Monitoring and Alerting
+
+Set up continuous monitoring with thresholds for anomaly detection:
+
+```bash copy
+# Watch connection count in real-time (refreshes every 2 seconds)
+watch -n 2 'ss -s'
+
+# Monitor connections exceeding threshold
+while true; do
+  COUNT=$(ss -tan state established | wc -l)
+  if [ $COUNT -gt 1000 ]; then
+    echo "$(date): High connection count: $COUNT" >> /var/log/conn_monitor.log
+  fi
+  sleep 10
+done
+
+# Track TIME_WAIT accumulation
+watch -n 1 'ss -tan state time-wait | wc -l'
+
+# Monitor packet drops on interface
+watch -n 1 'ethtool -S eth0 | grep -i drop'
+```
+
+## Traffic Analysis and Packet Inspection
+
+### Protocol-Specific Monitoring
+
+Deep dive into specific protocols for troubleshooting:
+
+```bash copy
+# Capture HTTP traffic with headers
+tcpdump -i eth0 -A -s 0 'tcp port 80 and (((ip[2:2] - ((ip[0]&0xf)<<2)) - ((tcp[12]&0xf0)>>2)) != 0)'
+
+# Monitor DNS queries and responses
+tcpdump -i eth0 -n port 53
+
+# Capture HTTPS handshake (TLS/SSL)
+tcpdump -i eth0 -n port 443 -w https_capture.pcap
+
+# Monitor ICMP (ping) packets
+tcpdump -i eth0 icmp
+
+# Filter by IP address
+tcpdump -i eth0 host 192.168.1.100
+
+# Capture traffic between two hosts
+tcpdump -i eth0 'host 192.168.1.10 and host 192.168.1.20'
+```
+
+### Network Performance Metrics
+
+Measure latency, throughput, and packet loss:
+
+```bash copy
+# Check network interface statistics
+ip -s link show eth0
+cat /sys/class/net/eth0/statistics/rx_bytes
+cat /sys/class/net/eth0/statistics/tx_bytes
+
+# Monitor packet errors and drops
+netstat -i
+ip -s -s link show eth0
+
+# Continuous bandwidth measurement
+nload eth0
+bmon -p eth0
+
+# Network throughput testing
+iperf3 -s  # On server
+iperf3 -c server_ip -t 30  # On client
+
+# Measure latency continuously
+ping -i 0.2 -c 100 8.8.8.8 | tail -n 3
+```
+
+## System-Level Network Diagnostics
+
+### Kernel and Driver Information
+
+Check low-level network configuration and performance:
+
+```bash copy
+# View network device driver info
+ethtool eth0
+ethtool -i eth0  # Driver details
+ethtool -g eth0  # Ring buffer parameters
+ethtool -k eth0  # Offload settings
+
+# Check interrupt handling
+cat /proc/interrupts | grep eth0
+mpstat -I ALL 1 5
+
+# Monitor network buffer usage
+sysctl net.core.rmem_max
+sysctl net.core.wmem_max
+sysctl net.ipv4.tcp_rmem
+sysctl net.ipv4.tcp_wmem
+
+# Check routing table and ARP cache
+ip route show
+ip neigh show
+arp -an
+```
+
+### Connection State Monitoring Scripts
+
+Automated analysis of connection patterns:
+
+```bash copy
+# Count connections by state
+ss -tan | awk '{print $1}' | sort | uniq -c | sort -rn
+
+# Top IPs by connection count
+ss -tan state established | awk '{print $5}' | cut -d: -f1 | sort | uniq -c | sort -rn | head -10
+
+# Monitor new connections per second
+for i in {1..60}; do
+  echo "$(date +%T): $(ss -tan state syn-sent,syn-recv | wc -l) new connections"
+  sleep 1
+done
+
+# Detect potential port scans
+netstat -tan | grep SYN_RECV | awk '{print $5}' | cut -d: -f1 | sort | uniq -c | sort -rn
+
+# Connection duration analysis
+ss -tno state established | grep timer | wc -l
+```
+
+## Real-Time Network Event Monitoring
+
+### Using nethogs and vnstat
+
+Track bandwidth by process and historical data:
+
+```bash copy
+# Real-time per-process bandwidth monitoring
+sudo nethogs eth0
+
+# Historical network statistics
+vnstat -i eth0
+vnstat -i eth0 -h  # Hourly stats
+vnstat -i eth0 -d  # Daily stats
+vnstat -i eth0 -m  # Monthly stats
+
+# Live traffic rates
+vnstat -i eth0 -l
+```
+
+### Network Flow Analysis
+
+Monitor network flows for traffic pattern analysis:
+
+```bash copy
+# Count active flows
+ss -tan state established | awk '{print $4" "$5}' | sort | uniq -c | sort -rn | head -20
+
+# Track connection establishment rate
+sar -n TCP 1 10
+
+# Monitor network device queues
+tc -s qdisc show dev eth0
+
+# Check conntrack table (for NAT/firewall)
+conntrack -L | wc -l
+cat /proc/sys/net/netfilter/nf_conntrack_count
+cat /proc/sys/net/netfilter/nf_conntrack_max
+```
+
+## Performance Troubleshooting Commands
+
+### Identifying Bottlenecks
+
+Diagnose network stack performance issues:
+
+```bash copy
+# Check for TCP retransmissions
+ss -ti | grep -i retrans
+
+# Monitor socket receive queue depth
+ss -tnm | grep -i rcv
+
+# Check for window scaling issues
+cat /proc/net/netstat | grep TcpExt | grep -i window
+
+# View TCP congestion control algorithm
+sysctl net.ipv4.tcp_congestion_control
+ss -i | grep -i cubic
+
+# Check for SYN flood protection
+netstat -s | grep -i listen
+cat /proc/sys/net/ipv4/tcp_max_syn_backlog
+
+# Monitor socket memory pressure
+cat /proc/net/sockstat
+cat /proc/net/sockstat6
 ```

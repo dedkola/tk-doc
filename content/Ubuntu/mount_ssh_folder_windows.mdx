@@ -4,13 +4,57 @@ description: Mount SSH folder on Windows
 tags: [ssh, windows, mount, folder, ubuntu]
 ---
 
+## Overview
+
+SSHFS (SSH Filesystem) allows you to mount remote directories over SSH on Windows, creating a network drive that behaves like a local filesystem. This is particularly useful for developers working with remote Linux servers, enabling seamless file access without manual file transfers.
+
+**Key Benefits:**
+- Real-time file synchronization
+- Uses existing SSH authentication (password or key-based)
+- No additional server-side configuration required
+- Works with any SSH-enabled server
+- Supports Windows Explorer integration
+
+## Prerequisites
+
+Before installing SSHFS-Win, ensure you have:
+- Windows 10 version 1803 or later (Windows 11 recommended)
+- Administrator privileges for installation
+- Active SSH connection to the remote server
+- WinFsp (Windows File System Proxy) - automatically installed with SSHFS-Win
+
 ### Install SSHFS
+
+SSHFS-Win is built on top of WinFsp, which provides the kernel-mode filesystem driver that enables user-mode filesystems on Windows. The installation package includes both components.
 
 ```bash
 winget install SSHFS-Win.SSHFS-Win
 ```
 
+**Alternative Installation Methods:**
+
+Using Chocolatey:
+```powershell
+choco install sshfs
+```
+
+Manual Installation:
+1. Download from [GitHub Releases](https://github.com/winfsp/sshfs-win/releases)
+2. Install WinFsp first (included in installer)
+3. Install SSHFS-Win
+
+**Post-Installation Verification:**
+```powershell
+# Check if SSHFS service is running
+Get-Service | Where-Object {$_.Name -like "*sshfs*"}
+
+# Verify WinFsp installation
+Get-ItemProperty HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\* | Where-Object {$_.DisplayName -like "*WinFsp*"}
+```
+
 ### Mount folder
+
+The `\\sshfs\` prefix is a special UNC path that SSHFS-Win recognizes. When you access this path, Windows redirects the request to the SSHFS-Win service, which establishes an SSH connection and translates filesystem operations.
 
 ```bash
 net use Z: \\sshfs\user@host\path
@@ -19,3 +63,204 @@ net use Z: \\sshfs\user@host\path
 
 \\sshfs\usr@192.168.0.167
 ```
+
+## Advanced Mounting Options
+
+### Mount with Custom SSH Port
+
+If your SSH server runs on a non-standard port (default is 22):
+
+```powershell
+# Using port 2222
+net use Z: \\sshfs\user@host!2222\path
+
+# Example with IP address and custom port
+net use Y: \\sshfs\admin@192.168.1.100!2222\home\admin
+```
+
+### Mount with SSH Key Authentication
+
+For key-based authentication, SSHFS-Win uses the SSH agent or looks for keys in `%USERPROFILE%\.ssh\`:
+
+```powershell
+# Ensure your private key is loaded in the SSH agent
+ssh-add "C:\Users\YourName\.ssh\id_rsa"
+
+# Then mount normally
+net use Z: \\sshfs\user@host\path
+```
+
+### Mount with Specific Options
+
+You can pass additional SSH options using the extended syntax:
+
+```powershell
+# Mount with specific identity file
+net use Z: "\\sshfs\user@host\path?IdentityFile=C:\Users\YourName\.ssh\custom_key"
+
+# Mount with compression enabled (faster for slow connections)
+net use Z: "\\sshfs\user@host\path?Compression=yes"
+
+# Combine multiple options
+net use Z: "\\sshfs\user@host!2222\path?IdentityFile=C:\ssh\key&Compression=yes"
+```
+
+## Mounting at Startup
+
+### Using Task Scheduler
+
+Create a PowerShell script for automatic mounting at login:
+
+```powershell
+# Save as: mount-ssh-drives.ps1
+
+# Define your mount points
+$mounts = @(
+    @{
+        Drive = "Z:"
+        Path = "\\sshfs\user@server.example.com\home\user"
+    },
+    @{
+        Drive = "Y:"
+        Path = "\\sshfs\admin@192.168.1.50\var\www"
+    }
+)
+
+foreach ($mount in $mounts) {
+    try {
+        # Check if drive already exists
+        if (!(Test-Path $mount.Drive)) {
+            net use $mount.Drive $mount.Path /persistent:yes
+            Write-Host "Mounted $($mount.Drive) successfully"
+        } else {
+            Write-Host "$($mount.Drive) already mounted"
+        }
+    } catch {
+        Write-Warning "Failed to mount $($mount.Drive): $_"
+    }
+}
+```
+
+### Make Mount Persistent
+
+To automatically reconnect the drive after reboot:
+
+```powershell
+# Enable persistent connection
+net use Z: \\sshfs\user@host\path /persistent:yes
+
+# List all persistent connections
+net use
+
+# Remove a persistent connection
+net use Z: /delete
+```
+
+## Troubleshooting
+
+### Common Issues and Solutions
+
+**Connection Timeout:**
+```powershell
+# Increase timeout (in seconds)
+net use Z: "\\sshfs\user@host\path?ServerAliveInterval=60&ServerAliveCountMax=3"
+```
+
+**Permission Denied:**
+```powershell
+# Check SSH connection first
+ssh user@host
+
+# Verify file permissions on remote server
+ssh user@host "ls -la /path/to/folder"
+```
+
+**Drive Letter Already in Use:**
+```powershell
+# List all mapped drives
+net use
+
+# Disconnect specific drive
+net use Z: /delete
+
+# Or disconnect all network drives
+net use * /delete
+```
+
+### Performance Optimization
+
+**For Large File Operations:**
+```powershell
+# Enable caching and increase buffer size
+net use Z: "\\sshfs\user@host\path?cache_timeout=115200&cache=yes"
+```
+
+**For Better Compatibility:**
+```powershell
+# Use SFTP subsystem explicitly
+net use Z: "\\sshfs\user@host\path?ssh_command=sftp"
+```
+
+## Monitoring and Management
+
+### Check Mount Status
+
+```powershell
+# View detailed information about mounted drives
+Get-PSDrive -PSProvider FileSystem | Where-Object {$_.DisplayRoot -like "*sshfs*"}
+
+# View network statistics
+net use Z:
+
+# Test connectivity
+Test-NetConnection -ComputerName host -Port 22
+```
+
+### Unmounting
+
+```powershell
+# Graceful unmount
+net use Z: /delete
+
+# Force unmount if drive is busy
+net use Z: /delete /yes
+
+# Unmount all network drives
+net use * /delete /yes
+```
+
+## Security Considerations
+
+1. **SSH Key Management:** Always use SSH keys with passphrases instead of password authentication
+2. **Host Key Verification:** Ensure the remote host's fingerprint is verified on first connection
+3. **Network Security:** Use VPN when accessing SSH servers over untrusted networks
+4. **Credential Storage:** SSHFS-Win uses Windows Credential Manager; review stored credentials regularly:
+   ```powershell
+   cmdkey /list | Select-String "sshfs"
+   ```
+
+## Integration with Windows Explorer
+
+After mounting, the SSH folder appears in Windows Explorer like any other drive:
+
+- **Quick Access:** Pin frequently used SSH drives to Quick Access
+- **Search:** Windows Search indexes mounted drives (can be disabled for privacy)
+- **File Operations:** Drag-and-drop, copy-paste work seamlessly
+- **Context Menu:** Right-click operations are supported
+
+## Comparison with Alternatives
+
+| Feature | SSHFS-Win | WinSCP | Mapped SMB |
+|---------|-----------|---------|------------|
+| Mount as Drive | ✅ Yes | ❌ No | ✅ Yes |
+| SSH Protocol | ✅ Yes | ✅ Yes | ❌ No |
+| Windows Explorer Integration | ✅ Full | ⚠️ Partial | ✅ Full |
+| Performance | ⚠️ Medium | ✅ High | ✅ High |
+| Setup Complexity | ✅ Low | ⚠️ Medium | ⚠️ Medium |
+| Cross-platform | ✅ Yes | ❌ Windows only | ⚠️ Limited |
+
+## Additional Resources
+
+- **WinFsp Documentation:** [https://github.com/winfsp/winfsp](https://github.com/winfsp/winfsp)
+- **SSHFS-Win GitHub:** [https://github.com/winfsp/sshfs-win](https://github.com/winfsp/sshfs-win)
+- **SSH Configuration:** [https://www.ssh.com/academy/ssh/config](https://www.ssh.com/academy/ssh/config)

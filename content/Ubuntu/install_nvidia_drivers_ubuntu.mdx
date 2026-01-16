@@ -1,8 +1,36 @@
 ---
 title: Install Nvidia Drivers Ubuntu
-description: Install Nvidia Drivers Ubuntu
-tags: [nvidia, drivers, ubuntu]
+description: Complete guide to installing and configuring Nvidia proprietary drivers on Ubuntu Linux
+tags: [nvidia, drivers, ubuntu, gpu, cuda, graphics]
 ---
+
+## Overview
+
+Installing Nvidia proprietary drivers on Ubuntu is essential for optimal GPU performance, CUDA support, and proper hardware acceleration. This guide covers installation methods, troubleshooting, and verification steps.
+
+### Prerequisites
+
+Before installing Nvidia drivers, ensure your system meets these requirements:
+
+- Ubuntu 20.04 LTS or newer
+- Nvidia GPU (GeForce, Quadro, or Tesla series)
+- Secure Boot disabled or configured for third-party drivers
+- Active internet connection
+
+### Understanding Driver Versions
+
+Nvidia maintains multiple driver branches:
+
+- **Production Branch** (e.g., 550.x): Most stable, recommended for production systems
+- **New Feature Branch** (e.g., 560.x): Latest features and hardware support
+- **Legacy Branch** (e.g., 470.x): For older GPUs no longer supported by current drivers
+
+Check your GPU's compatibility on the [Nvidia Driver Downloads](https://www.nvidia.com/Download/index.aspx) page.
+
+## Method 1: Graphics Drivers PPA (Recommended)
+
+The Graphics Drivers PPA provides the latest stable Nvidia drivers for Ubuntu. This method ensures automatic updates through the package manager.
+
 This just placeholder always check current version on [Nvidia](https://www.nvidia.com/Download/index.aspx) website.
 
 ```bash copy
@@ -11,3 +39,283 @@ sudo apt update && \
 sudo apt install nvidia-driver-550 && \
 sudo reboot
 ```
+
+### What Each Command Does
+
+1. **add-apt-repository**: Adds the Graphics Drivers PPA repository to your system
+2. **apt update**: Refreshes package lists to include new PPA packages
+3. **apt install**: Installs the specified driver version and dependencies
+4. **reboot**: Required to load the new driver kernel modules
+
+## Method 2: Ubuntu Default Repository
+
+Ubuntu's default repositories include tested Nvidia drivers, though they may be older versions.
+
+### Check Available Drivers
+
+```bash copy
+ubuntu-drivers devices
+```
+
+This command detects your GPU and lists compatible drivers with recommendations.
+
+### Install Recommended Driver
+
+```bash copy
+sudo ubuntu-drivers autoinstall
+```
+
+This automatically installs the recommended driver for your GPU.
+
+### Install Specific Driver Version
+
+```bash copy
+sudo apt install nvidia-driver-535
+```
+
+Replace `535` with your desired version number.
+
+## Method 3: Official Nvidia .run Installer
+
+For advanced users requiring specific driver versions or custom installations.
+
+### Download and Install
+
+```bash copy
+# Download driver (replace URL with your specific driver)
+wget https://us.download.nvidia.com/XFree86/Linux-x86_64/550.54.14/NVIDIA-Linux-x86_64-550.54.14.run
+
+# Make executable
+chmod +x NVIDIA-Linux-x86_64-550.54.14.run
+
+# Stop display manager
+sudo systemctl stop gdm3  # or lightdm/sddm depending on your system
+
+# Run installer
+sudo ./NVIDIA-Linux-x86_64-550.54.14.run
+
+# Restart display manager
+sudo systemctl start gdm3
+```
+
+**Note**: This method requires manual updates and may conflict with package-managed drivers.
+
+## Verification and Testing
+
+### Check Driver Installation
+
+```bash copy
+nvidia-smi
+```
+
+Expected output shows GPU information, driver version, CUDA version, and processes using the GPU.
+
+### Verify Driver Version
+
+```bash copy
+cat /proc/driver/nvidia/version
+```
+
+### Check Loaded Kernel Modules
+
+```bash copy
+lsmod | grep nvidia
+```
+
+Should display modules like `nvidia`, `nvidia_modeset`, `nvidia_uvm`.
+
+### Test OpenGL Rendering
+
+```bash copy
+glxinfo | grep "OpenGL renderer"
+```
+
+Should show your Nvidia GPU model, not software rendering.
+
+### Benchmark GPU Performance
+
+```bash copy
+# Install glmark2 if not present
+sudo apt install glmark2
+
+# Run benchmark
+glmark2
+```
+
+## CUDA Toolkit Installation
+
+For machine learning, scientific computing, or development requiring CUDA:
+
+### Install CUDA Toolkit
+
+```bash copy
+# Add CUDA repository
+wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb
+sudo dpkg -i cuda-keyring_1.1-1_all.deb
+sudo apt update
+
+# Install CUDA
+sudo apt install cuda-toolkit-12-3
+```
+
+### Verify CUDA Installation
+
+```bash copy
+nvcc --version
+```
+
+### Set Environment Variables
+
+Add to `~/.bashrc` or `~/.zshrc`:
+
+```bash copy
+export PATH=/usr/local/cuda/bin:$PATH
+export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
+```
+
+## Troubleshooting
+
+### Black Screen After Installation
+
+Boot into recovery mode and remove the driver:
+
+```bash copy
+sudo apt purge nvidia-*
+sudo apt autoremove
+sudo reboot
+```
+
+### Secure Boot Conflicts
+
+Disable Secure Boot in BIOS/UEFI or enroll the Nvidia driver MOK (Machine Owner Key):
+
+```bash copy
+sudo mokutil --import /var/lib/shim-signed/mok/MOK.der
+```
+
+### Switch Between Nvidia and Intel/AMD Graphics
+
+For laptops with hybrid graphics:
+
+```bash copy
+# Install PRIME profiles
+sudo apt install nvidia-prime
+
+# Switch to Nvidia
+sudo prime-select nvidia
+
+# Switch to Intel/AMD
+sudo prime-select intel
+
+# Query current profile
+prime-select query
+```
+
+### Driver Conflicts After Update
+
+```bash copy
+# Remove all Nvidia packages
+sudo apt purge nvidia-* libnvidia-*
+
+# Clean up
+sudo apt autoremove
+sudo apt autoclean
+
+# Reinstall driver
+sudo apt install nvidia-driver-550
+```
+
+### Check for Errors in Logs
+
+```bash copy
+dmesg | grep -i nvidia
+journalctl -b | grep -i nvidia
+```
+
+## Performance Tuning
+
+### Enable Persistence Mode
+
+Keeps GPU initialized for faster response times:
+
+```bash copy
+sudo nvidia-smi -pm 1
+```
+
+### Set Power Management Mode
+
+```bash copy
+# Maximum performance
+sudo nvidia-smi -pl 350  # Set power limit in watts
+
+# Query current power settings
+nvidia-smi -q -d POWER
+```
+
+### Configure Cooling
+
+```bash copy
+# Enable manual fan control
+nvidia-settings -a "[gpu:0]/GPUFanControlState=1"
+
+# Set fan speed (0-100%)
+nvidia-settings -a "[fan:0]/GPUTargetFanSpeed=75"
+```
+
+## Multi-GPU Configuration
+
+### List All GPUs
+
+```bash copy
+nvidia-smi -L
+```
+
+### Set GPU for Specific Application
+
+```bash copy
+# Run application on GPU 0
+CUDA_VISIBLE_DEVICES=0 your-application
+
+# Run on GPU 1
+CUDA_VISIBLE_DEVICES=1 your-application
+
+# Use multiple GPUs
+CUDA_VISIBLE_DEVICES=0,1 your-application
+```
+
+### Monitor All GPUs
+
+```bash copy
+watch -n 1 nvidia-smi
+```
+
+## Uninstallation
+
+### Remove PPA-installed Driver
+
+```bash copy
+sudo apt purge nvidia-*
+sudo apt autoremove
+sudo add-apt-repository --remove ppa:graphics-drivers/ppa
+```
+
+### Remove .run-installed Driver
+
+```bash copy
+sudo nvidia-uninstall
+```
+
+## Additional Resources
+
+- **Nvidia Documentation**: [Official Linux Driver Installation Guide](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/)
+- **Ubuntu Wiki**: [Nvidia Graphics Drivers](https://help.ubuntu.com/community/BinaryDriverHowto/Nvidia)
+- **CUDA Documentation**: [CUDA Toolkit Documentation](https://docs.nvidia.com/cuda/)
+
+## Best Practices
+
+1. **Always check compatibility** before installing drivers
+2. **Create a system backup** before major driver updates
+3. **Use package managers** (apt) for easier management and updates
+4. **Avoid mixing installation methods** to prevent conflicts
+5. **Keep drivers updated** for security patches and performance improvements
+6. **Test after installation** to ensure everything works correctly

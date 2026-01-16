@@ -4,6 +4,19 @@ description: Open standart ports on Ubuntu Server
 tags: [ubuntu, server, ports, ufw]
 ---
 
+## Understanding UFW (Uncomplicated Firewall)
+
+UFW is Ubuntu's default firewall configuration tool that provides an easy-to-use interface for managing netfilter firewall rules. It uses iptables under the hood but simplifies the process of creating and managing firewall rules.
+
+### How UFW Works
+
+- **Default Policy**: By default, UFW denies all incoming connections and allows all outgoing connections
+- **Rule Evaluation**: Rules are evaluated in order from first to last
+- **State Tracking**: UFW uses connection state tracking to allow return traffic automatically
+- **IPv6 Support**: UFW manages both IPv4 and IPv6 rules simultaneously
+
+## Essential System Ports
+
 ```bash copy
 sudo ufw enable
 
@@ -21,13 +34,46 @@ sudo ufw allow 5432
 sudo ufw allow 3306
 ```
 
+### Port Explanations
+
+- **Port 80 (HTTP)**: Standard unencrypted web traffic. Used by web servers like Apache, Nginx
+- **Port 443 (HTTPS)**: Encrypted web traffic using TLS/SSL. Required for secure websites
+- **Port 22 (SSH)**: Secure Shell for remote server administration. Critical for remote management
+- **Port 123 (NTP)**: Network Time Protocol (UDP). Keeps system clock synchronized
+- **Port 53 (DNS)**: Domain Name System. Standard DNS queries (TCP/UDP)
+- **Port 5353 (mDNS)**: Multicast DNS. Used for local network service discovery (Avahi, Bonjour)
+- **Port 5432 (PostgreSQL)**: Default port for PostgreSQL database server
+- **Port 3306 (MySQL/MariaDB)**: Default port for MySQL and MariaDB database servers
+
 ### Allow MongoDB (port 27017)
+
+MongoDB is a NoSQL document database. Port 27017 is the default port for MongoDB instances.
+
+**Security Note**: Only expose MongoDB to trusted networks. Consider using UFW to limit access to specific IP addresses:
 
 ```bash copy
 sudo ufw allow 27017
 ```
 
+#### Restricting MongoDB Access to Specific IPs
+
+```bash copy
+# Allow MongoDB access only from specific IP
+sudo ufw allow from 192.168.1.100 to any port 27017
+
+# Allow MongoDB access from a subnet
+sudo ufw allow from 192.168.1.0/24 to any port 27017
+```
+
 ### Allow Email Ports
+
+Email servers require multiple ports for different protocols:
+
+- **Port 25 (SMTP)**: Simple Mail Transfer Protocol - Used for sending email between mail servers
+- **Port 143 (IMAP)**: Internet Message Access Protocol - Unencrypted email retrieval
+- **Port 993 (IMAPS)**: IMAP over SSL/TLS - Encrypted email retrieval
+- **Port 110 (POP3)**: Post Office Protocol v3 - Unencrypted email download
+- **Port 995 (POP3S)**: POP3 over SSL/TLS - Encrypted email download
 
 ```bash copy
 sudo ufw allow 25
@@ -37,7 +83,31 @@ sudo ufw allow 110
 sudo ufw allow 995
 ```
 
+#### Additional Email Server Ports
+
+```bash copy
+# SMTP Submission (modern email submission)
+sudo ufw allow 587
+
+# SMTPS (SMTP over SSL - legacy)
+sudo ufw allow 465
+```
+
+### Advanced Email Server Configuration
+
+For production email servers, consider restricting port 25 to prevent spam:
+
+```bash copy
+# Allow SMTP only from localhost (for local apps sending email)
+sudo ufw allow from 127.0.0.1 to any port 25
+
+# Allow SMTP from specific trusted servers
+sudo ufw allow from 203.0.113.10 to any port 25
+```
+
 ### Reload UFW
+
+After adding or modifying firewall rules, reload UFW to apply changes:
 
 ```bash copy
 sudo ufw reload
@@ -49,13 +119,79 @@ sudo ufw reload
 sudo ufw status
 ```
 
+#### Detailed Status View
+
+For more verbose output showing rule numbers and details:
+
+```bash copy
+# Show numbered rules (useful for deleting specific rules)
+sudo ufw status numbered
+
+# Show verbose status with more details
+sudo ufw status verbose
+```
+
+#### Example Output
+
+```plaintext
+Status: active
+
+To                         Action      From
+--                         ------      ----
+22/tcp                     ALLOW       Anywhere
+80/tcp                     ALLOW       Anywhere
+443/tcp                    ALLOW       Anywhere
+3306/tcp                   ALLOW       Anywhere
+5432/tcp                   ALLOW       Anywhere
+```
+
 ### Enable Logging for Monitoring
+
+UFW logging helps track connection attempts and troubleshoot firewall issues:
 
 ```bash copy
 sudo ufw logging on
 ```
 
+#### Logging Levels
+
+```bash copy
+# Set logging to low (minimal logging)
+sudo ufw logging low
+
+# Set logging to medium (moderate detail)
+sudo ufw logging medium
+
+# Set logging to high (maximum detail)
+sudo ufw logging high
+
+# Set logging to full (logs all packets)
+sudo ufw logging full
+```
+
+#### View UFW Logs
+
+```bash copy
+# View recent UFW log entries
+sudo tail -f /var/log/ufw.log
+
+# Search for blocked connections
+sudo grep -i "block" /var/log/ufw.log
+
+# Count blocked connection attempts
+sudo grep -c "BLOCK" /var/log/ufw.log
+```
+
 ### Unify Network Server ports
+
+UniFi Controller is Ubiquiti's network management software. It requires multiple ports for different services:
+
+**Port Categories**:
+- **Controller Management**: Web interface and device communication
+- **Device Discovery**: L2 and L3 network discovery protocols
+- **Streaming Services**: Camera feeds and real-time video
+- **VoIP Services**: UniFi Talk voice communications
+- **Database**: MongoDB for storing configuration and statistics
 
 ```bash copy
 
@@ -90,4 +226,347 @@ sudo ufw allow 5656:5699/udp
 sudo ufw allow 1900
 sudo ufw allow 7550
 sudo ufw allow 7442
+```
+
+#### UniFi Port Details
+
+| Port | Protocol | Service | Description |
+|------|----------|---------|-------------|
+| 8080 | TCP | Device Inform | Device communication with controller |
+| 8443 | TCP | HTTPS | Controller web interface (admin) |
+| 8880 | TCP | HTTP | Portal HTTP redirect |
+| 8843 | TCP | HTTPS | Portal HTTPS redirect |
+| 6789 | TCP | Speed Test | UniFi mobile speed test |
+| 3478 | UDP | STUN | Session traversal for NAT |
+| 10001 | UDP | Device Discovery | AP discovery |
+| 1900 | UDP | SSDP | Simple Service Discovery Protocol |
+| 5514 | UDP | Syslog | Remote logging |
+
+#### Security Recommendations for UniFi
+
+```bash copy
+# Restrict controller access to local network only
+sudo ufw allow from 192.168.1.0/24 to any port 8443
+
+# Allow device inform from managed network only
+sudo ufw allow from 10.0.0.0/8 to any port 8080
+
+# Restrict MongoDB to localhost (if DB is on same server)
+sudo ufw delete allow 27017
+sudo ufw allow from 127.0.0.1 to any port 27017
+```
+
+## Advanced UFW Management
+
+### Allowing Specific IP Addresses
+
+```bash copy
+# Allow all traffic from specific IP
+sudo ufw allow from 192.168.1.50
+
+# Allow specific port from specific IP
+sudo ufw allow from 192.168.1.50 to any port 22
+
+# Allow from IP range (CIDR notation)
+sudo ufw allow from 192.168.1.0/24
+```
+
+### Denying Connections
+
+```bash copy
+# Deny specific port
+sudo ufw deny 23
+
+# Deny from specific IP
+sudo ufw deny from 203.0.113.51
+
+# Deny to specific port from IP
+sudo ufw deny from 203.0.113.51 to any port 22
+```
+
+### Deleting Rules
+
+```bash copy
+# Delete by rule specification
+sudo ufw delete allow 8080
+
+# Delete by rule number (use 'ufw status numbered' first)
+sudo ufw delete 5
+
+# Delete rule for specific IP
+sudo ufw delete allow from 192.168.1.100
+```
+
+### Application Profiles
+
+UFW includes predefined application profiles in `/etc/ufw/applications.d/`:
+
+```bash copy
+# List available application profiles
+sudo ufw app list
+
+# Show application profile info
+sudo ufw app info 'Nginx Full'
+
+# Allow application profile
+sudo ufw allow 'Nginx Full'
+sudo ufw allow 'OpenSSH'
+sudo ufw allow 'Apache Full'
+```
+
+### Port Ranges
+
+```bash copy
+# Allow TCP port range
+sudo ufw allow 6000:6007/tcp
+
+# Allow UDP port range
+sudo ufw allow 6000:6007/udp
+
+# Allow port range from specific IP
+sudo ufw allow from 192.168.1.100 to any port 6000:6007 proto tcp
+```
+
+### Interface-Specific Rules
+
+```bash copy
+# Allow on specific network interface
+sudo ufw allow in on eth0 to any port 80
+
+# Allow from specific interface to specific port
+sudo ufw allow in on eth1 to any port 3306
+
+# Deny on specific interface
+sudo ufw deny in on eth0 from 203.0.113.0/24
+```
+
+## Common Web Application Ports
+
+```bash copy
+# Node.js development
+sudo ufw allow 3000
+
+# React development
+sudo ufw allow 3001
+
+# Vue.js/Vite development
+sudo ufw allow 5173
+
+# Next.js development
+sudo ufw allow 3000
+
+# Django development
+sudo ufw allow 8000
+
+# Flask development
+sudo ufw allow 5000
+
+# Ruby on Rails
+sudo ufw allow 3000
+
+# Tomcat
+sudo ufw allow 8080
+sudo ufw allow 8009
+
+# Jenkins
+sudo ufw allow 8080
+
+# Grafana
+sudo ufw allow 3000
+
+# Prometheus
+sudo ufw allow 9090
+
+# Elasticsearch
+sudo ufw allow 9200
+sudo ufw allow 9300
+
+# Redis
+sudo ufw allow 6379
+
+# RabbitMQ
+sudo ufw allow 5672
+sudo ufw allow 15672
+
+# Kafka
+sudo ufw allow 9092
+
+# MinIO (S3 compatible)
+sudo ufw allow 9000
+sudo ufw allow 9001
+```
+
+## Container and Orchestration Ports
+
+```bash copy
+# Docker
+sudo ufw allow 2375  # Docker daemon API (unencrypted)
+sudo ufw allow 2376  # Docker daemon API (TLS)
+sudo ufw allow 2377  # Docker Swarm cluster management
+
+# Kubernetes
+sudo ufw allow 6443      # Kubernetes API server
+sudo ufw allow 2379:2380 # etcd server client API
+sudo ufw allow 10250     # Kubelet API
+sudo ufw allow 10251     # kube-scheduler
+sudo ufw allow 10252     # kube-controller-manager
+sudo ufw allow 10255     # Read-only Kubelet API
+
+# Kubernetes NodePort range
+sudo ufw allow 30000:32767/tcp
+
+# Portainer
+sudo ufw allow 9443  # Portainer HTTPS
+sudo ufw allow 9000  # Portainer HTTP
+sudo ufw allow 8000  # Portainer Edge Agent
+```
+
+## Troubleshooting
+
+### Check if UFW is Running
+
+```bash copy
+sudo ufw status verbose
+sudo systemctl status ufw
+```
+
+### Reset UFW to Default
+
+```bash copy
+# WARNING: This removes all rules
+sudo ufw --force reset
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+sudo ufw enable
+```
+
+### Test Connection to Port
+
+```bash copy
+# Test if port is open from another machine
+nc -zv server_ip 80
+telnet server_ip 80
+
+# Check listening ports on server
+sudo ss -tlnp
+sudo netstat -tlnp
+```
+
+### Common Issues
+
+**Issue**: Can't connect after enabling UFW
+```bash copy
+# Check if SSH is allowed before enabling UFW
+sudo ufw allow 22
+sudo ufw enable
+```
+
+**Issue**: Rules not working
+```bash copy
+# Reload UFW
+sudo ufw reload
+
+# Check rule order (first match wins)
+sudo ufw status numbered
+```
+
+**Issue**: IPv6 connections not working
+```bash copy
+# Verify IPv6 is enabled in UFW config
+sudo nano /etc/default/ufw
+# Set IPV6=yes
+sudo ufw reload
+```
+
+## Best Practices
+
+1. **Principle of Least Privilege**: Only open ports that are absolutely necessary
+2. **SSH Security**: Change default SSH port and use key-based authentication
+3. **Use IP Restrictions**: Limit administrative ports to known IP addresses
+4. **Regular Audits**: Periodically review open ports with `sudo ufw status numbered`
+5. **Enable Logging**: Monitor suspicious activity with `sudo ufw logging medium`
+6. **Rate Limiting**: Protect against brute force attacks
+7. **Document Changes**: Keep track of why each port is opened
+
+### Rate Limiting SSH
+
+```bash copy
+# Limit SSH connections to prevent brute force
+sudo ufw limit 22/tcp
+
+# This allows maximum 6 connections per 30 seconds from single IP
+```
+
+### Backup and Restore UFW Rules
+
+```bash copy
+# Backup UFW rules
+sudo cp /etc/ufw/user.rules /etc/ufw/user.rules.backup
+sudo cp /etc/ufw/user6.rules /etc/ufw/user6.rules.backup
+
+# Restore UFW rules
+sudo cp /etc/ufw/user.rules.backup /etc/ufw/user.rules
+sudo cp /etc/ufw/user6.rules.backup /etc/ufw/user6.rules
+sudo ufw reload
+```
+
+## Quick Reference
+
+```bash copy
+# Enable/Disable UFW
+sudo ufw enable
+sudo ufw disable
+
+# Default policies
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+sudo ufw default reject routed
+
+# Allow/Deny
+sudo ufw allow <port>
+sudo ufw deny <port>
+sudo ufw reject <port>
+
+# Delete rules
+sudo ufw delete allow <port>
+sudo ufw status numbered
+sudo ufw delete <number>
+
+# Reset all rules
+sudo ufw reset
+
+# Status and logging
+sudo ufw status
+sudo ufw status verbose
+sudo ufw status numbered
+sudo ufw logging on
+sudo ufw logging off
+```
+
+#### UniFi Port Details
+
+| Port | Protocol | Service | Description |
+|------|----------|---------|-------------|
+| 8080 | TCP | Device Inform | Device communication with controller |
+| 8443 | TCP | HTTPS | Controller web interface (admin) |
+| 8880 | TCP | HTTP | Portal HTTP redirect |
+| 8843 | TCP | HTTPS | Portal HTTPS redirect |
+| 6789 | TCP | Speed Test | UniFi mobile speed test |
+| 3478 | UDP | STUN | Session traversal for NAT |
+| 10001 | UDP | Device Discovery | AP discovery |
+| 1900 | UDP | SSDP | Simple Service Discovery Protocol |
+| 5514 | UDP | Syslog | Remote logging |
+
+#### Security Recommendations for UniFi
+
+```bash copy
+# Restrict controller access to local network only
+sudo ufw allow from 192.168.1.0/24 to any port 8443
+
+# Allow device inform from managed network only
+sudo ufw allow from 10.0.0.0/8 to any port 8080
+
+# Restrict MongoDB to localhost (if DB is on same server)
+sudo ufw delete allow 27017
+sudo ufw allow from 127.0.0.1 to any port 27017
 ```

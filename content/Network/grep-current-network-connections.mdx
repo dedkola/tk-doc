@@ -4,12 +4,228 @@ description: Grep current network connections by netstat
 tags: [network, grep, netstat]
 ---
 
+## Overview
+
+`netstat` is a command-line network utility that displays network connections, routing tables, interface statistics, masquerade connections, and multicast memberships. This guide demonstrates how to analyze active network connections using `netstat` combined with text processing tools.
+
+## Count TCP Connection States
+
 ```bash copy
 netstat -ant | grep tcp | tr -s ' ' ' ' | awk '{print $6}' | sort | uniq -c
 ```
 
-### Connections by protocol
+### Understanding the Command Pipeline
+
+Each component in the pipeline serves a specific purpose:
+
+- **`netstat -ant`**: Display all network connections
+  - `-a`: Show all sockets (listening and non-listening)
+  - `-n`: Show numerical addresses instead of resolving hostnames (faster)
+  - `-t`: Filter for TCP connections only
+  
+- **`grep tcp`**: Filter lines containing "tcp" to ensure we're processing TCP connections
+
+- **`tr -s ' ' ' '`**: Squeeze multiple spaces into single spaces for consistent parsing
+
+- **`awk '{print $6}'`**: Extract the 6th field (connection state column)
+
+- **`sort`**: Sort the states alphabetically to group identical values
+
+- **`uniq -c`**: Count unique occurrences and display the count
+
+### Expected Output Example
+
+```plaintext
+      5 CLOSE_WAIT
+     12 ESTABLISHED
+      3 FIN_WAIT2
+      8 LISTEN
+      2 TIME_WAIT
+```
+
+### TCP Connection States Explained
+
+Understanding TCP states is crucial for network troubleshooting:
+
+- **LISTEN**: Server socket waiting for incoming connections
+- **ESTABLISHED**: Active connection with data transfer in progress
+- **CLOSE_WAIT**: Remote end has closed the connection; local application should close too
+- **TIME_WAIT**: Connection closed but waiting to ensure remote received acknowledgment
+- **FIN_WAIT1**: Connection closing, waiting for remote acknowledgment
+- **FIN_WAIT2**: Half-closed state, waiting for remote to close
+- **CLOSING**: Both sides closing simultaneously (rare)
+- **LAST_ACK**: Waiting for final acknowledgment of connection termination
+- **SYN_SENT**: Actively attempting to establish a connection
+- **SYN_RECEIVED**: Received a connection request, sent acknowledgment
+
+## Connections by Protocol
 
 ```bash copy
 netstat -an | grep -E 'tcp|udp' | tr -s ' ' ' ' | awk '{print $1}' | sort | uniq -c
+```
+
+### Protocol Distribution Analysis
+
+This command shows the distribution of connections across different protocols (TCP, UDP, TCP6, UDP6).
+
+Expected output:
+```plaintext
+     45 tcp
+      8 tcp6
+     12 udp
+      3 udp6
+```
+
+## Advanced Analysis Examples
+
+### Monitor Connections to Specific Port
+
+Check how many connections are established to port 80 (HTTP):
+
+```bash
+netstat -ant | grep ':80 ' | grep ESTABLISHED | wc -l
+```
+
+### Identify Top Connection Sources
+
+Find which remote IPs have the most connections:
+
+```bash
+netstat -ant | grep ESTABLISHED | awk '{print $5}' | cut -d: -f1 | sort | uniq -c | sort -rn | head -10
+```
+
+**Breakdown:**
+- Extract foreign address field (`$5`)
+- Remove port number, keep only IP address
+- Count and sort numerically in reverse order
+- Show top 10 sources
+
+### Monitor Connections by Local Port
+
+List local listening ports with connection counts:
+
+```bash
+netstat -ant | grep LISTEN | awk '{print $4}' | sed 's/.*://' | sort -n | uniq -c
+```
+
+### Real-time Connection Monitoring
+
+Watch connection states update every 2 seconds:
+
+```bash
+watch -n 2 'netstat -ant | grep tcp | tr -s " " " " | awk "{print \$6}" | sort | uniq -c'
+```
+
+### Detect Potential Issues
+
+#### Check for Too Many CLOSE_WAIT States
+
+Too many CLOSE_WAIT states indicate applications not properly closing sockets:
+
+```bash
+netstat -ant | grep CLOSE_WAIT | wc -l
+```
+
+If this number is high (>50), investigate which processes are holding connections:
+
+```bash
+netstat -antp | grep CLOSE_WAIT | awk '{print $7}' | sort | uniq -c | sort -rn
+```
+
+#### Check for Port Exhaustion
+
+Monitor TIME_WAIT connections which consume port numbers:
+
+```bash
+netstat -ant | grep TIME_WAIT | wc -l
+```
+
+Linux default: ~28,000 available ephemeral ports. If TIME_WAIT count approaches this, you may experience port exhaustion.
+
+## Alternative: Using ss Command
+
+The `ss` (socket statistics) command is the modern replacement for `netstat`, offering better performance:
+
+### Count TCP States with ss
+
+```bash
+ss -ant | tail -n +2 | awk '{print $1}' | sort | uniq -c
+```
+
+### Faster State Counting
+
+```bash
+ss -ant state established | wc -l  # Count ESTABLISHED connections
+ss -ant state time-wait | wc -l    # Count TIME-WAIT connections
+ss -ant state close-wait | wc -l   # Count CLOSE-WAIT connections
+```
+
+### Display with Summary
+
+```bash
+ss -s
+```
+
+This provides a comprehensive summary including:
+- Total sockets
+- TCP sockets by state
+- UDP sockets
+- Raw sockets
+- Fragment sockets
+
+## Troubleshooting Scenarios
+
+### High Connection Count
+
+If you notice abnormally high connection counts:
+
+1. **Identify the service:**
+   ```bash
+   netstat -antp | grep ESTABLISHED | awk '{print $7}' | sort | uniq -c | sort -rn
+   ```
+
+2. **Check for specific ports being abused:**
+   ```bash
+   netstat -ant | awk '{print $4}' | sed 's/.*://' | sort | uniq -c | sort -rn | head
+   ```
+
+3. **Investigate foreign IPs:**
+   ```bash
+   netstat -ant | awk '{print $5}' | cut -d: -f1 | sort | uniq -c | sort -rn | head -20
+   ```
+
+### Connection Leak Detection
+
+Monitor for growing ESTABLISHED connections:
+
+```bash
+while true; do 
+  echo "$(date): $(netstat -ant | grep ESTABLISHED | wc -l) established connections"
+  sleep 5
+done
+```
+
+## Performance Considerations
+
+- **Use `-n` flag**: Prevents DNS lookups, significantly faster
+- **Prefer `ss` over `netstat`**: Modern systems should use `ss` for better performance
+- **Filter early**: Apply protocol filters (`-t`, `-u`) to reduce processing
+- **Avoid in production loops**: These commands can be resource-intensive on busy servers
+
+## System Limits
+
+Check your system's connection limits:
+
+```bash
+# Maximum number of file descriptors (includes sockets)
+ulimit -n
+
+# System-wide file descriptor limit
+cat /proc/sys/fs/file-max
+
+# Current open file descriptors
+cat /proc/sys/fs/file-nr
+
+# TCP connection tracking limits (if using conntrack)
+cat /proc/sys/net/netfilter/nf_conntrack_max 2>/dev/null
 ```

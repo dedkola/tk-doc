@@ -1,0 +1,428 @@
+---
+title: Proxy DOT. Dns over Tls Cloudlfare with Unbound
+description: Set up DNS over TLS (DoT) proxy using Unbound with Cloudflare's encrypted DNS service for enhanced privacy and security
+tags: [dns, unbound, cloudflare, tls, security, privacy, dot]
+---
+
+# DNS over TLS (DoT) with Unbound and Cloudflare
+
+## Overview
+
+DNS over TLS (DoT) encrypts DNS queries between your device and the DNS resolver, preventing ISPs and third parties from monitoring or manipulating your DNS traffic. This guide shows how to configure **Unbound** as a local DNS resolver that forwards queries to Cloudflare's DNS service over TLS.
+
+### Why DNS over TLS?
+
+- **Privacy**: Encrypts DNS queries to prevent eavesdropping and tracking
+- **Security**: Protects against DNS hijacking and man-in-the-middle attacks
+- **Integrity**: Ensures DNS responses haven't been tampered with in transit
+- **Performance**: Cloudflare's 1.1.1.1 service offers fast response times globally
+
+### How It Works
+
+```
+Client → Unbound (Local DNS) → TLS Tunnel → Cloudflare DNS (1.1.1.1)
+```
+
+1. Clients send DNS queries to Unbound on port 53 (standard DNS)
+2. Unbound encrypts queries using TLS and forwards to Cloudflare on port 853
+3. Cloudflare resolves the query and returns encrypted response
+4. Unbound decrypts and caches the response, then sends to client
+
+## Configuration
+
+**Unbound** config /etc/unbound/unbound.conf.d/my.conf
+
+```bash copy
+server:
+    use-syslog: yes
+    logfile: "/var/log/unbound.log"
+    verbosity: 2
+    username: "nobody"
+    interface: 0.0.0.0
+    access-control: 0.0.0.0/0 allow
+    prefetch: yes
+forward-zone:
+    name: .
+    forward-tls-upstream: yes
+    tls-cert-bundle: "/etc/ssl/certs/ca-certificates.crt"
+    forward-addr: 1.1.1.1@853#cloudflare-dns.com
+    forward-addr: 1.0.0.1@853#cloudflare-dns.com
+```
+
+### Configuration Breakdown
+
+| Parameter | Description | Value |
+|-----------|-------------|-------|
+| `use-syslog` | Enable logging to system log | `yes` |
+| `logfile` | Path to Unbound's log file | `/var/log/unbound.log` |
+| `verbosity` | Log detail level (0-5) | `2` (operational info) |
+| `username` | User to run Unbound as | `nobody` (security) |
+| `interface` | Network interface to listen on | `0.0.0.0` (all interfaces) |
+| `access-control` | Allow/deny clients | `0.0.0.0/0 allow` (all networks) |
+| `prefetch` | Cache popular queries before expiry | `yes` (improves performance) |
+| `forward-tls-upstream` | Enable TLS for forwarding | `yes` |
+| `tls-cert-bundle` | CA certificates for TLS validation | System CA bundle path |
+| `forward-addr` | Upstream DNS server with TLS | `IP@PORT#HOSTNAME` |
+
+## Installation and Setup
+
+### Install Unbound
+
+<Tabs defaultValue="ubuntu">
+  <TabsList>
+    <TabsTrigger value="ubuntu">Ubuntu/Debian</TabsTrigger>
+    <TabsTrigger value="fedora">Fedora/RHEL</TabsTrigger>
+    <TabsTrigger value="arch">Arch Linux</TabsTrigger>
+  </TabsList>
+  <TabsContent value="ubuntu">
+
+```bash
+sudo apt update
+sudo apt install unbound -y
+```
+
+  </TabsContent>
+  <TabsContent value="fedora">
+
+```bash
+sudo dnf install unbound -y
+```
+
+  </TabsContent>
+  <TabsContent value="arch">
+
+```bash
+sudo pacman -S unbound
+```
+
+  </TabsContent>
+</Tabs>
+
+### Create Configuration
+
+```bash
+# Create custom config directory if it doesn't exist
+sudo mkdir -p /etc/unbound/unbound.conf.d
+
+# Create your custom configuration
+sudo nano /etc/unbound/unbound.conf.d/my.conf
+```
+
+### Verify Configuration
+
+```bash
+# Test configuration syntax
+sudo unbound-checkconf
+
+# Expected output:
+# unbound-checkconf: no errors in /etc/unbound/unbound.conf
+```
+
+### Enable and Start Service
+
+```bash
+# Enable Unbound to start on boot
+sudo systemctl enable unbound
+
+# Start Unbound service
+sudo systemctl start unbound
+
+# Check service status
+sudo systemctl status unbound
+```
+
+## Testing DNS over TLS
+
+### Test Local DNS Resolution
+
+```bash
+# Query localhost (Unbound)
+dig @127.0.0.1 example.com
+
+# Should return answer section with IP address
+```
+
+### Verify TLS Connection
+
+```bash
+# Monitor Unbound logs
+sudo tail -f /var/log/unbound.log
+
+# You should see TLS handshake messages like:
+# info: outbound ssl authentication for cloudflare-dns.com
+```
+
+### Test from Remote Client
+
+```bash
+# From another machine on your network
+dig @YOUR_SERVER_IP example.com
+
+# Test reverse DNS
+dig @YOUR_SERVER_IP -x 8.8.8.8
+```
+
+## Advanced Configuration Examples
+
+### Enhanced Security Configuration
+
+```bash
+# /etc/unbound/unbound.conf.d/security.conf
+server:
+    # Harden against attacks
+    harden-glue: yes
+    harden-dnssec-stripped: yes
+    harden-below-nxdomain: yes
+    harden-referral-path: yes
+    
+    # Don't send queries to authoritative servers from private IP ranges
+    use-caps-for-id: yes
+    
+    # Privacy settings
+    hide-identity: yes
+    hide-version: yes
+    
+    # Performance tuning
+    cache-min-ttl: 300
+    cache-max-ttl: 86400
+    prefetch-key: yes
+    
+    # Thread optimization (adjust based on CPU cores)
+    num-threads: 4
+    msg-cache-slabs: 4
+    rrset-cache-slabs: 4
+    infra-cache-slabs: 4
+    key-cache-slabs: 4
+```
+
+### Network Restriction Configuration
+
+```bash
+# /etc/unbound/unbound.conf.d/network.conf
+server:
+    # Listen only on specific interface
+    interface: 192.168.1.10
+    interface: ::1
+    
+    # Restrict access to local networks only
+    access-control: 127.0.0.0/8 allow
+    access-control: 192.168.0.0/16 allow
+    access-control: 10.0.0.0/8 allow
+    access-control: 172.16.0.0/12 allow
+    access-control: ::1 allow
+    access-control: fc00::/7 allow
+    
+    # Deny everything else
+    access-control: 0.0.0.0/0 refuse
+```
+
+### Multiple Upstream Providers Configuration
+
+```bash
+# /etc/unbound/unbound.conf.d/multi-upstream.conf
+forward-zone:
+    name: .
+    forward-tls-upstream: yes
+    tls-cert-bundle: "/etc/ssl/certs/ca-certificates.crt"
+    
+    # Cloudflare (Primary)
+    forward-addr: 1.1.1.1@853#cloudflare-dns.com
+    forward-addr: 1.0.0.1@853#cloudflare-dns.com
+    
+    # Quad9 (Secondary - Privacy focused)
+    forward-addr: 9.9.9.9@853#dns.quad9.net
+    forward-addr: 149.112.112.112@853#dns.quad9.net
+```
+
+### Split DNS Configuration
+
+```bash
+# /etc/unbound/unbound.conf.d/split-dns.conf
+# Forward internal domain to local DNS server
+forward-zone:
+    name: "internal.company.com"
+    forward-addr: 192.168.1.1
+    
+# Forward everything else via DoT to Cloudflare
+forward-zone:
+    name: .
+    forward-tls-upstream: yes
+    tls-cert-bundle: "/etc/ssl/certs/ca-certificates.crt"
+    forward-addr: 1.1.1.1@853#cloudflare-dns.com
+    forward-addr: 1.0.0.1@853#cloudflare-dns.com
+```
+
+## Monitoring and Troubleshooting
+
+### View Real-time Statistics
+
+```bash
+# Get Unbound statistics
+sudo unbound-control stats_noreset
+
+# View cache information
+sudo unbound-control dump_cache
+
+# Check configuration
+sudo unbound-control status
+```
+
+### Common Issues
+
+#### TLS Handshake Failures
+
+```bash
+# Check if CA certificates are installed
+ls -la /etc/ssl/certs/ca-certificates.crt
+
+# Update CA certificates (Ubuntu/Debian)
+sudo update-ca-certificates
+
+# Update CA certificates (Fedora/RHEL)
+sudo update-ca-trust
+```
+
+#### Port 853 Blocked
+
+```bash
+# Test connectivity to Cloudflare DoT
+openssl s_client -connect 1.1.1.1:853 -servername cloudflare-dns.com
+
+# Should show SSL handshake and certificate info
+```
+
+#### Performance Issues
+
+```bash
+# Increase cache sizes in configuration
+server:
+    msg-cache-size: 50m
+    rrset-cache-size: 100m
+    cache-max-ttl: 86400
+    cache-min-ttl: 300
+    
+    # Adjust based on available RAM
+    # Formula: rrset-cache-size = 2 * msg-cache-size
+```
+
+## Firewall Configuration
+
+### Allow DNS Traffic
+
+```bash
+# UFW (Ubuntu)
+sudo ufw allow 53/tcp
+sudo ufw allow 53/udp
+
+# Firewalld (Fedora/RHEL)
+sudo firewall-cmd --permanent --add-service=dns
+sudo firewall-cmd --reload
+
+# iptables
+sudo iptables -A INPUT -p udp --dport 53 -j ACCEPT
+sudo iptables -A INPUT -p tcp --dport 53 -j ACCEPT
+```
+
+### Allow Outbound DoT
+
+```bash
+# Ensure outbound connections to port 853 are allowed
+sudo ufw allow out 853/tcp
+
+# Or with iptables
+sudo iptables -A OUTPUT -p tcp --dport 853 -j ACCEPT
+```
+
+## Performance Benchmarking
+
+### Compare DNS Resolver Performance
+
+```bash
+# Install dnsperf
+sudo apt install dnsperf  # Ubuntu/Debian
+
+# Create test query file
+echo "example.com A" > queries.txt
+echo "google.com A" >> queries.txt
+echo "github.com A" >> queries.txt
+
+# Benchmark local Unbound
+dnsperf -s 127.0.0.1 -d queries.txt
+
+# Benchmark direct Cloudflare
+dnsperf -s 1.1.1.1 -d queries.txt
+```
+
+## Integration with System
+
+### Configure System to Use Unbound
+
+#### systemd-resolved (Modern Linux)
+
+```bash
+# Edit resolved configuration
+sudo nano /etc/systemd/resolved.conf
+
+# Set:
+[Resolve]
+DNS=127.0.0.1
+FallbackDNS=1.1.1.1
+DNSStubListener=no
+
+# Restart service
+sudo systemctl restart systemd-resolved
+
+# Update symlink
+sudo ln -sf /run/systemd/resolve/resolv.conf /etc/resolv.conf
+```
+
+#### Traditional resolv.conf
+
+```bash
+# Edit resolv.conf
+sudo nano /etc/resolv.conf
+
+# Add:
+nameserver 127.0.0.1
+options edns0 trust-ad
+```
+
+#### NetworkManager
+
+```bash
+# Edit NetworkManager configuration
+sudo nano /etc/NetworkManager/NetworkManager.conf
+
+# Add:
+[main]
+dns=none
+
+# Restart NetworkManager
+sudo systemctl restart NetworkManager
+```
+
+## Security Considerations
+
+- **Access Control**: Restrict access to trusted networks only in production
+- **Logging**: Consider privacy implications of DNS query logging
+- **Updates**: Keep Unbound and system packages updated for security patches
+- **TLS Validation**: Always verify TLS certificates to prevent MITM attacks
+- **Fallback**: Configure fallback DNS servers in case of DoT failures
+
+## Additional Resources
+
+- [Unbound Documentation](https://unbound.docs.nlnetlabs.nl/)
+- [Cloudflare 1.1.1.1 DNS](https://1.1.1.1/)
+- [DNS over TLS RFC 7858](https://tools.ietf.org/html/rfc7858)
+- [DNS Privacy Project](https://dnsprivacy.org/)
+
+## Alternative DoT Providers
+
+| Provider | Primary IP | Secondary IP | Hostname |
+|----------|-----------|--------------|----------|
+| Cloudflare | 1.1.1.1 | 1.0.0.1 | cloudflare-dns.com |
+| Quad9 | 9.9.9.9 | 149.112.112.112 | dns.quad9.net |
+| AdGuard | 94.140.14.14 | 94.140.15.15 | dns.adguard.com |
+| CleanBrowsing | 185.228.168.9 | 185.228.169.9 | security-filter-dns.cleanbrowsing.org |
+
+

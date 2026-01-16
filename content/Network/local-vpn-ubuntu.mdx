@@ -4,7 +4,32 @@ description: Local VM Ubuntu with Proton VPN gateway
 tags: [ubuntu, vpn, protonvpn]
 ---
 
+## Overview
+
+This guide demonstrates how to configure an Ubuntu VM as a VPN gateway using ProtonVPN. This setup allows you to route traffic from other devices through the VPN connection, effectively creating a network-wide VPN gateway. This is particularly useful for:
+
+- Protecting multiple devices behind a single VPN connection
+- Creating isolated networks for testing or security purposes
+- Routing specific applications or containers through VPN without system-wide VPN configuration
+- Implementing split-tunnel architectures in virtualized environments
+
+## Architecture
+
+The setup creates a NAT (Network Address Translation) gateway where:
+1. The Ubuntu VM establishes a VPN tunnel (tun0 interface)
+2. IP forwarding routes packets between your local network and the VPN tunnel
+3. iptables performs NAT masquerading to translate source addresses
+4. Other devices use the VM as their gateway to route traffic through the VPN
+
+```
+[Local Devices] → [Ubuntu VM Gateway] → [VPN Tunnel (tun0)] → [Internet via VPN]
+                   ↓ NAT/MASQUERADE
+                   ↓ IP Forwarding
+```
+
 ### IP forward
+
+IP forwarding enables the Linux kernel to route packets between network interfaces. This is essential for the VM to act as a gateway.
 
 
 ```bash copy
@@ -13,10 +38,45 @@ sudo nano /etc/sysctl.conf
 net.ipv4.ip_forward=1
 ```
 
+The first command enables IP forwarding immediately (runtime change). The second command makes it persistent across reboots by adding it to `/etc/sysctl.conf`.
+
+**Verify IP forwarding status:**
+```bash
+# Check current value (1 = enabled, 0 = disabled)
+cat /proc/sys/net/ipv4/ip_forward
+
+# Or using sysctl
+sysctl net.ipv4.ip_forward
+```
+
+**Understanding the parameter:**
+- `net.ipv4.ip_forward=1` - Enables IPv4 packet forwarding
+- For IPv6 support, also enable: `net.ipv6.conf.all.forwarding=1`
+
 ### Iptables
+
+iptables is a userspace utility for configuring Linux kernel firewall rules. Here we configure NAT (Network Address Translation) to masquerade outgoing traffic.
 
 ```bash copy
 sudo iptables -t nat -A POSTROUTING -o tun0 -j MASQUERADE
+```
+
+**Breaking down this command:**
+- `-t nat` - Specifies the NAT table
+- `-A POSTROUTING` - Appends rule to POSTROUTING chain (after routing decision)
+- `-o tun0` - Matches packets going out through tun0 interface (VPN tunnel)
+- `-j MASQUERADE` - Replaces source IP with the interface IP (dynamic SNAT)
+
+**Additional iptables rules for comprehensive setup:**
+```bash
+# Allow forwarding from local network (e.g., 192.168.1.0/24) to VPN
+sudo iptables -A FORWARD -i eth0 -o tun0 -j ACCEPT
+
+# Allow established and related connections back
+sudo iptables -A FORWARD -i tun0 -o eth0 -m state --state RELATED,ESTABLISHED -j ACCEPT
+
+# View current NAT rules
+sudo iptables -t nat -L -n -v
 ```
 
 ```bash copy
@@ -24,6 +84,23 @@ sudo apt install iptables-persistent
 sudo service netfilter-persistent save
 sudo ufw allow in on tun0 from any to any
 sudo ufw allow out on tun0 from any to any
+```
+
+**What these commands do:**
+- `iptables-persistent` - Package that saves and restores iptables rules on boot
+- `netfilter-persistent save` - Saves current iptables rules to `/etc/iptables/rules.v4` and `rules.v6`
+- UFW (Uncomplicated Firewall) rules allow traffic through the VPN tunnel interface
+
+**Verify saved rules:**
+```bash
+# View IPv4 rules
+sudo cat /etc/iptables/rules.v4
+
+# View IPv6 rules
+sudo cat /etc/iptables/rules.v6
+
+# Check UFW status
+sudo ufw status verbose
 ```
 
 ### Ubuntu server
@@ -37,6 +114,33 @@ sudo iptables -P FORWARD ACCEPT
 sudo iptables-save > /etc/iptables/rules.v4
 ```
 
+**Understanding default policies:**
+- `-P INPUT ACCEPT` - Sets default policy for incoming traffic
+- `-P OUTPUT ACCEPT` - Sets default policy for outgoing traffic
+- `-P FORWARD ACCEPT` - Sets default policy for forwarded traffic (crucial for gateway)
+- `iptables-save` - Exports current rules to a file
+
+**⚠️ Security Note:** This configuration opens all ports. For production environments, implement more restrictive rules:
+```bash
+# Alternative: Restrictive approach with specific allowances
+sudo iptables -P INPUT DROP
+sudo iptables -P FORWARD DROP
+sudo iptables -P OUTPUT ACCEPT
+
+# Allow SSH access (replace 22 with your SSH port)
+sudo iptables -A INPUT -p tcp --dport 22 -j ACCEPT
+
+# Allow established connections
+sudo iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+
+# Allow loopback
+sudo iptables -A INPUT -i lo -j ACCEPT
+
+# Allow forwarding from specific subnet
+sudo iptables -A FORWARD -s 192.168.1.0/24 -j ACCEPT
+sudo iptables -A FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT
+```
+
 ```bash copy
 sudo ufw disable
 sudo ufw default allow incoming
@@ -44,8 +148,29 @@ sudo ufw default allow outgoing
 sudo ufw enable
 ```
 
+**UFW (Uncomplicated Firewall) management:**
+- Provides a simpler interface over iptables
+- Default policies set before enabling to avoid lockout
+- More user-friendly for basic firewall management
+
+**Troubleshooting UFW:**
+```bash
+# Check UFW status and rules
+sudo ufw status numbered
+
+# Delete specific rule by number
+sudo ufw delete <number>
+
+# Reset UFW to default state
+sudo ufw reset
+
+# Check UFW logs
+sudo tail -f /var/log/ufw.log
+```
 
 ### OpenVPN
+
+OpenVPN is the open-source VPN protocol used by ProtonVPN. We need to install the client and configure DNS resolution.
 
 ```bash
 sudo apt install openvpn 
@@ -54,13 +179,58 @@ sudo wget "https://raw.githubusercontent.com/ProtonVPN/scripts/master/update-res
 sudo chmod +x "/etc/openvpn/update-resolv-conf"
 ```
 
+**Component breakdown:**
+- `openvpn` - Main VPN client software
+- `openresolv` - DNS management framework for OpenVPN
+- `update-resolv-conf` - Script that updates DNS settings when VPN connects/disconnects
+
+**Why update-resolv-conf is important:**
+This script ensures DNS queries are routed through the VPN provider's DNS servers, preventing DNS leaks. It's called automatically by OpenVPN through `up` and `down` script directives.
+
+**Verify installation:**
+```bash
+# Check OpenVPN version
+openvpn --version
+
+# Verify script is executable
+ls -la /etc/openvpn/update-resolv-conf
+
+# Test DNS resolution after VPN connection
+nslookup google.com
+dig google.com
+```
+
 ### OpenVPN config
+
+The configuration file tells OpenVPN how to connect to ProtonVPN servers. Download your `.ovpn` file from the ProtonVPN dashboard.
 
 ```bash
 sudo mv /path/to/your/file.ovpn /etc/openvpn/client.conf
 sudo systemctl enable openvpn-client@client.service
 sudo systemctl start openvpn-client@client.service
 sudo systemctl status openvpn-client@client.service
+```
+
+**Understanding systemd service naming:**
+- `openvpn-client@client.service` - The `@client` part matches `client.conf` filename
+- If you named it `proton.conf`, the service would be `openvpn-client@proton.service`
+- `enable` - Makes the service start automatically on boot
+- `start` - Starts the service immediately
+- `status` - Shows current status and recent log entries
+
+**Additional systemd commands:**
+```bash
+# Stop the VPN connection
+sudo systemctl stop openvpn-client@client.service
+
+# Restart the VPN connection
+sudo systemctl restart openvpn-client@client.service
+
+# View detailed logs
+sudo journalctl -u openvpn-client@client.service -f
+
+# Check if service is set to start on boot
+sudo systemctl is-enabled openvpn-client@client.service
 ```
 
 Then, modify the .ovpn file (/etc/openvpn/client.conf) to include this line:
@@ -73,7 +243,50 @@ sudo nano /etc/openvpn/credentials.txt
 auth-user-pass /etc/openvpn/credentials.txt
 ```
 
+**Credentials file format:**
+Create `/etc/openvpn/credentials.txt` with two lines:
+```
+your-protonvpn-username
+your-protonvpn-password
+```
 
+**Security best practices:**
+```bash
+# Set restrictive permissions (only root can read)
+sudo chmod 600 /etc/openvpn/credentials.txt
+sudo chown root:root /etc/openvpn/credentials.txt
+
+# Verify permissions
+ls -la /etc/openvpn/credentials.txt
+# Should show: -rw------- 1 root root
+```
+
+**Additional client.conf modifications:**
+Add these lines to `/etc/openvpn/client.conf` for better functionality:
+```bash
+# DNS leak protection (use ProtonVPN's DNS)
+script-security 2
+up /etc/openvpn/update-resolv-conf
+down /etc/openvpn/update-resolv-conf
+
+# Automatically reconnect on connection drop
+persist-key
+persist-tun
+keepalive 10 60
+
+# Log file for troubleshooting
+log-append /var/log/openvpn-client.log
+verb 3
+```
+
+**Monitor the log file:**
+```bash
+# Watch logs in real-time
+sudo tail -f /var/log/openvpn-client.log
+
+# Check for connection errors
+sudo grep -i error /var/log/openvpn-client.log
+```
 
 ### Test
 
@@ -81,3 +294,166 @@ auth-user-pass /etc/openvpn/credentials.txt
  curl ip.me
 ```
 
+**Comprehensive testing suite:**
+
+**1. Verify VPN connection is active:**
+```bash
+# Check tun0 interface exists
+ip addr show tun0
+
+# Should show the VPN tunnel interface with an IP address
+# Example output: inet 10.x.x.x/xx
+```
+
+**2. Check your public IP (should show VPN exit server IP):**
+```bash
+# Multiple services to verify IP
+curl ifconfig.me
+curl icanhazip.com
+curl ipinfo.io/ip
+
+# Get detailed info including location
+curl ipinfo.io
+```
+
+**3. DNS leak test:**
+```bash
+# Check which DNS servers you're using
+nslookup -type=txt whoami.akamai.net
+
+# Or using dig
+dig +short TXT whoami.akamai.net
+
+# Should show ProtonVPN's DNS servers, not your ISP's
+cat /etc/resolv.conf
+```
+
+**4. Verify routing through VPN:**
+```bash
+# Show routing table
+ip route show
+
+# Default route should go through tun0
+# Example: default via 10.x.x.x dev tun0
+
+# Traceroute to see the path
+traceroute -n google.com
+# First hops should be VPN infrastructure
+```
+
+**5. Test from another device:**
+If you've configured other devices to use this VM as gateway:
+```bash
+# From another device on your network, set gateway to this VM's IP
+# Then test:
+curl ipinfo.io
+
+# Should show the VPN exit IP, not your real IP
+```
+
+**6. Network performance test:**
+```bash
+# Install speedtest-cli if needed
+sudo apt install speedtest-cli
+
+# Test VPN connection speed
+speedtest-cli
+
+# Ping test
+ping -c 4 8.8.8.8
+```
+
+## Troubleshooting
+
+**VPN won't connect:**
+```bash
+# Check OpenVPN service status
+sudo systemctl status openvpn-client@client.service
+
+# View detailed logs
+sudo journalctl -xeu openvpn-client@client.service
+
+# Test configuration manually (foreground mode)
+sudo openvpn --config /etc/openvpn/client.conf
+```
+
+**DNS not working:**
+```bash
+# Check DNS resolution
+systemd-resolve --status
+
+# Verify update-resolv-conf script executed
+cat /etc/resolv.conf
+
+# Manually test DNS
+nslookup google.com 8.8.8.8
+```
+
+**Routing issues:**
+```bash
+# Verify IP forwarding is enabled
+sysctl net.ipv4.ip_forward
+
+# Check NAT rules are active
+sudo iptables -t nat -L -n -v
+
+# Verify firewall isn't blocking
+sudo iptables -L -n -v
+
+# Check interface status
+ip link show
+```
+
+**Connection drops frequently:**
+```bash
+# Add to client.conf
+resolv-retry infinite
+nobind
+persist-key
+persist-tun
+keepalive 10 120
+
+# Then restart service
+sudo systemctl restart openvpn-client@client.service
+```
+
+## Advanced Configuration
+
+**Kill switch (prevent traffic without VPN):**
+```bash
+# Drop all traffic not going through VPN
+sudo iptables -A OUTPUT ! -o tun0 -m owner ! --uid-owner root -j DROP
+
+# Allow local network
+sudo iptables -I OUTPUT -o eth0 -d 192.168.0.0/16 -j ACCEPT
+```
+
+**Split tunneling (route only specific traffic through VPN):**
+```bash
+# Create routing table
+echo "200 vpn" | sudo tee -a /etc/iproute2/rt_tables
+
+# Route specific subnet through VPN
+sudo ip rule add from 192.168.100.0/24 table vpn
+sudo ip route add default via 10.x.x.x dev tun0 table vpn
+```
+
+**Monitor VPN status with script:**
+```bash
+#!/bin/bash
+# save as /usr/local/bin/vpn-status.sh
+
+VPN_IP=$(curl -s ifconfig.me)
+TUN0_STATUS=$(ip addr show tun0 2>/dev/null | grep -q "inet" && echo "UP" || echo "DOWN")
+
+echo "VPN Status: $TUN0_STATUS"
+echo "Public IP: $VPN_IP"
+echo "Timestamp: $(date)"
+```
+
+Make it executable and add to cron:
+```bash
+sudo chmod +x /usr/local/bin/vpn-status.sh
+# Run every 5 minutes
+echo "*/5 * * * * /usr/local/bin/vpn-status.sh >> /var/log/vpn-monitor.log" | sudo crontab -
+```

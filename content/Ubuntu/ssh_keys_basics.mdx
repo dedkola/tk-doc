@@ -6,19 +6,187 @@ tags: [ssh, keys, import, export, generate]
 
 # Basic usage of SSH keys import, export, and generate
 
-## Create SSH keys
+SSH (Secure Shell) keys provide a more secure authentication method than passwords for accessing remote systems. They use public-key cryptography, where a key pair consists of a private key (kept secret) and a public key (shared with servers).
+
+## Understanding SSH Key Types
+
+Modern SSH supports several key types with different security characteristics:
+
+- **RSA**: Traditional algorithm, recommended minimum 2048-bit (4096-bit preferred)
+- **Ed25519**: Modern elliptic curve algorithm, faster and more secure with shorter keys
+- **ECDSA**: Elliptic Curve Digital Signature Algorithm, 256/384/521-bit options
+- **DSA**: Legacy algorithm, deprecated and should not be used
+
+
+## Create SSH Keys
+
+### RSA Key Generation (4096-bit)
 
 ```bash copy
 ssh-keygen -t rsa -b 4096 -C "laptop@vlan1"
 ```
 
+**Parameters explained:**
+- `-t rsa`: Specifies the RSA algorithm
+- `-b 4096`: Sets key length to 4096 bits (stronger than default 2048)
+- `-C "laptop@vlan1"`: Adds a comment for identification
+
+**Interactive prompts:**
+1. File location (default: `~/.ssh/id_rsa`)
+2. Passphrase (optional but recommended for additional security)
+
+### Modern Ed25519 Key Generation (Recommended)
+
+```bash copy
+ssh-keygen -t ed25519 -C "laptop@vlan1"
+```
+
+Ed25519 offers:
+- Stronger security with smaller key size (256-bit)
+- Better performance
+- Resistance to side-channel attacks
+- Generated in milliseconds
+
+### Generate Key with Custom Filename
+
+```bash copy
+ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519_github -C "github-work"
+```
+
+Useful for managing multiple identities (work, personal, different services).
+
+### Generate Key Without Passphrase (Automation)
+
+```bash copy
+ssh-keygen -t ed25519 -N "" -f ~/.ssh/id_ed25519_automation -C "automated-deployment"
+```
+
+**Warning:** Use only for automated systems in secure environments. The `-N ""` flag creates a key without passphrase protection.
+
+## Key File Permissions
+
+SSH is strict about file permissions for security:
+
+```bash copy
+# Set correct permissions for private key
+chmod 600 ~/.ssh/id_rsa
+
+# Set correct permissions for public key
+chmod 644 ~/.ssh/id_rsa.pub
+
+# Set correct permissions for authorized_keys
+chmod 600 ~/.ssh/authorized_keys
+
+# Set correct permissions for .ssh directory
+chmod 700 ~/.ssh
+```
+
+**Why these permissions matter:**
+- Private keys must be readable only by owner (600)
+- SSH refuses to use keys with overly permissive settings
+- Prevents unauthorized access to your authentication credentials
+
 # Export public key to remote server
+
+## Method 1: Direct Append (Manual)
 
 ```bash copy
 cat ~/.ssh/id_rsa.pub | ssh user@192.168.0.13 'cat >> .ssh/authorized_keys'
 ```
 
+This command streams your public key through SSH and appends it to the authorized_keys file.
+
+## Method 2: Using ssh-copy-id (Recommended)
+
+```bash copy
+ssh-copy-id -i ~/.ssh/id_ed25519.pub user@192.168.0.13
+```
+
+**Advantages:**
+- Automatically creates `.ssh` directory if missing
+- Sets correct permissions (700 for directory, 600 for authorized_keys)
+- Prevents duplicate entries
+- Handles edge cases gracefully
+
+## Method 3: Copy Specific Key
+
+```bash copy
+ssh-copy-id -i ~/.ssh/id_ed25519_github.pub user@server.example.com
+```
+
+## Method 4: Copy to Non-Standard Port
+
+```bash copy
+ssh-copy-id -i ~/.ssh/id_ed25519.pub -p 2222 user@192.168.0.13
+```
+
+## Method 5: Manual Multi-Server Deployment
+
+```bash copy
+# Copy to multiple servers
+for server in 192.168.0.13 192.168.0.14 192.168.0.15; do
+    ssh-copy-id -i ~/.ssh/id_ed25519.pub user@$server
+done
+```
+
+## Verify Key Installation
+
+```bash copy
+# Test connection without password
+ssh -i ~/.ssh/id_ed25519 user@192.168.0.13
+
+# Check authorized_keys on remote server
+ssh user@192.168.0.13 'cat ~/.ssh/authorized_keys'
+```
+
+## View Your Public Key
+
+```bash copy
+# Display public key content
+cat ~/.ssh/id_rsa.pub
+
+# Copy public key to clipboard (macOS)
+pbcopy < ~/.ssh/id_rsa.pub
+
+# Copy public key to clipboard (Linux with xclip)
+xclip -sel clip < ~/.ssh/id_rsa.pub
+```
+
 ## Other troubleshooting
+
+### SSH Config File for Easy Management
+
+Create `~/.ssh/config` to simplify connections:
+
+```bash copy
+# Personal server
+Host homelab
+    HostName 192.168.0.13
+    User admin
+    Port 22
+    IdentityFile ~/.ssh/id_ed25519
+    
+# GitHub with specific key
+Host github.com
+    HostName github.com
+    User git
+    IdentityFile ~/.ssh/id_ed25519_github
+    
+# Work server with custom settings
+Host work-server
+    HostName server.company.com
+    User developer
+    Port 2222
+    IdentityFile ~/.ssh/id_rsa_work
+    ServerAliveInterval 60
+    ServerAliveCountMax 3
+```
+
+**Usage:**
+```bash copy
+ssh homelab
+# Equivalent to: ssh -i ~/.ssh/id_ed25519 admin@192.168.0.13
+```
 
 ### Allow Password authentication
 
@@ -32,13 +200,309 @@ or
 PermitRootLogin yes
 ```
 
+**Security considerations:**
+- `PasswordAuthentication yes`: Enables password login (less secure than keys)
+- `PermitRootLogin yes`: Allows root login (security risk, use `prohibit-password` instead)
+- Always restart SSH service after config changes
+
+**Recommended secure configuration:**
+```bash copy
+# Edit SSH config
+sudo nano /etc/ssh/sshd_config
+
+# Recommended settings:
+# PermitRootLogin prohibit-password
+# PasswordAuthentication no
+# PubkeyAuthentication yes
+# ChallengeResponseAuthentication no
+# UsePAM yes
+
+# Restart SSH
+sudo systemctl restart ssh
+```
+
+### Disable Password Authentication (Security Hardening)
+
+After setting up key-based authentication:
+
+```bash copy
+# Edit sshd_config
+sudo sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
+sudo sed -i 's/PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
+
+# Verify changes
+sudo grep "PasswordAuthentication" /etc/ssh/sshd_config
+
+# Restart SSH service
+sudo systemctl restart ssh
+
+# Verify service status
+sudo systemctl status ssh
+```
+
 ### Install ssh server
 
 ```bash copy
 sudo apt install openssh-server
 ```
 
+**Complete setup process:**
+```bash copy
+# Install OpenSSH server
+sudo apt update
+sudo apt install openssh-server -y
+
+# Enable SSH service to start at boot
+sudo systemctl enable ssh
+
+# Start SSH service
+sudo systemctl start ssh
+
+# Check SSH service status
+sudo systemctl status ssh
+
+# Check SSH is listening on port 22
+sudo ss -tulpn | grep :22
+
+# Allow SSH through firewall (UFW)
+sudo ufw allow ssh
+# or specific port
+sudo ufw allow 22/tcp
+```
+
+### Change SSH Default Port
+
+For additional security through obscurity:
+
+```bash copy
+# Edit SSH config
+sudo nano /etc/ssh/sshd_config
+
+# Change line:
+# Port 22
+# to:
+# Port 2222
+
+# Restart SSH
+sudo systemctl restart ssh
+
+# Update firewall
+sudo ufw allow 2222/tcp
+sudo ufw delete allow 22/tcp
+
+# Connect with new port
+ssh -p 2222 user@server
+```
+
 ### Re-generate SSH keys or complete missing keys
 ```bash copy
 sudo ssh-keygen -A
+```
+
+This command regenerates all host keys for the SSH server. Used when:
+- Server host keys are missing or corrupted
+- After system migration or cloning
+- Security incident requires key rotation
+
+**What it does:**
+- Generates missing host keys for all supported types (RSA, ECDSA, Ed25519)
+- Skips keys that already exist
+- Keys are stored in `/etc/ssh/` directory
+
+**Manual host key generation:**
+```bash copy
+# Generate specific host key types
+sudo ssh-keygen -t rsa -b 4096 -f /etc/ssh/ssh_host_rsa_key -N ""
+sudo ssh-keygen -t ed25519 -f /etc/ssh/ssh_host_ed25519_key -N ""
+sudo ssh-keygen -t ecdsa -b 521 -f /etc/ssh/ssh_host_ecdsa_key -N ""
+
+# Set correct permissions
+sudo chmod 600 /etc/ssh/ssh_host_*_key
+sudo chmod 644 /etc/ssh/ssh_host_*_key.pub
+
+# Restart SSH
+sudo systemctl restart ssh
+```
+
+## Advanced Topics
+
+### SSH Agent for Key Management
+
+SSH agent stores decrypted private keys in memory:
+
+```bash copy
+# Start SSH agent
+eval "$(ssh-agent -s)"
+
+# Add key to agent
+ssh-add ~/.ssh/id_ed25519
+
+# Add key with specific lifetime (1 hour)
+ssh-add -t 3600 ~/.ssh/id_ed25519
+
+# List loaded keys
+ssh-add -l
+
+# Remove all keys from agent
+ssh-add -D
+
+# Remove specific key
+ssh-add -d ~/.ssh/id_ed25519
+```
+
+### SSH Key Forwarding
+
+Allow your local SSH keys to authenticate on remote servers:
+
+```bash copy
+# Connect with agent forwarding
+ssh -A user@server.example.com
+
+# Or configure in ~/.ssh/config
+Host jumphost
+    HostName jump.example.com
+    ForwardAgent yes
+```
+
+**Security warning:** Only use agent forwarding on trusted servers.
+
+### Convert SSH Key Formats
+
+```bash copy
+# Convert OpenSSH private key to PEM format
+ssh-keygen -p -m PEM -f ~/.ssh/id_rsa
+
+# Convert public key to different formats
+ssh-keygen -e -f ~/.ssh/id_rsa.pub -m RFC4716 > key.rfc4716
+ssh-keygen -e -f ~/.ssh/id_rsa.pub -m PKCS8 > key.pkcs8
+
+# Extract public key from private key
+ssh-keygen -y -f ~/.ssh/id_rsa > ~/.ssh/id_rsa.pub
+```
+
+### View SSH Key Fingerprints
+
+```bash copy
+# View fingerprint of your public key
+ssh-keygen -lf ~/.ssh/id_ed25519.pub
+
+# View fingerprint with different hash algorithms
+ssh-keygen -lf ~/.ssh/id_ed25519.pub -E sha256
+ssh-keygen -lf ~/.ssh/id_ed25519.pub -E md5
+
+# View all server host keys
+for key in /etc/ssh/ssh_host_*_key.pub; do
+    ssh-keygen -lf "$key"
+done
+```
+
+### Backup and Restore SSH Keys
+
+```bash copy
+# Backup your SSH directory
+tar -czf ssh-backup-$(date +%Y%m%d).tar.gz ~/.ssh
+
+# Restore from backup
+tar -xzf ssh-backup-20260114.tar.gz -C ~/
+
+# Secure backup to remote location
+rsync -avz --chmod=700 ~/.ssh/ user@backup-server:~/ssh-backup/
+```
+
+### Troubleshooting SSH Connection Issues
+
+```bash copy
+# Verbose SSH connection (debug level 1)
+ssh -v user@server.example.com
+
+# Very verbose (debug level 3)
+ssh -vvv user@server.example.com
+
+# Test specific key
+ssh -i ~/.ssh/id_ed25519 -v user@server.example.com
+
+# Check SSH service logs on server
+sudo journalctl -u ssh -f
+sudo tail -f /var/log/auth.log
+
+# Test SSH configuration
+sudo sshd -t
+```
+
+### SSH Key Security Best Practices
+
+1. **Always use passphrases** for private keys (except automation scenarios)
+2. **Use Ed25519** for new keys (or RSA 4096-bit minimum)
+3. **Disable password authentication** after setting up keys
+4. **Regularly rotate keys** (annually or after security incidents)
+5. **Use different keys** for different purposes (work, personal, servers)
+6. **Never share private keys** or commit them to version control
+7. **Implement fail2ban** to prevent brute force attacks
+8. **Use SSH certificates** for large-scale deployments
+9. **Monitor authorized_keys** files for unauthorized entries
+10. **Backup keys securely** with encryption
+
+### Install and Configure Fail2Ban
+
+Protect against brute force attacks:
+
+```bash copy
+# Install fail2ban
+sudo apt install fail2ban -y
+
+# Create local configuration
+sudo cp /etc/fail2ban/jail.conf /etc/fail2ban/jail.local
+
+# Edit configuration
+sudo nano /etc/fail2ban/jail.local
+
+# Basic SSH protection settings:
+# [sshd]
+# enabled = true
+# port = 22
+# filter = sshd
+# logpath = /var/log/auth.log
+# maxretry = 3
+# bantime = 3600
+# findtime = 600
+
+# Start and enable fail2ban
+sudo systemctl enable fail2ban
+sudo systemctl start fail2ban
+
+# Check status
+sudo fail2ban-client status sshd
+
+# Unban an IP
+sudo fail2ban-client set sshd unbanip 192.168.0.100
+```
+
+## Quick Reference
+
+### Common SSH Commands
+
+```bash copy
+# Connect to server
+ssh user@hostname
+
+# Connect with specific key
+ssh -i ~/.ssh/key user@hostname
+
+# Connect with port forwarding (local port 8080 to remote 80)
+ssh -L 8080:localhost:80 user@hostname
+
+# Connect with dynamic port forwarding (SOCKS proxy)
+ssh -D 9090 user@hostname
+
+# Execute remote command
+ssh user@hostname 'ls -la /var/log'
+
+# Copy file to remote (SCP)
+scp file.txt user@hostname:/path/to/destination
+
+# Copy directory recursively
+scp -r directory/ user@hostname:/path/to/destination
+
+# Sync directories (rsync over SSH)
+rsync -avz -e ssh /local/dir/ user@hostname:/remote/dir/
 ```

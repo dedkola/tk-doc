@@ -4,12 +4,38 @@ description: Adguard best DNS servers
 tags: [dns, adguard, servers]
 ---
 
+## Overview
+
+DNS (Domain Name System) servers are essential infrastructure components that translate human-readable domain names into IP addresses. Choosing the right DNS servers can significantly improve your network's security, privacy, and performance.
+
+## Encrypted DNS Protocols (DoH, DoT, DoQ)
+
+Modern DNS protocols provide encryption to prevent eavesdropping and manipulation of DNS queries. Here are the recommended encrypted DNS endpoints for AdGuard Home:
+
 ```bash copy
 https://1.1.1.1/dns-query
 https://dns.google/dns-query
 tls://unfiltered.adguard-dns.com
 h3://unfiltered.adguard-dns.com/dns-query
 ```
+
+### Protocol Explanations
+
+- **DoH (DNS over HTTPS)**: Encrypts DNS queries using HTTPS protocol (port 443). The `https://` URLs use this protocol, making DNS traffic indistinguishable from regular web traffic, which helps bypass censorship.
+
+- **DoT (DNS over TLS)**: Uses TLS encryption on port 853. The `tls://` prefix indicates this protocol, which provides dedicated encrypted DNS communication.
+
+- **DoQ (DNS over QUIC)**: The newest protocol using HTTP/3 and QUIC transport. The `h3://` prefix indicates HTTP/3. It offers improved performance with reduced latency and better connection migration capabilities.
+
+### Provider Details
+
+- **Cloudflare (1.1.1.1)**: Known for fast response times and strong privacy commitments. Doesn't log personally identifiable information.
+- **Google DNS (dns.google)**: Reliable with global infrastructure, but Google may collect some data for security and performance improvements.
+- **AdGuard Unfiltered**: AdGuard's own DNS service without ad-blocking (unfiltered version), suitable for custom filtering rules in AdGuard Home.
+
+## Standard DNS Servers (Port 53)
+
+Traditional DNS servers using UDP/TCP on port 53. These are faster but unencrypted, making them suitable for internal networks where encryption isn't necessary:
 
 ```bash copy
 94.140.14.14
@@ -21,3 +47,47 @@ h3://unfiltered.adguard-dns.com/dns-query
 9.9.9.9
 149.112.112.112
 ```
+
+### Server Breakdown
+
+**AdGuard DNS (94.140.14.14, 94.140.15.15)**
+- Primary and secondary servers for AdGuard DNS
+- Family-friendly protection with malware and adult content blocking
+- Located in various regions for redundancy
+
+**Google Public DNS (8.8.8.8, 8.8.4.4)**
+- One of the world's most popular public DNS services
+- Extensive global infrastructure ensuring low latency
+- Implements DNSSEC for security validation
+
+**Cloudflare (1.1.1.1, 1.0.0.1)**
+- Focuses on speed and privacy
+- Consistently performs well in benchmarks
+- Supports DNSSEC and has a strong privacy policy
+
+**Quad9 (9.9.9.9, 149.112.112.112)**
+- Security-focused DNS with automatic blocking of malicious domains
+- Non-profit organization based in Switzerland
+- Free service with threat intelligence integration
+- Doesn't log personally identifiable information
+
+## Configuration Recommendations
+
+### For Maximum Privacy
+Use encrypted protocols (DoH, DoT, or DoQ) with Cloudflare or AdGuard DNS to prevent ISP tracking of your DNS queries.
+
+### For Maximum Performance
+Test multiple servers using DNS benchmark tools and select the fastest for your geographic location. Consider using Cloudflare or Google DNS.
+
+### For Family Protection
+Use AdGuard DNS (94.140.14.14/15.15) or configure custom filtering rules in AdGuard Home with unfiltered upstream DNS.
+
+### Redundancy Strategy
+Configure multiple upstream DNS servers in AdGuard Home. The service will automatically failover if the primary server becomes unavailable.
+
+## Technical Considerations
+
+- **DNSSEC**: All listed providers support DNSSEC (DNS Security Extensions), which validates DNS responses to prevent cache poisoning attacks.
+- **IPv6 Support**: Most providers also offer IPv6 addresses for future-proof networking.
+- **Latency**: Geographic proximity to DNS servers affects response times. Consider testing local alternatives.
+- **Logging Policies**: Review each provider's privacy policy to understand what data may be collected.

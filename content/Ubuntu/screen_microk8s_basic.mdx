@@ -1,9 +1,22 @@
 ---
-title: Usinng Screen with MicroK8s dashboard proxy example
-description: Usinng Screen with MicroK8s dashboard proxy example with basic commands
+title: Using Screen with MicroK8s dashboard proxy example
+description: Using Screen with MicroK8s dashboard proxy example with basic commands
 tags: [screen, microk8s, k8s, ubuntu, dashboard]
 ---
 
+## Introduction to GNU Screen
+
+GNU Screen is a terminal multiplexer that allows you to manage multiple shell sessions from a single SSH connection. It's particularly useful for running long-running processes like MicroK8s dashboard proxies, as sessions persist even when you disconnect from the server.
+
+### Key Benefits:
+- **Session Persistence**: Processes continue running after SSH disconnection
+- **Multi-window Management**: Run multiple sessions in a single terminal
+- **Session Sharing**: Multiple users can attach to the same session
+- **Process Recovery**: Reconnect to running processes after network interruption
+
+## MicroK8s Dashboard Use Case
+
+When exposing the MicroK8s dashboard via `kubectl proxy`, the process must remain active. Using Screen ensures the proxy continues running in the background, allowing you to disconnect from SSH while maintaining dashboard accessibility.
 
 ### Create screen session
 
@@ -11,18 +24,245 @@ tags: [screen, microk8s, k8s, ubuntu, dashboard]
 screen -S dashboard-proxy
 ```
 
+This command creates a new named screen session called "dashboard-proxy". The `-S` flag specifies the session name, making it easier to identify and manage multiple sessions.
+
+**Common session naming conventions:**
+- Use descriptive names: `dashboard-proxy`, `k8s-monitor`, `log-watcher`
+- Avoid spaces in session names
+- Use hyphens or underscores for multi-word names
+
+After creating the session, you can start your MicroK8s dashboard proxy:
+
+```bash copy
+microk8s kubectl proxy --address='0.0.0.0' --accept-hosts='.*'
+```
+
+This proxy command makes the Kubernetes dashboard accessible from external networks by binding to all interfaces and accepting all host headers.
+
 ### Detach from screen session
 
 ```bash copy
 # Press Ctrl+A and then press D
 ```
+
+**Detach Sequence Breakdown:**
+1. Hold `Ctrl` and press `A` (this is Screen's command prefix)
+2. Release both keys
+3. Press `D` to detach
+
+The session will continue running in the background. You'll see a message like: `[detached from 12345.dashboard-proxy]`
+
+**Alternative detach method:**
+```bash copy
+# Detach from outside the session
+screen -d dashboard-proxy
+```
+
+This command detaches the session programmatically, useful in scripts or when the session is attached elsewhere.
+
+### List all screen sessions
+
+```bash copy
+screen -ls
+```
+
+This displays all active screen sessions with their IDs and states (Attached/Detached). Example output:
+```
+There is a screen on:
+    12345.dashboard-proxy	(Detached)
+1 Socket in /run/screen/S-username.
+```
+
 ### Attach to screen session
 
 ```bash copy
 screen -r dashboard-proxy
 ```
+
+The `-r` flag stands for "reattach". This reconnects you to the specified screen session, allowing you to view and interact with the running process.
+
+**If the session is already attached elsewhere:**
+```bash copy
+# Force reattach and detach other connections
+screen -dr dashboard-proxy
+```
+
+The `-d` flag detaches any other attached terminals first, then reattaches to your current terminal. This is useful when you have a stuck SSH connection.
+
+**Attach to session by ID:**
+```bash copy
+# When you know the session ID (e.g., 12345)
+screen -r 12345
+```
+
+### View session without attaching
+
+```bash copy
+# Multi-display mode - view session read-only
+screen -x dashboard-proxy
+```
+
+The `-x` flag allows multiple terminals to attach to the same session simultaneously. All users see the same output in real-time, useful for collaborative debugging or monitoring.
+
 ### Delete screen session
 
 ```bash copy
 screen -X -S dashboard-proxy quit
 ```
+
+This command terminates the screen session completely, killing all processes running within it.
+
+**Command breakdown:**
+- `-X`: Send a command to the screen session
+- `-S dashboard-proxy`: Specify the session name
+- `quit`: The command to terminate the session
+
+**Alternative termination methods:**
+
+```bash copy
+# From inside the session: type 'exit' or press Ctrl+D
+exit
+
+# Kill all screen sessions at once (use with caution)
+killall screen
+
+# Kill specific session by ID
+screen -S 12345 -X quit
+```
+
+**Warning:** Terminating a screen session will also stop the MicroK8s proxy running inside it, making the dashboard inaccessible.
+
+## Advanced Screen Commands
+
+### Screen Window Management
+
+```bash copy
+# Create a new window within current session (Ctrl+A, then C)
+# Navigate between windows (Ctrl+A, then N for next)
+# Navigate to previous window (Ctrl+A, then P)
+# List all windows (Ctrl+A, then ")
+# Rename current window (Ctrl+A, then A)
+```
+
+### Screen Logging
+
+```bash copy
+# Enable logging for current window
+# Press Ctrl+A, then H
+# This creates a screenlog.0 file in the current directory
+```
+
+This is invaluable for capturing output from long-running processes like kubectl proxy logs.
+
+### Screen Configuration
+
+Create a `.screenrc` file in your home directory for persistent settings:
+
+```bash copy
+# Example ~/.screenrc configuration
+cat > ~/.screenrc << 'EOF'
+# Disable startup message
+startup_message off
+
+# Increase scrollback buffer
+defscrollback 10000
+
+# Show window list at the bottom
+hardstatus alwayslastline
+hardstatus string '%{= kG}[ %{G}%H %{g}][%= %{= kw}%?%-Lw%?%{r}(%{W}%n*%f%t%?(%u)%?%{r})%{w}%?%+Lw%?%?%= %{g}][%{B} %m-%d %{W}%c %{g}]'
+
+# Enable mouse scrolling
+termcapinfo xterm* ti@:te@
+
+# Auto-detach on hangup
+autodetach on
+EOF
+```
+
+## Complete MicroK8s Dashboard Workflow
+
+### Step-by-step deployment with Screen:
+
+```bash copy
+# 1. Install Screen if not present
+sudo apt update && sudo apt install screen -y
+
+# 2. Verify MicroK8s is running
+microk8s status
+
+# 3. Enable the dashboard addon
+microk8s enable dashboard
+
+# 4. Create a new screen session
+screen -S dashboard-proxy
+
+# 5. Start the proxy (this runs in the foreground)
+microk8s kubectl proxy --address='0.0.0.0' --accept-hosts='.*' --port=8001
+
+# 6. Detach from screen (Ctrl+A, then D)
+
+# 7. Verify session is running
+screen -ls
+
+# 8. Access dashboard via browser
+# http://your-server-ip:8001/api/v1/namespaces/kube-system/services/https:kubernetes-dashboard:/proxy/
+```
+
+### Getting Dashboard Token
+
+```bash copy
+# Create a service account token for dashboard access
+microk8s kubectl create token default -n kube-system
+
+# Or get existing token (pre-1.24)
+microk8s kubectl -n kube-system describe secret $(microk8s kubectl -n kube-system get secret | grep default-token | cut -d " " -f1)
+```
+
+## Troubleshooting
+
+### Session not found
+If `screen -r dashboard-proxy` returns "There is no screen to be resumed":
+- Check if the session exists: `screen -ls`
+- Verify the session name spelling
+- Ensure you're logged in as the correct user (screen sessions are user-specific)
+
+### Screen session appears dead
+```bash copy
+# Clean up dead sessions
+screen -wipe
+
+# List sessions again
+screen -ls
+```
+
+### Port already in use
+```bash copy
+# Check if proxy is already running
+sudo netstat -tulpn | grep 8001
+
+# Or with ss command
+ss -tulpn | grep 8001
+
+# Kill the process using the port
+sudo kill -9 <PID>
+```
+
+## Security Considerations
+
+**Warning:** The command `microk8s kubectl proxy --address='0.0.0.0' --accept-hosts='.*'` exposes your Kubernetes dashboard to all network interfaces without authentication beyond the token. 
+
+**Production recommendations:**
+1. Use SSH tunneling instead:
+   ```bash copy
+   ssh -L 8001:localhost:8001 user@server
+   microk8s kubectl proxy
+   ```
+2. Implement firewall rules to restrict access
+3. Use kubectl port-forward for specific services
+4. Consider using a proper ingress controller with TLS
+
+## Additional Resources
+
+- GNU Screen Manual: https://www.gnu.org/software/screen/manual/
+- MicroK8s Documentation: https://microk8s.io/docs
+- Kubernetes Dashboard: https://kubernetes.io/docs/tasks/access-application-cluster/web-ui-dashboard/

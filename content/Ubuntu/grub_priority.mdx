@@ -9,6 +9,43 @@ tags: [ubuntu, grub, boot, order]
 With Ubuntu, you can change the boot order of the GRUB menu. This is useful if you have multiple operating systems installed on your computer and you want to change the default boot order.
 In my case **Windows 11** and **Ubuntu 24.04.01**, the default boot order is set to Windows 11. If you want to change the default boot order to Ubuntu, you can follow these steps.
 
+## Understanding GRUB Configuration
+
+GRUB (GRand Unified Bootloader) is the primary bootloader used by most Linux distributions, including Ubuntu. The GRUB configuration determines which operating system boots by default, timeout settings, and other boot parameters. The main configuration file is located at `/etc/default/grub`, and changes made to this file must be applied using the `update-grub` command, which regenerates the actual GRUB configuration at `/boot/grub/grub.cfg`.
+
+### Key GRUB Configuration Parameters
+
+- **GRUB_DEFAULT**: Specifies the default menu entry (0-indexed)
+- **GRUB_TIMEOUT**: Boot menu display time in seconds (default: 5)
+- **GRUB_TIMEOUT_STYLE**: Controls timeout behavior (menu, countdown, hidden)
+- **GRUB_CMDLINE_LINUX**: Additional kernel parameters
+- **GRUB_DISABLE_OS_PROBER**: Disables automatic detection of other operating systems
+
+## Identifying Boot Menu Entries
+
+Before changing the boot order, you need to identify the correct entry number. GRUB menu entries are **zero-indexed**, meaning the first entry is `0`, the second is `1`, and so on.
+
+### List all GRUB menu entries
+
+```bash
+# View the generated GRUB configuration
+sudo grep -E "^menuentry |^submenu " /boot/grub/grub.cfg | nl -v 0
+
+# Alternative method: check with awk
+awk -F\' '/menuentry |submenu / {print i++ " : " $2}' /boot/grub/grub.cfg
+```
+
+This command displays all available boot entries with their corresponding index numbers. In a dual-boot system with Windows and Ubuntu, you might see output like:
+
+```
+0 : Ubuntu
+1 : Ubuntu, with Linux 6.8.0-50-generic
+2 : Ubuntu, with Linux 6.8.0-50-generic (recovery mode)
+3 : Memory test (memtest86+.elf)
+4 : Memory test (memtest86+.bin)
+5 : Windows Boot Manager (on /dev/nvme0n1p1)
+```
+
 ## Change GRUB boot order
 
 ```bash copy
@@ -18,3 +55,203 @@ sudo update-grub
 ```
 
 windows set as line 4 so change it to 0 for Ubuntu.
+
+### Method 1: Numeric Index (Simple)
+
+The simplest method is to use the numeric index of the desired boot entry:
+
+```bash
+# Open GRUB configuration file
+sudo nano /etc/default/grub
+
+# Change GRUB_DEFAULT to the desired entry number
+# For Ubuntu (typically entry 0)
+GRUB_DEFAULT=0
+
+# For Windows (if it's entry 5)
+# GRUB_DEFAULT=5
+
+# Save and exit (Ctrl+X, then Y, then Enter)
+```
+
+After editing, apply the changes:
+
+```bash
+# Update GRUB configuration
+sudo update-grub
+
+# Reboot to test
+sudo reboot
+```
+
+### Method 2: Using Entry Names (Recommended)
+
+Using entry names is more reliable, especially after kernel updates that might change entry positions:
+
+```bash
+# Find the exact menu entry name
+grep -E "^menuentry " /boot/grub/grub.cfg | cut -d "'" -f2
+
+# Edit GRUB configuration
+sudo nano /etc/default/grub
+
+# Set GRUB_DEFAULT to the exact entry name
+GRUB_DEFAULT="Ubuntu, with Linux 6.8.0-50-generic"
+
+# Or for Windows
+# GRUB_DEFAULT="Windows Boot Manager (on /dev/nvme0n1p1)"
+
+# Update GRUB
+sudo update-grub
+```
+
+### Method 3: Submenu Entries
+
+If your desired entry is within a submenu (common for older kernel versions), use the format `"submenu_name>entry_name"`:
+
+```bash
+# Example for an older kernel in "Advanced options for Ubuntu" submenu
+GRUB_DEFAULT="Advanced options for Ubuntu>Ubuntu, with Linux 6.5.0-28-generic"
+```
+
+## Advanced GRUB Configuration Options
+
+### Setting Boot Timeout
+
+Control how long the GRUB menu is displayed before booting the default entry:
+
+```bash
+# Display menu for 10 seconds
+GRUB_TIMEOUT=10
+
+# Boot immediately without showing menu (use with caution)
+GRUB_TIMEOUT=0
+
+# Wait indefinitely for user selection
+GRUB_TIMEOUT=-1
+```
+
+### Remember Last Boot Choice
+
+Make GRUB remember and boot the last selected operating system:
+
+```bash
+# Edit GRUB configuration
+sudo nano /etc/default/grub
+
+# Change GRUB_DEFAULT to saved
+GRUB_DEFAULT=saved
+
+# Enable save feature
+GRUB_SAVEDEFAULT=true
+
+# Update GRUB
+sudo update-grub
+```
+
+### Hidden Menu with Timeout
+
+Hide the menu by default but show it when Shift is pressed:
+
+```bash
+GRUB_TIMEOUT_STYLE=hidden
+GRUB_TIMEOUT=5
+GRUB_HIDDEN_TIMEOUT_QUIET=true
+```
+
+## Troubleshooting
+
+### GRUB Changes Not Applied
+
+If changes don't take effect after `update-grub`:
+
+```bash
+# Verify GRUB configuration syntax
+sudo grub-mkconfig -o /dev/null
+
+# Manually regenerate GRUB configuration
+sudo grub-mkconfig -o /boot/grub/grub.cfg
+
+# For UEFI systems, ensure proper installation
+sudo grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=ubuntu
+```
+
+### Windows Entry Not Detected
+
+If Windows doesn't appear in GRUB menu:
+
+```bash
+# Enable os-prober
+sudo nano /etc/default/grub
+
+# Ensure this line is commented or removed
+# GRUB_DISABLE_OS_PROBER=true
+
+# Install os-prober if missing
+sudo apt update
+sudo apt install os-prober
+
+# Mount Windows EFI partition (adjust partition as needed)
+sudo mount /dev/nvme0n1p1 /mnt
+
+# Run os-prober
+sudo os-prober
+
+# Update GRUB
+sudo update-grub
+
+# Unmount
+sudo umount /mnt
+```
+
+### Backup and Restore GRUB Configuration
+
+Always backup before making changes:
+
+```bash
+# Backup current configuration
+sudo cp /etc/default/grub /etc/default/grub.backup
+sudo cp /boot/grub/grub.cfg /boot/grub/grub.cfg.backup
+
+# Restore from backup if needed
+sudo cp /etc/default/grub.backup /etc/default/grub
+sudo update-grub
+```
+
+## Verification
+
+After making changes, verify the configuration:
+
+```bash
+# Check the default entry in the generated config
+sudo grep "set default" /boot/grub/grub.cfg
+
+# View complete GRUB environment
+sudo grub-editenv list
+
+# Test GRUB configuration without rebooting
+sudo grub-script-check /boot/grub/grub.cfg
+```
+
+## Security Considerations
+
+### Password-Protect GRUB
+
+To prevent unauthorized users from modifying boot parameters:
+
+```bash
+# Generate password hash
+grub-mkpasswd-pbkdf2
+
+# Copy the generated hash, then edit GRUB config
+sudo nano /etc/grub.d/40_custom
+
+# Add these lines (replace HASH with your generated hash)
+set superusers="admin"
+password_pbkdf2 admin HASH
+
+# Update GRUB
+sudo update-grub
+```
+
+This configuration requires a password to edit boot entries but allows normal booting without authentication.

@@ -1,14 +1,218 @@
 ---
 title: Fix Unifi DHCP lease IP for Unraid VM clonned from template or snapshot
-description: Fix Unifi DHCP lease IP for Unraid VM clonned from template or snapshot
-tags: [unifi, dhcp, unraid, vm, ip, lease]
+description: Resolve DHCP IP address conflicts when cloning Ubuntu/Linux VMs in Unraid with Ubiquiti Unifi Cloud Gateway. Configure netplan to use MAC-based DHCP identification for unique IPs.
+tags: [unifi, dhcp, unraid, vm, ip, lease, ubiquiti, cloud gateway, netplan, mac address, vm cloning, dhcp client, network configuration]
 ---
 
-Every cloned VM in Unraid get from Unifi Cloud Gateway same IP address.
-To fix this issue you need to change the DHCP lease with simple trick.
-Set identification by MAC address. Need new IP just switch change Mac and you good to go.
+## Problem Overview
+
+When cloning virtual machines in Unraid, each cloned VM unexpectedly receives the same IP address from the Unifi Cloud Gateway (UCG) DHCP server. This occurs because the DHCP client identifier remains unchanged across clones, causing the DHCP server to treat all cloned VMs as the same client.
+
+## Step 1: Remove Existing DHCP Lease File
+
+First, remove the existing DHCP lease file that contains the cached client identifier. This file stores information about previous DHCP transactions, including the client ID that's causing conflicts.
 
 ```bash copy
+sudo rm /var/lib/dhcp/dhclient.leases
+```
+
+**What this does:**
+- Deletes the persistent DHCP lease information
+- Forces the DHCP client to request a new lease with fresh parameters
+- Clears any cached client identifiers from the previous VM instance
+
+**Alternative locations** (depending on your Linux distribution):
+```bash
+# For systems using dhcpcd
+sudo rm /var/lib/dhcpcd/*.lease
+
+# For NetworkManager-based systems
+sudo rm /var/lib/NetworkManager/*.lease
+```
+
+## Step 2: Configure Netplan to Use MAC Address Identification
+
+Edit the netplan configuration file to explicitly use MAC address as the DHCP identifier:ntains a DHCP lease file with the original client identifier
+2. The cloned VM inherits this same identifier
+3. The Unifi Cloud Gateway DHCP server sees the identical client ID
+4. The server assigns the same IP address to all clones, causing network conflicts
+
+**Configuration parameters explained:**
+- `dhcp-identifier: mac` - Forces the DHCP client to use the network interface's MAC address as the unique identifier instead of the default client-id
+
+The complete configuration should look like this:
+
+The fix involves two steps:
+1. **Remove the old DHCP lease file** to clear cached identifiers
+2. **Configure netplan to use MAC address identification** so each clone gets a unique identifier
+
+This ensures that each VM clone, with its unique MAC address, receives a distinct IP address from the DHCP server.
+
+**Important notes:**
+- `ens2` is the network interface name (yours might be different, such as `eth0`, `enp0s3`, etc.)
+- Check your interface name with: `ip link show`
+- The indentation must be exactly 2 spaces per level (YAML format)
+
+## Step 3: Apply Configuration and Test
+
+After editing the netplan configuration, apply the changes:
+
+```bash
+# Test the configuration syntax
+sudo netplan try
+
+# If successful, apply the changes
+sudo netplan apply
+
+# Verify the network configuration
+ip addr show
+
+# Check DHCP lease information
+cat /var/lib/dhcp/dhclient.leases
+```
+
+## Step 4: Prepare for Cloning
+
+Shut down the VM cleanly:
+
+```bash
+sudo shutdown -h now
+```
+
+Now you can clone this VM as many times as needed. Each clone will:
+1. Receive a new MAC address from Unraid
+2. Use that MAC address as its DHCP identifier
+3. Obtain a unique IP address from the Unifi Cloud Gateway
+
+## Verification After Cloning
+
+On each new cloned VM, verify it received a unique IP:
+
+```bash
+# Check assigned IP address
+hostname -I
+
+# Verify DHCP lease details
+sudo cat /var/lib/dhcp/dhclient.leases | grep dhcp-server-identifier
+
+# Check network connectivity
+ping -c 4 8.8.8.8
+```
+
+## Additional Configuration Options
+
+### For Multiple Network Interfaces
+
+If your VM has multiple network interfaces, configure each one:
+
+```yaml
+network:
+  ethernets:
+    ens2:
+      dhcp4: true
+      dhcp-identifier: mac
+    ens3:
+      dhcp4: true
+      dhcp-identifier: mac
+  version: 2
+```
+
+### Static Fallback Configuration
+
+For production environments, you might want a static IP fallback if DHCP fails:
+
+```yaml
+network:
+  ethernets:
+    ens2:
+      dhcp4: true
+      dhcp-identifier: mac
+      addresses:
+        - 192.168.1.100/24
+      routes:
+        - to: default
+          via: 192.168.1.1
+      nameservers:
+        addresses: [8.8.8.8, 1.1.1.1]
+  version: 2
+```
+
+### IPv6 Support
+
+If you're also using IPv6 with DHCP:
+
+```yaml
+network:
+  ethernets:
+    ens2:
+      dhcp4: true
+      dhcp6: true
+      dhcp-identifier: mac
+  version: 2
+```
+
+## Troubleshooting
+
+### Issue: Configuration not applying
+
+```bash
+# Check netplan syntax errors
+sudo netplan --debug apply
+
+# View system logs for network errors
+sudo journalctl -u systemd-networkd -f
+```
+
+### Issue: No IP address assigned
+
+```bash
+# Restart the network service
+sudo systemctl restart systemd-networkd
+
+# Manually request DHCP lease
+sudo dhclient -v ens2
+```
+
+### Issue: Wrong interface name
+
+```bash
+# List all network interfaces
+ip link show
+
+# Check current netplan configuration
+ls -la /etc/netplan/
+cat /etc/netplan/*.yaml
+```
+
+## Best Practices
+
+1. **Always test on one VM** before mass cloning
+2. **Document MAC addresses** for each VM in your inventory
+3. **Use DHCP reservations** in Unifi for critical VMs to ensure consistent IPs
+4. **Set meaningful hostnames** for each clone to avoid confusion:
+   ```bash
+   sudo hostnamectl set-hostname vm-clone-01
+   ```
+5. **Consider cloud-init** for automated VM provisioning in larger deployments
+
+## Understanding DHCP Client Identifiers
+
+DHCP clients can identify themselves using different methods:
+
+- **MAC Address (hardware address)**: Unique per network interface, changes when cloned with new virtual NIC
+- **Client ID (duid)**: Often based on machine-id, remains the same when cloned
+- **Hostname**: Less reliable, can have duplicates
+
+By forcing `dhcp-identifier: mac`, we ensure each VM clone with a unique MAC address is treated as a distinct client by the Unifi DHCP server.
+
+## Related Unifi Configuration
+
+In your Unifi Cloud Gateway, you can also:
+
+1. **View DHCP leases**: Network → Settings → DHCP → Active Leases
+2. **Create static mappings**: Assign fixed IPs based on MAC addresses
+3. **Adjust lease time**: Longer leases reduce renewal traffic, shorter leases free IPs faster
+4. **Enable DHCP logging**: Help → System Logs → Filter by "dhcp"
 sudo rm /var/lib/dhcp/dhclient.leases
 ```
 
