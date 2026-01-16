@@ -1,7 +1,12 @@
 import type { MDXComponents } from "mdx/types";
 import dynamic from "next/dynamic";
 import Image from "next/image";
-
+import {
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
+} from "@/components/ui/Tabs";
 // Lazy load the Code component to reduce initial bundle size
 const Code = dynamic(
   () => import("./components/Code").then((mod) => mod.Code),
@@ -117,6 +122,11 @@ const components: MDXComponents = {
       />
     );
   },
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
+  Tab: TabsContent, // Alias for easier MDX usage
 };
 
 export function useMDXComponents(): MDXComponents {
