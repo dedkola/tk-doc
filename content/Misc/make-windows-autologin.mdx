@@ -1,0 +1,22 @@
+---
+title: Enable Auto-Login on Windows without Password Prompt
+description: A step-by-step guide to configure Windows for automatic user login without requiring a password.
+tags: [windows, autologin, registry, user, password]
+---
+
+Go regedit
+```bash copy
+HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Passwordless\Device
+
+
+#DevicePasswordLessBuildVersion
+
+#Change the value to 0
+
+```
+Press Win + R to open the Run dialog
+Type netplwiz and press Enter
+In the User Accounts window, select your account
+Uncheck the box that says "Users must enter a user name and password to use this computer"
+Click Apply
+
