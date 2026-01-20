@@ -4,6 +4,16 @@ description: "Enable kubectl command-line autocompletion for enhanced productivi
 keywords:  [kubectl, autocomplete, command-line, productivity]
 ---
 
+Kubectl exposes completion scripts through `kubectl completion <shell>`. The script defines helper functions (notably `__start_kubectl`) that hook into the shell's completion system and read your current kubeconfig to suggest resource names, contexts, and namespaces. Enabling this reduces typos and speeds up multi-step commands like `kubectl -n staging get deploy -o wide`.
+
+#### Prerequisites
+- kubectl v1.20+ installed and on `PATH` (check with `kubectl version --client`)
+- Bash 4.1+ or Zsh 5.2+ with completion enabled
+- Write access to your shell init file (e.g., `~/.bashrc`, `~/.zshrc`)
+
+#### Notes on persistence
+Appending the completion command to your shell init file ensures the function is loaded every new shell session. If you manage dotfiles via tools like chezmoi, stow, or a corporate profile manager, ensure they do not overwrite the completion snippet on login.
+
 ### bash
 ```bash copy
 echo 'source <(kubectl completion bash)' >> ~/.bashrc
@@ -21,4 +31,29 @@ source <(kubectl completion zsh)
 alias k=kubectl
 compdef __start_kubectl k
 ```
+
+#### macOS + Homebrew (bash)
+Homebrew ships bash-completion files under `/opt/homebrew/etc` (ARM) or `/usr/local/etc` (Intel). To avoid subshell execution on every prompt, you can write a static completion file and source it via the standard completion directory:
+
+```bash copy
+mkdir -p ~/.local/share/bash-completion/completions
+kubectl completion bash > ~/.local/share/bash-completion/completions/kubectl
+echo '[[ -r "/opt/homebrew/etc/profile.d/bash_completion.sh" ]] && source "/opt/homebrew/etc/profile.d/bash_completion.sh"' >> ~/.bashrc
+```
+
+#### system-wide (Linux, bash)
+For multi-user environments, install the completion script once and let `/etc/profile.d` load it. Requires sudo rights:
+
+```bash copy
+sudo kubectl completion bash > /etc/bash_completion.d/kubectl
+sudo restorecon /etc/bash_completion.d/kubectl 2>/dev/null || true
+```
+
+#### oh-my-zsh nuance
+oh-my-zsh loads completion before custom aliases. Ensure the completion function is available after plugins by sourcing `kubectl completion zsh` late in `~/.zshrc`, or place the snippet in `${ZSH_CUSTOM}/plugins/kubectl/_kubectl` and add `kubectl` to `plugins=(...)`.
+
+#### Verification
+- Open a new shell and type `kubectl get po -n <TAB>`; expect namespace suggestions.
+- Run `which __start_kubectl` (zsh) or `type __start_kubectl` (bash) to confirm the function is in scope.
+- If completions fail, run `set -o pipefail` and re-source your shell config to catch errors from the `source <(kubectl completion ...)` pipeline.
 
