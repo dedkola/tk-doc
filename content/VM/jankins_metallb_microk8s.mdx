@@ -4,40 +4,372 @@ description: Install Jenkins Helm on Microk8s Metallb
 tags: [jenkins, helm, microk8s, metallb, k8s, ubuntu]
 ---
 
-### Enable Metallb
+## Overview
+
+This guide walks through deploying **Jenkins CI/CD** on **MicroK8s** using **Helm** charts with **MetalLB** as the load balancer. This setup provides a production-ready Jenkins environment on bare-metal Kubernetes clusters without requiring cloud provider load balancers.
+
+### Architecture Components
+
+| Component | Purpose | Version Info |
+|-----------|---------|--------------|
+| **MicroK8s** | Lightweight Kubernetes distribution | Single-node or multi-node cluster |
+| **MetalLB** | Bare-metal load balancer implementation | Layer 2 or BGP mode |
+| **Helm** | Kubernetes package manager | v3.x recommended |
+| **Jenkins** | CI/CD automation server | Latest LTS via Helm chart |
+
+### Prerequisites
+
+Before proceeding, ensure you have:
+- MicroK8s installed and running (`microk8s status --wait-ready`)
+- User added to `microk8s` group for non-root access
+- Sufficient resources: minimum 2 CPU cores, 4GB RAM recommended
+- Network access to the IP range you'll assign to MetalLB
+
+---
+
+## Enable MetalLB
+
+MetalLB is a load-balancer implementation for bare-metal Kubernetes clusters. It provides LoadBalancer-type services that would otherwise only work in cloud environments like AWS, GCP, or Azure.
 
 ```bash copy
 microk8s enable metallb
 ```
+
+During enablement, you'll be prompted to specify an IP address range. Choose IPs from your local network that are **not used by DHCP** to avoid conflicts.
+
 Full installation with modules go here -> [MicroK8s install with Helm and OneDev](/docs/vm/microk8s_helm_onedev)
 
-### Install helm
+### Understanding MetalLB Modes
+
+MetalLB supports two announcement modes:
+
+**Layer 2 Mode (Default for MicroK8s)**
+- Uses ARP/NDP to announce IPs on the local network
+- Simpler setup, no router configuration required
+- Single node handles all traffic for a given IP (failover available)
+- Best for home labs and small deployments
+
+**BGP Mode**
+- Announces IPs via BGP to network routers
+- True load distribution across nodes
+- Requires BGP-capable router configuration
+- Better for production environments
+
+### MetalLB Configuration Resources
+
+After enabling MetalLB, you can customize the IP allocation using Custom Resources:
+
+```yaml copy
+# IPAddressPool defines the range of IPs MetalLB can allocate
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: default-pool
+  namespace: metallb-system
+spec:
+  addresses:
+    - 192.168.1.200-192.168.1.220  # Adjust to your network
+  autoAssign: true
+  avoidBuggyIPs: true  # Avoid .0 and .255 addresses
+```
+
+```yaml copy
+# L2Advertisement enables Layer 2 mode for the pool
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata:
+  name: default-l2
+  namespace: metallb-system
+spec:
+  ipAddressPools:
+    - default-pool
+```
+
+---
+
+## Install Helm
+
+Helm is the package manager for Kubernetes, enabling you to define, install, and upgrade complex Kubernetes applications.
+
 ```bash copy
 sudo snap install helm --classic
 ```
 
-### Install Jenkins
+### Verify Helm Installation
+
+```bash copy
+helm version
+```
+
+### Configure Helm with MicroK8s
+
+If you're using MicroK8s built-in Helm, you can use `microk8s helm3` instead. For standalone Helm, ensure kubectl is configured:
+
+```bash copy
+# Export kubeconfig for standalone helm
+mkdir -p ~/.kube
+microk8s config > ~/.kube/config
+```
+
+---
+
+## Install Jenkins
+
+Add the official Jenkins Helm repository and update the local cache:
+
 ```bash copy
 helm repo add jenkins https://charts.jenkins.io
 helm repo update
 ```
 
-### Deploy Jenkins
+### Explore Available Versions
+
+```bash copy
+# List available Jenkins chart versions
+helm search repo jenkins/jenkins --versions | head -20
+```
+
+---
+
+## Deploy Jenkins
 
 ```bash copy
 helm install jenkins jenkins/jenkins --namespace jenkins --create-namespace --set controller.serviceType=LoadBalancer
 
 ```
 
-### Get IP
+### Understanding Deployment Parameters
+
+| Parameter | Value | Description |
+|-----------|-------|-------------|
+| `jenkins` (1st) | Release name | Helm release identifier |
+| `jenkins/jenkins` | Chart reference | Repository/chart name |
+| `--namespace jenkins` | Namespace | Kubernetes namespace for isolation |
+| `--create-namespace` | Flag | Creates namespace if not exists |
+| `--set controller.serviceType=LoadBalancer` | Override | Exposes Jenkins via MetalLB |
+
+### Advanced Deployment with Custom Values
+
+For production deployments, create a `values.yaml` file for customization:
+
+```yaml copy
+# jenkins-values.yaml - Production configuration example
+controller:
+  # Image configuration
+  image:
+    tag: "lts-jdk17"  # Use LTS with JDK 17
+  
+  # Resource allocation
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+    limits:
+      cpu: "2000m"
+      memory: "4Gi"
+  
+  # Service configuration for MetalLB
+  serviceType: LoadBalancer
+  servicePort: 8080
+  
+  # Admin configuration
+  admin:
+    username: admin
+    # Password will be auto-generated if not specified
+  
+  # Install essential plugins
+  installPlugins:
+    - kubernetes:latest
+    - workflow-aggregator:latest
+    - git:latest
+    - configuration-as-code:latest
+    - job-dsl:latest
+    - blueocean:latest
+  
+  # JCasC - Jenkins Configuration as Code
+  JCasC:
+    defaultConfig: true
+    configScripts:
+      welcome-message: |
+        jenkins:
+          systemMessage: "Jenkins configured via Helm on MicroK8s"
+
+# Persistence configuration
+persistence:
+  enabled: true
+  size: 10Gi
+  storageClass: "microk8s-hostpath"  # Use MicroK8s storage
+
+# Agent configuration for Kubernetes
+agent:
+  enabled: true
+  image:
+    repository: jenkins/inbound-agent
+    tag: "latest"
+  resources:
+    requests:
+      cpu: "256m"
+      memory: "256Mi"
+    limits:
+      cpu: "512m"
+      memory: "512Mi"
+```
+
+Deploy with custom values:
+
+```bash copy
+helm install jenkins jenkins/jenkins \
+  --namespace jenkins \
+  --create-namespace \
+  -f jenkins-values.yaml
+```
+
+### Enable Required MicroK8s Addons
+
+For full Jenkins functionality, enable these addons:
+
+```bash copy
+# Enable persistent storage for Jenkins data
+microk8s enable hostpath-storage
+
+# Enable DNS for service discovery
+microk8s enable dns
+
+# Enable RBAC for security (usually enabled by default)
+microk8s enable rbac
+```
+
+---
+
+## Get IP
 
 ```bash copy
 kubectl get services -n jenkins
 ```
 
-### Get password
+### Expected Output
+
+```plaintext
+NAME            TYPE           CLUSTER-IP      EXTERNAL-IP     PORT(S)          AGE
+jenkins         LoadBalancer   10.152.183.45   192.168.1.200   8080:32000/TCP   2m
+jenkins-agent   ClusterIP      10.152.183.89   <none>          50000/TCP        2m
+```
+
+The `EXTERNAL-IP` is provided by MetalLB and is accessible from your local network.
+
+### Verify MetalLB IP Assignment
+
+```bash copy
+# Check MetalLB speaker logs for IP announcement
+kubectl logs -n metallb-system -l app=metallb,component=speaker --tail=50
+```
+
+---
+
+## Get password
 
 ```bash copy
 printf $(kubectl get secret --namespace jenkins jenkins -o jsonpath="{.data.jenkins-admin-password}" | base64 --decode);echo
 
+```
+
+### Access Jenkins
+
+1. Open your browser and navigate to: `http://<EXTERNAL-IP>:8080`
+2. Login with:
+   - **Username:** `admin`
+   - **Password:** The output from the command above
+
+---
+
+## Post-Installation Configuration
+
+### Verify Jenkins Pod Health
+
+```bash copy
+# Check pod status
+kubectl get pods -n jenkins -w
+
+# View Jenkins startup logs
+kubectl logs -n jenkins -l app.kubernetes.io/name=jenkins -f
+```
+
+### Configure Jenkins Kubernetes Plugin
+
+Jenkins automatically configures the Kubernetes plugin when deployed via Helm. Verify the cloud configuration:
+
+1. Navigate to **Manage Jenkins** → **Clouds**
+2. Verify **Kubernetes** cloud is configured
+3. Test connection to the cluster
+
+### Backup and Recovery
+
+Jenkins data is stored in a PersistentVolume. To backup:
+
+```bash copy
+# Get PVC information
+kubectl get pvc -n jenkins
+
+# Create a backup job (example using kubectl cp)
+kubectl cp jenkins/jenkins-0:/var/jenkins_home ./jenkins-backup
+```
+
+---
+
+## Troubleshooting
+
+### MetalLB Not Assigning IP
+
+```bash copy
+# Check MetalLB controller status
+kubectl get pods -n metallb-system
+
+# Verify IPAddressPool configuration
+kubectl get ipaddresspools -n metallb-system -o yaml
+
+# Check for conflicts in IP range
+kubectl describe service jenkins -n jenkins
+```
+
+### Jenkins Pod Not Starting
+
+```bash copy
+# Check pod events
+kubectl describe pod -n jenkins -l app.kubernetes.io/name=jenkins
+
+# Check for resource constraints
+kubectl top nodes
+
+# View init container logs
+kubectl logs -n jenkins jenkins-0 -c init
+```
+
+### Helm Release Issues
+
+```bash copy
+# List Helm releases
+helm list -n jenkins
+
+# View release history
+helm history jenkins -n jenkins
+
+# Rollback if needed
+helm rollback jenkins <revision> -n jenkins
+```
+
+---
+
+## Cleanup
+
+To completely remove Jenkins and associated resources:
+
+```bash copy
+# Uninstall Helm release
+helm uninstall jenkins -n jenkins
+
+# Delete namespace (removes PVC and all resources)
+kubectl delete namespace jenkins
+
+# Optional: Disable MetalLB if no longer needed
+microk8s disable metallb
 ```

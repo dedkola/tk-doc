@@ -1,0 +1,457 @@
+---
+title: Deploy DockerHub Image to K3s
+description: Step-by-step guide to deploy a DockerHub image to a K3s cluster.
+tags: [k3s, dockerhub, deployment, kubernetes]
+---
+
+## Overview
+
+This guide demonstrates how to deploy a container image from DockerHub to a K3s (lightweight Kubernetes) cluster. K3s is a certified Kubernetes distribution designed for production workloads in resource-constrained environments, edge computing, and IoT devices.
+
+### Key Concepts
+
+| Component | Description |
+|-----------|-------------|
+| **Deployment** | Kubernetes resource that manages a set of replicated Pods, ensuring the desired state matches the actual state |
+| **Service** | Exposes your Deployment to network traffic, either internally or externally via LoadBalancer |
+| **PersistentVolumeClaim (PVC)** | Requests storage resources from the cluster for data persistence |
+| **Namespace** | Virtual cluster that provides isolation between workloads |
+
+### Prerequisites
+
+Before deploying, ensure your K3s cluster is running and `kubectl` is configured:
+
+```bash copy
+# Verify cluster connection
+kubectl cluster-info
+
+# Check node status
+kubectl get nodes -o wide
+
+# Create namespace if it doesn't exist
+kubectl create namespace test-app --dry-run=client -o yaml | kubectl apply -f -
+```
+
+---
+
+## Deployment Without Persistent Storage
+
+The following deployment uses `emptyDir` volume, which provides temporary storage that exists only for the lifetime of the Pod. **This approach is suitable for development and testing only** — data will be lost when the Pod restarts.
+
+### Understanding emptyDir Volumes
+
+- Created when a Pod is assigned to a node
+- Exists as long as the Pod runs on that node
+- Initially empty, hence the name
+- All containers in the Pod can read/write the same files
+- Deleted permanently when the Pod is removed from the node
+
+### Create a Deployment YAML without PVC
+
+```yaml copy
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-deployment
+  namespace: test-app
+  labels:
+    app: postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      restartPolicy: Always
+      containers:
+        - name: postgres
+          image: docker.io/dedkola/postgres:17
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 5432
+          resources:
+            requests:
+              memory: "1Gi"
+              cpu: "1000m"
+            limits:
+              memory: "2Gi"
+              cpu: "2000m"
+
+          volumeMounts:
+            - name: postgres-storage
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: postgres-storage
+          emptyDir: {} # For production, use PersistentVolumeClaim
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-service
+  namespace: test-app
+spec:
+  type: LoadBalancer
+  selector:
+    app: postgres
+  ports:
+    - protocol: TCP
+      port: 5432
+      targetPort: 5432
+```
+
+### Understanding the Deployment Manifest
+
+#### Metadata and Labels
+
+Labels are key-value pairs attached to objects for identification and selection:
+
+- `app: postgres` — identifies this resource as part of the PostgreSQL application
+- Used by Services and other resources to select Pods via `selector.matchLabels`
+
+#### Container Configuration
+
+| Field | Value | Purpose |
+|-------|-------|---------|
+| `image` | `docker.io/dedkola/postgres:17` | Full image path with registry, repository, and tag |
+| `imagePullPolicy: Always` | Forces pulling the latest image on each Pod start |
+| `containerPort: 5432` | PostgreSQL default port exposed by the container |
+
+#### Resource Requests vs Limits
+
+Kubernetes uses **requests** and **limits** to manage container resources:
+
+- **Requests**: Minimum guaranteed resources. The scheduler uses this to find a suitable node
+- **Limits**: Maximum resources a container can use. Enforced by the kubelet
+
+| Resource | Value | Description |
+|----------|-------|-------------|
+| Request | 1Gi | Guaranteed minimum memory |
+| Limit | 2Gi | Maximum allowed (OOM kill if exceeded) |
+
+**CPU Limits Behavior:**
+- Enforced via CPU throttling by the Linux kernel
+- Container is throttled when approaching the limit
+- Hard limit — containers cannot exceed their CPU limit
+
+**Memory Limits Behavior:**
+- Enforced via OOM (Out of Memory) kills
+- Container may be terminated if it exceeds memory limit under memory pressure
+- Reactive enforcement — brief overages may not trigger immediate termination
+
+---
+
+## Monitoring and Troubleshooting
+
+Effective monitoring helps identify resource bottlenecks and application issues.
+
+### Check resources
+
+View real-time CPU and memory usage for Pods in the namespace:
+
+```bash copy
+kubectl top pod -n test-app
+```
+
+**Expected output format:**
+```plaintext
+NAME                                   CPU(cores)   MEMORY(bytes)
+postgres-deployment-6577845884-8964z   25m          256Mi
+```
+
+> **Note**: The `kubectl top` command requires the Metrics Server to be installed. K3s includes it by default.
+
+### Additional Resource Monitoring Commands
+
+```bash copy
+# View resource usage for all nodes
+kubectl top nodes
+
+# Get detailed Pod resource information
+kubectl get pod -n test-app -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.spec.containers[*].resources}{"\n"}{end}'
+
+# Watch Pod status in real-time
+kubectl get pods -n test-app -w
+```
+
+### Check logs
+
+Retrieve container logs for debugging:
+
+```bash copy
+kubectl logs postgres-deployment-6577845884-8964z  -n test-app
+```
+
+**Useful log options:**
+
+```bash copy
+# Follow logs in real-time (like tail -f)
+kubectl logs -f postgres-deployment-6577845884-8964z -n test-app
+
+# Show last 100 lines only
+kubectl logs --tail=100 postgres-deployment-6577845884-8964z -n test-app
+
+# Show logs from the last hour
+kubectl logs --since=1h postgres-deployment-6577845884-8964z -n test-app
+
+# Show logs from previous container instance (after restart)
+kubectl logs --previous postgres-deployment-6577845884-8964z -n test-app
+```
+
+### Detailed Pod Inspection
+
+&
+
+```bash copy
+kubectl describe pod  postgres-deployment-6577845884-8964z -n test-app
+```
+
+The `describe` command provides comprehensive information including:
+
+- **Events**: Recent events like scheduling, pulling images, container starts/restarts
+- **Conditions**: Pod readiness, container status, initialization state
+- **Resource allocation**: Actual requests and limits applied
+- **Volume mounts**: Storage configuration and mount paths
+- **Node assignment**: Which node the Pod is running on
+
+### Common Troubleshooting Scenarios
+
+| Issue | Command | What to Look For |
+|-------|---------|------------------|
+| Pod not starting | `kubectl describe pod <name> -n test-app` | Events section for errors |
+| Container crashing | `kubectl logs --previous <pod> -n test-app` | Error messages before crash |
+| Image pull errors | `kubectl get events -n test-app` | `ErrImagePull` or `ImagePullBackOff` |
+| Resource issues | `kubectl top pod -n test-app` | CPU/memory usage near limits |
+
+---
+
+## Deployment With Persistent Storage
+
+For production environments, **always use PersistentVolumeClaims (PVC)** to ensure data survives Pod restarts, rescheduling, and node failures.
+
+### Understanding PVC Access Modes
+
+| Access Mode | Abbreviation | Description |
+|-------------|--------------|-------------|
+| `ReadWriteOnce` | RWO | Volume can be mounted read-write by a single node |
+| `ReadOnlyMany` | ROX | Volume can be mounted read-only by many nodes |
+| `ReadWriteMany` | RWX | Volume can be mounted read-write by many nodes |
+
+> **For PostgreSQL**: Use `ReadWriteOnce` since database files should only be written by one instance at a time.
+
+### Storage Classes in K3s
+
+K3s comes with a default StorageClass called `local-path` that provisions storage on the node's local filesystem:
+
+```bash copy
+# View available storage classes
+kubectl get storageclass
+
+# Describe the default K3s storage class
+kubectl describe storageclass local-path
+```
+
+### With PVC
+
+```yaml copy
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-deployment
+  namespace: test-app
+  labels:
+    app: postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      restartPolicy: Always
+      containers:
+        - name: postgres
+          image: docker.io/dedkola/postgres:17
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 5432
+          resources:
+            requests:
+              memory: "1Gi"
+              cpu: "1000m"
+            limits:
+              memory: "2Gi"
+              cpu: "2000m"
+
+          volumeMounts:
+            - name: postgres-storage
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: postgres-storage
+          persistentVolumeClaim:
+            claimName: postgres-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-service
+  namespace: test-app
+spec:
+  type: LoadBalancer
+  selector:
+    app: postgres
+  ports:
+    - protocol: TCP
+      port: 5432
+      targetPort: 5432
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+  namespace: test-app
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 10Gi
+```
+
+### PVC Lifecycle and Binding
+
+When you create a PVC, Kubernetes attempts to find a matching PersistentVolume (PV) or dynamically provision one:
+
+| Status | Description |
+|--------|-------------|
+| Pending | Waiting for a PV to be bound |
+| Bound | Successfully bound to a PV |
+| Released | PVC deleted, PV awaiting reclamation |
+| Failed | Automatic reclamation failed |
+
+### Verify PVC Status
+
+```bash copy
+# Check PVC status
+kubectl get pvc -n test-app
+
+# Detailed PVC information
+kubectl describe pvc postgres-pvc -n test-app
+
+# Check bound PersistentVolume
+kubectl get pv | grep postgres
+```
+
+**Expected output:**
+```plaintext
+NAME           STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   AGE
+postgres-pvc   Bound    pvc-a1b2c3d4-e5f6-7890-abcd-ef1234567890   10Gi       RWO            local-path     5m
+```
+
+---
+
+## Applying the Deployment
+
+Deploy your manifests to the cluster:
+
+```bash copy
+# Apply the deployment (save YAML to file first)
+kubectl apply -f postgres-deployment.yaml
+
+# Or apply directly from URL/stdin
+cat <<EOF | kubectl apply -f -
+# ... paste your YAML here ...
+EOF
+```
+
+### Verify Deployment Status
+
+```bash copy
+# Check deployment status
+kubectl get deployment -n test-app
+
+# Watch rollout progress
+kubectl rollout status deployment/postgres-deployment -n test-app
+
+# View all resources in namespace
+kubectl get all -n test-app
+```
+
+### Scale the Deployment
+
+> **Warning**: Scaling PostgreSQL replicas requires special consideration for data consistency. For stateful applications like databases, consider using StatefulSets instead.
+
+```bash copy
+# Scale to 2 replicas (for stateless apps only)
+kubectl scale deployment postgres-deployment --replicas=2 -n test-app
+
+# View replica status
+kubectl get pods -n test-app -l app=postgres
+```
+
+---
+
+## Connecting to PostgreSQL
+
+### From Inside the Cluster
+
+Other Pods can connect using the Service DNS name:
+
+```plaintext
+postgres-service.test-app.svc.cluster.local:5432
+```
+
+### From Outside the Cluster (LoadBalancer)
+
+With `type: LoadBalancer`, K3s assigns an external IP (or uses the node IP with MetalLB):
+
+```bash copy
+# Get the external IP/port
+kubectl get svc postgres-service -n test-app
+
+# Connect using psql
+psql -h <EXTERNAL-IP> -p 5432 -U postgres
+```
+
+### Port Forwarding for Local Development
+
+```bash copy
+# Forward local port 5432 to the Pod
+kubectl port-forward svc/postgres-service 5432:5432 -n test-app
+
+# In another terminal, connect locally
+psql -h localhost -p 5432 -U postgres
+```
+
+---
+
+## Best Practices
+
+### Security Recommendations
+
+1. **Never store passwords in plain text** — Use Kubernetes Secrets:
+
+```bash copy
+# Create a secret for database password
+kubectl create secret generic postgres-secret \
+  --from-literal=POSTGRES_PASSWORD='your-secure-password' \
+  -n test-app
+```
+
+2. **Use Network Policies** to restrict traffic to the database Pod
+3. **Enable Pod Security Standards** for production clusters
+
+### Resource Management Tips
+
+- Set **requests** based on typical usage patterns
+- Set **limits** to prevent runaway resource consumption
+- Monitor actual usage with `kubectl top` and adjust accordingly
+- Use **LimitRange** to enforce default limits in a namespace
+

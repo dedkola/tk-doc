@@ -1,0 +1,361 @@
+---
+title: Basic deployment MySQL on Kubernetes microK8s
+description: Deploy MySQL on Kubernetes microK8s
+tags: [kubernetes, mysql, microk8s, deployment, loadbalancer, metallb]
+---
+
+## Overview
+
+This guide demonstrates how to deploy a MySQL database on Kubernetes using MicroK8s. The deployment creates multiple MySQL replicas behind a LoadBalancer service, making the database accessible from outside the cluster.
+
+### Prerequisites
+
+Before you begin, ensure you have the following:
+
+- **MicroK8s** installed and running on your system
+- **MetalLB** addon enabled for LoadBalancer support
+- **kubectl** or `microk8s kubectl` configured
+- Basic understanding of Kubernetes concepts (Pods, Deployments, Services)
+
+### Key Kubernetes Concepts
+
+| Concept | Description |
+|---------|-------------|
+| **Deployment** | Manages a set of identical Pods, ensuring the specified number of replicas are running |
+| **ReplicaSet** | Created by Deployment to maintain the desired number of Pod replicas |
+| **Service** | Exposes Pods to network traffic and provides load balancing |
+| **LoadBalancer** | Service type that provisions an external IP address for accessing the application |
+
+## MySQL Deployment Architecture
+
+The deployment consists of two main Kubernetes resources:
+
+1. **Deployment**: Manages 3 MySQL Pod replicas with the container configuration
+2. **Service**: Exposes MySQL on port 3306 via LoadBalancer
+
+<Alert type="warning">
+**Production Warning**: This basic deployment uses plaintext passwords and lacks persistent storage. For production environments, use Kubernetes Secrets for credentials and PersistentVolumeClaims for data persistence.
+</Alert>
+
+## Create deployment file
+
+Save the following YAML manifest as `mysql-deployment.yaml`. This file defines both the Deployment and Service resources in a single file, separated by `---`.
+
+### Understanding the Deployment Specification
+
+- **`apiVersion: apps/v1`**: Uses the stable apps API group for Deployments
+- **`kind: Deployment`**: Declares this resource as a Deployment controller
+- **`replicas: 3`**: Specifies 3 identical Pod instances will be maintained
+- **`selector.matchLabels`**: Defines how the Deployment finds Pods to manage
+- **`template`**: Pod template that defines the container specification
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql-deployment
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: mysql
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      containers:
+        - name: mysql
+          image: mysql:latest
+          ports:
+            - containerPort: 3306
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              value: "123"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql-service
+spec:
+  selector:
+    app: mysql
+  ports:
+    - protocol: TCP
+      port: 3306
+      targetPort: 3306
+  type: LoadBalancer
+```
+
+### Service Configuration Details
+
+| Field | Value | Description |
+|-------|-------|-------------|
+| `selector.app` | mysql | Routes traffic to Pods with label `app: mysql` |
+| `port` | 3306 | External port the Service listens on |
+| `targetPort` | 3306 | Port on the container to forward traffic to |
+| `type` | LoadBalancer | Provisions an external IP via MetalLB |
+
+### Deploy the Application
+
+Apply the manifest to your MicroK8s cluster:
+
+```bash
+microk8s kubectl apply -f mysql-deployment.yaml
+```
+
+### Verify Deployment Status
+
+Check that all resources were created successfully:
+
+```bash
+microk8s kubectl get deployment mysql-deployment
+microk8s kubectl get service mysql-service
+```
+
+Expected output shows 3/3 replicas ready and an external IP assigned to the service.
+
+## Try to connect to MySQL
+
+Once the LoadBalancer assigns an external IP (in this example `10.11.0.51`), you can connect to MySQL from any machine that can reach your cluster network:
+
+```bash
+mysql -u root -p -h 10.11.0.51 -P 3306
+```
+
+### Connection Parameters Explained
+
+| Parameter | Description |
+|-----------|-------------|
+| `-u root` | Connect as the MySQL root user |
+| `-p` | Prompt for password (enter the password from `MYSQL_ROOT_PASSWORD`) |
+| `-h 10.11.0.51` | Host IP address (your LoadBalancer external IP) |
+| `-P 3306` | MySQL port number |
+
+<Alert type="info">
+**Finding Your External IP**: Run `microk8s kubectl get svc mysql-service` to see the `EXTERNAL-IP` assigned by MetalLB.
+</Alert>
+
+### Verify Database Connectivity
+
+Once connected, verify the MySQL instance is working:
+
+```sql
+-- Show MySQL version
+SELECT VERSION();
+
+-- List available databases
+SHOW DATABASES;
+
+-- Check server status
+STATUS;
+```
+
+## Some of information about the deployment
+
+Use these commands to monitor and debug your MySQL deployment:
+
+```bash
+microk8s kubectl get pods --watch
+microk8s kubectl get pods -o wide
+microk8s kubectl logs mysql-deployment-c4fccb7d9-fr5tw
+microk8s kubectl describe services mysql-service
+```
+
+### Command Reference
+
+| Command | Purpose |
+|---------|---------|
+| `get pods --watch` | Real-time monitoring of Pod status changes |
+| `get pods -o wide` | Shows Pod IPs and node placement |
+| `logs <pod-name>` | View container logs for debugging |
+| `describe services` | Detailed Service info including endpoints |
+
+### Understanding Pod States
+
+When running `kubectl get pods`, you may see these states:
+
+| State | Description |
+|-------|-------------|
+| `Pending` | Pod accepted but container not yet created |
+| `ContainerCreating` | Image being pulled and container starting |
+| `Running` | Container executing successfully |
+| `CrashLoopBackOff` | Container crashed and Kubernetes is restarting it |
+| `Error` | Container terminated with an error |
+
+## Scaling the Deployment
+
+Kubernetes makes it easy to scale your MySQL deployment up or down. Scaling changes the number of Pod replicas managed by the Deployment.
+
+### Scale Using kubectl
+
+```bash
+# Scale to 5 replicas
+microk8s kubectl scale deployment mysql-deployment --replicas=5
+
+# Verify the scaling operation
+microk8s kubectl get deployment mysql-deployment
+
+# Scale down to 2 replicas
+microk8s kubectl scale deployment mysql-deployment --replicas=2
+```
+
+### How Scaling Works
+
+When you scale a Deployment:
+
+1. **Scaling Up**: New Pods are scheduled on nodes with available resources
+2. **Scaling Down**: Kubernetes terminates Pods based on priority (pending pods first, then newest pods)
+3. **Load Balancing**: The Service automatically distributes traffic across all healthy Pods
+
+<Alert type="info">
+**Note on Database Scaling**: While this demonstrates Kubernetes scaling, running multiple MySQL instances without proper replication configuration will result in separate, independent databases. For true MySQL clustering, consider MySQL Group Replication or Galera Cluster.
+</Alert>
+
+## Troubleshooting
+
+### Common Issues and Solutions
+
+#### Pod Stuck in Pending State
+
+```bash
+# Check why the pod is pending
+microk8s kubectl describe pod <pod-name>
+
+# Common causes:
+# - Insufficient CPU/memory resources
+# - No available nodes
+# - PersistentVolumeClaim not bound
+```
+
+#### CrashLoopBackOff Error
+
+```bash
+# Check container logs for error details
+microk8s kubectl logs <pod-name> --previous
+
+# Common MySQL startup failures:
+# - Invalid MYSQL_ROOT_PASSWORD
+# - Permission issues on data directory
+# - Port already in use
+```
+
+#### Service Has No External IP
+
+```bash
+# Verify MetalLB is enabled
+microk8s enable metallb
+
+# Check MetalLB IP pool configuration
+microk8s kubectl get configmap -n metallb-system
+
+# View service events
+microk8s kubectl describe svc mysql-service
+```
+
+### Cleanup Resources
+
+To remove the MySQL deployment and free up cluster resources:
+
+```bash
+# Delete all resources defined in the manifest
+microk8s kubectl delete -f mysql-deployment.yaml
+
+# Or delete resources individually
+microk8s kubectl delete deployment mysql-deployment
+microk8s kubectl delete service mysql-service
+
+# Verify cleanup
+microk8s kubectl get all -l app=mysql
+```
+
+## Production Considerations
+
+For production deployments, consider these enhancements:
+
+### Use Kubernetes Secrets for Credentials
+
+Instead of plaintext passwords in the Deployment manifest, create a Secret:
+
+```bash
+# Create a secret for MySQL root password
+microk8s kubectl create secret generic mysql-secret \
+  --from-literal=root-password='YourSecurePassword123!'
+```
+
+Then reference it in your Deployment:
+
+```yaml
+env:
+  - name: MYSQL_ROOT_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: mysql-secret
+        key: root-password
+```
+
+### Add Persistent Storage
+
+To persist data across Pod restarts, add a PersistentVolumeClaim:
+
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mysql-pv-claim
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
+```
+
+### Configure Resource Limits
+
+Define CPU and memory constraints to prevent resource contention:
+
+```yaml
+containers:
+  - name: mysql
+    image: mysql:8.0
+    resources:
+      requests:
+        cpu: "500m"
+        memory: "1Gi"
+      limits:
+        cpu: "1000m"
+        memory: "2Gi"
+```
+
+### Add Health Probes
+
+Kubernetes uses probes to determine container health:
+
+```yaml
+containers:
+  - name: mysql
+    image: mysql:8.0
+    livenessProbe:
+      exec:
+        command: ["mysqladmin", "ping", "-h", "localhost"]
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      timeoutSeconds: 5
+    readinessProbe:
+      exec:
+        command: ["mysql", "-h", "127.0.0.1", "-e", "SELECT 1"]
+      initialDelaySeconds: 5
+      periodSeconds: 2
+      timeoutSeconds: 1
+```
+
+| Probe Type | Purpose |
+|------------|---------|
+| **livenessProbe** | Restarts container if it becomes unresponsive |
+| **readinessProbe** | Removes Pod from Service endpoints until ready |
+
+## Next Steps
+
+- **Persistent Storage**: See [MySQL with PVC](/docs/Kubernetes/k3s_pvc_mysql_my_cnf) for data persistence
+- **Load Balancer Setup**: Configure [MetalLB LoadBalancer](/docs/Kubernetes/k3s_metallb_loadbalancer) for external access

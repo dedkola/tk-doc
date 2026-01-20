@@ -4,12 +4,58 @@ description: Install Docker Desktop on Ubuntu
 tags: [docker, ubuntu, container, containerization, docker desktop]
 ---
 
+## Overview
+
+Docker Desktop for Linux provides a complete Docker development environment with a graphical user interface, Kubernetes integration, and advanced features like Docker Scout and Docker Extensions. This guide covers both Docker Engine installation using the convenience script and Docker Desktop setup on Ubuntu.
+
+<Alert variant="info">
+  **Docker Desktop vs Docker Engine**: Docker Desktop runs containers inside a lightweight VM and includes additional tools like Docker Compose, Docker Build, and a GUI. Docker Engine is the core runtime that can run standalone. Both can be installed side-by-side on the same machine.
+</Alert>
+
+## Prerequisites
+
+Before installing Docker, ensure your system meets the following requirements:
+
+| Requirement | Minimum | Recommended |
+|-------------|---------|-------------|
+| Ubuntu Version | 22.04 LTS (Jammy) | 24.04 LTS (Noble) |
+| CPU Architecture | x86_64 (64-bit) | x86_64 or ARM64 |
+| RAM | 4 GB | 8 GB or more |
+| Disk Space | 20 GB | 50 GB+ for images |
+| Kernel | 5.4+ | Latest stable |
+| Virtualization | KVM support | KVM enabled in BIOS |
+
+### Remove Conflicting Packages
+
+Before installing Docker, remove any unofficial or conflicting packages that might interfere with the installation:
+
+```bash copy
+sudo apt remove docker.io docker-compose docker-compose-v2 docker-doc podman-docker containerd runc 2>/dev/null || true
+```
+
+<Alert variant="warning">
+  **Important**: Images, containers, volumes, and networks stored in `/var/lib/docker/` are preserved when uninstalling Docker packages. If you want a fresh installation, remove these directories after uninstalling conflicting packages.
+</Alert>
+
+---
+
+## Install Docker Engine
+
 ### Update and install required packages
 
 ```bash copy
 sudo apt update && \
 sudo apt install -y apt-transport-https ca-certificates curl software-properties-common
 ```
+
+These packages provide essential functionality for secure package management:
+
+- **apt-transport-https** — Enables APT to download packages over HTTPS
+- **ca-certificates** — Provides root certificates for SSL/TLS verification
+- **curl** — Command-line tool for transferring data with URLs
+- **software-properties-common** — Provides scripts for managing software repositories
+
+### Install Using Convenience Script
 
 [From official Docker guide](https://docs.docker.com/engine/install/ubuntu/#install-using-the-convenience-script)
 
@@ -19,6 +65,61 @@ curl -fsSL https://get.docker.com -o get-docker.sh
 sudo sh ./get-docker.sh
 ```
 
+<Alert variant="info">
+  **Convenience Script Details**: The `get.docker.com` script automatically detects your Linux distribution, configures the package repository, and installs the latest stable Docker Engine, CLI, containerd, Docker Compose plugin, and Docker Buildx plugin.
+</Alert>
+
+**What the convenience script installs:**
+- `docker-ce` — Docker Engine daemon
+- `docker-ce-cli` — Docker command-line interface
+- `containerd.io` — Container runtime
+- `docker-buildx-plugin` — Docker Build with BuildKit features
+- `docker-compose-plugin` — Docker Compose v2
+
+### Preview Script Actions (Dry Run)
+
+Before running the installation script, you can preview what it will do:
+
+```bash copy
+sudo sh ./get-docker.sh --dry-run
+```
+
+### Verify Docker Installation
+
+After installation, verify Docker is running correctly:
+
+```bash copy
+sudo docker version
+sudo docker run hello-world
+```
+
+---
+
+## Post-Installation: Non-Root User Access
+
+By default, Docker commands require `sudo` privileges. To run Docker as a non-root user, add your user to the `docker` group:
+
+```bash copy
+sudo usermod -aG docker $USER
+newgrp docker
+```
+
+<Alert variant="warning">
+  **Security Note**: Adding users to the `docker` group grants privileges equivalent to root access. Only add trusted users to this group.
+</Alert>
+
+Verify non-root access works:
+
+```bash copy
+docker run hello-world
+```
+
+---
+
+## Rootless Mode Installation
+
+Rootless mode runs the Docker daemon and containers without root privileges, providing enhanced security. This is ideal for multi-user environments or when root access is restricted.
+
 ```bash copy {3,4}
 dockerd-rootless-setuptool.sh install
 
@@ -26,12 +127,76 @@ export PATH=/usr/bin:$PATH
 export DOCKER_HOST=unix:///run/user/1000/docker.sock
 ```
 
+### Understanding Rootless Mode
 
-### Install Docker Desktop
+| Feature | Rootful Docker | Rootless Docker |
+|---------|---------------|-----------------|
+| Daemon runs as | root | Non-root user |
+| Container UID mapping | Direct (0 = root) | User namespace remapped |
+| Socket location | `/var/run/docker.sock` | `$XDG_RUNTIME_DIR/docker.sock` |
+| Network capabilities | Full (iptables, bridge) | Limited (slirp4netns/vpnkit) |
+| Port binding | Any port | Ports > 1024 by default |
+
+### Make Rootless Mode Persistent
+
+Add these environment variables to your shell profile (`~/.bashrc` or `~/.zshrc`):
+
+```bash copy
+echo 'export PATH=/usr/bin:$PATH' >> ~/.bashrc
+echo 'export DOCKER_HOST=unix:///run/user/$(id -u)/docker.sock' >> ~/.bashrc
+source ~/.bashrc
+```
+
+### Enable Rootless Docker as Systemd User Service
+
+```bash copy
+systemctl --user enable docker
+systemctl --user start docker
+```
+
+To ensure the service starts at boot (even without user login):
+
+```bash copy
+sudo loginctl enable-linger $USER
+```
+
+---
+
+## Install Docker Desktop
 
 From Official Docker Desktop [Download](https://docs.docker.com/desktop/setup/install/linux/ubuntu/)
 
-### Sign in
+### Install Prerequisites for Docker Desktop
+
+Before installing Docker Desktop, install the required dependencies:
+
+```bash copy
+sudo apt install -y gnome-terminal pass uidmap dbus-user-session
+```
+
+### Install the .deb Package
+
+After downloading the `.deb` file:
+
+```bash copy
+sudo apt install ./docker-desktop-<version>-amd64.deb
+```
+
+### Launch Docker Desktop
+
+```bash copy
+systemctl --user start docker-desktop
+```
+
+Or launch from the applications menu.
+
+---
+
+## Sign in to Docker Desktop
+
+Docker Desktop uses GPG and `pass` for secure credential storage on Linux.
+
+### Generate GPG Key
 
 ```bash copy
 
@@ -42,3 +207,176 @@ gpg --generate-key
 pass init #your pub key
 ```
 Now you can sign in  Docker Desktop
+
+### GPG Key Generation Details
+
+When running `gpg --generate-key`, you'll be prompted for:
+
+1. **Real name** — Your full name for the key identity
+2. **Email address** — Associated email for the key
+3. **Passphrase** — Secure passphrase to protect the private key
+
+After generation, note the **public key ID** (a 40-character hex string or the last 16 characters). Use this ID to initialize the password store.
+
+### Verify Credential Store
+
+```bash copy
+pass ls
+```
+
+This should show an empty password store, ready for Docker Desktop to store your credentials securely.
+
+---
+
+## Managing Docker Service
+
+### Check Docker Service Status
+
+```bash copy
+sudo systemctl status docker
+```
+
+### Start, Stop, and Restart Docker
+
+```bash copy
+# Start Docker
+sudo systemctl start docker
+
+# Stop Docker
+sudo systemctl stop docker
+
+# Restart Docker
+sudo systemctl restart docker
+
+# Enable Docker to start on boot
+sudo systemctl enable docker
+```
+
+---
+
+## Docker Configuration
+
+### Configure Docker Daemon
+
+Docker daemon configuration is stored in `/etc/docker/daemon.json`. Common configurations include:
+
+```json title="/etc/docker/daemon.json"
+{
+  "storage-driver": "overlay2",
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "10m",
+    "max-file": "3"
+  },
+  "default-address-pools": [
+    {"base": "172.17.0.0/16", "size": 24}
+  ],
+  "live-restore": true
+}
+```
+
+After modifying the configuration, restart Docker:
+
+```bash copy
+sudo systemctl restart docker
+```
+
+### Rootless Mode Configuration
+
+For rootless mode, the configuration file is located at:
+- `~/.config/docker/daemon.json`
+
+---
+
+## Switching Docker Contexts
+
+When both Docker Engine and Docker Desktop are installed, use contexts to switch between them:
+
+```bash copy
+# List available contexts
+docker context ls
+
+# Switch to Docker Desktop
+docker context use desktop-linux
+
+# Switch to Docker Engine
+docker context use default
+```
+
+---
+
+## Troubleshooting
+
+### Common Issues and Solutions
+
+| Issue | Solution |
+|-------|----------|
+| Permission denied on socket | Add user to docker group: `sudo usermod -aG docker $USER` |
+| Docker daemon not running | Start service: `sudo systemctl start docker` |
+| Cannot connect to Docker Desktop | Ensure VM is running: `systemctl --user status docker-desktop` |
+| Slow file sharing (Linux) | Check subuid/subgid configuration |
+| GPG key errors on sign-in | Re-initialize pass: `pass init <gpg-key-id>` |
+
+### Check Docker Logs
+
+```bash copy
+# Docker Engine logs
+sudo journalctl -u docker.service
+
+# Docker Desktop logs (user service)
+journalctl --user -u docker-desktop
+```
+
+### Verify KVM Support (for Docker Desktop)
+
+Docker Desktop requires KVM for virtualization. Verify KVM is available:
+
+```bash copy
+kvm-ok
+# Or
+ls -la /dev/kvm
+```
+
+If KVM is not accessible, add your user to the kvm group:
+
+```bash copy
+sudo usermod -aG kvm $USER
+```
+
+---
+
+## Uninstall Docker
+
+### Uninstall Docker Engine
+
+```bash copy
+sudo apt purge docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin docker-ce-rootless-extras
+sudo rm -rf /var/lib/docker
+sudo rm -rf /var/lib/containerd
+```
+
+### Uninstall Docker Desktop
+
+```bash copy
+sudo apt remove docker-desktop
+rm -rf ~/.docker/desktop
+sudo rm /usr/local/bin/com.docker.cli
+```
+
+---
+
+## Quick Reference
+
+| Command | Description |
+|---------|-------------|
+| `docker version` | Show Docker version info |
+| `docker info` | Display system-wide information |
+| `docker ps` | List running containers |
+| `docker ps -a` | List all containers |
+| `docker images` | List images |
+| `docker pull <image>` | Download an image |
+| `docker run <image>` | Run a container |
+| `docker stop <container>` | Stop a running container |
+| `docker rm <container>` | Remove a container |
+| `docker rmi <image>` | Remove an image |
+| `docker system prune` | Remove unused data |

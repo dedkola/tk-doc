@@ -1,29 +1,464 @@
 ---
-title: Fedora VM Server. Best Proxmox and VMware Setup
+title: Fedora VM Server. Best alternative to Proxmox and VMware Setup
 description: VM server based on Fedora 42 server edition. No need Proxmox or VMware ESXi.
 tags: ['fedora', 'vm', 'server', 'kvm', 'libvirt', 'virt-manager', 'proxmox', 'vmware', 'podman', 'cockpit', 'virtualization', 'containers']
 ---
 
+## Introduction
 
-### Setup Fedora VM Server  
+Fedora Server provides an enterprise-grade virtualization platform using **KVM (Kernel-based Virtual Machine)** and **libvirt** - the same technologies that power major cloud providers and hypervisors like Proxmox and OpenStack. Unlike proprietary solutions (VMware ESXi) or dedicated hypervisors (Proxmox), Fedora Server offers a complete Linux environment with virtualization capabilities, giving you flexibility for both VM hosting and container workloads.
+
+### Why Choose Fedora as a Virtualization Host?
+
+| Feature | Fedora Server | Proxmox VE | VMware ESXi |
+|---------|---------------|------------|-------------|
+| **Base System** | Full Linux OS | Debian-based | Proprietary |
+| **License Cost** | Free | Free (paid support) | Paid |
+| **Hypervisor** | KVM/QEMU | KVM/QEMU | ESXi |
+| **Container Runtime** | Podman (native) | LXC/Docker | None |
+| **Web Management** | Cockpit | Proxmox UI | vCenter |
+| **CLI Access** | Full Linux shell | Limited | Very limited |
+| **Package Updates** | dnf (latest) | apt (stable) | VMware patches |
+
+### Architecture Overview
+
+The virtualization stack consists of several layers:
+
+- **KVM** - Kernel module that turns Linux into a Type-1 hypervisor
+- **QEMU** - Hardware emulator that provides virtual hardware devices
+- **libvirt** - Virtualization API and daemon for managing VMs
+- **virt-manager** - Desktop GUI for VM management
+- **Cockpit** - Web-based administration interface
+
+## Setup Fedora VM Server
+
+The `@virtualization` group installs all necessary packages including QEMU, libvirt, virt-install, and related tools.
 
 ```bash copy
 sudo dnf install @virtualization
 sudo systemctl enable --now libvirtd
 ```
 
+### Verify KVM Hardware Support
 
-### Tools
+Before creating VMs, verify that your CPU supports hardware virtualization (Intel VT-x or AMD-V):
+
+```bash copy
+# Check if KVM modules are loaded
+lsmod | grep kvm
+
+# Verify hardware virtualization support
+egrep -c '(vmx|svm)' /proc/cpuinfo
+# Output > 0 means virtualization is supported
+
+# Detailed CPU flags check
+cat /proc/cpuinfo | grep -E '(vmx|svm|ept|npt)'
+```
+
+Expected output for Intel CPUs shows `kvm_intel`, for AMD shows `kvm_amd`:
+
+```plaintext
+kvm_intel             458752  0
+kvm                  1339392  1 kvm_intel
+irqbypass              12288  1 kvm
+```
+
+### Configure libvirt for Non-Root Access
+
+Add your user to the `libvirt` group to manage VMs without sudo:
+
+```bash copy
+# Add current user to libvirt group
+sudo usermod -aG libvirt $(whoami)
+
+# Apply group changes (or logout/login)
+newgrp libvirt
+
+# Verify access
+virsh list --all
+```
+
+### Network Configuration
+
+libvirt creates a default NAT network (`virbr0`). For production servers, you may want to configure bridged networking:
+
+```bash copy
+# View existing networks
+virsh net-list --all
+
+# View default network details
+virsh net-info default
+
+# Start and autostart default network
+virsh net-start default
+virsh net-autostart default
+```
+
+For bridged networking (VMs get IPs from your LAN DHCP):
+
+```bash copy
+# Create bridge interface using NetworkManager
+sudo nmcli connection add type bridge ifname br0 con-name br0
+sudo nmcli connection add type ethernet ifname eth0 master br0
+
+# Activate the bridge
+sudo nmcli connection up br0
+```
+
+### Storage Pool Configuration
+
+Configure dedicated storage pools for VM images:
+
+```bash copy
+# Create directory for VM images
+sudo mkdir -p /var/lib/libvirt/images
+
+# Define and start a storage pool
+virsh pool-define-as default dir --target /var/lib/libvirt/images
+virsh pool-start default
+virsh pool-autostart default
+
+# View pool information
+virsh pool-info default
+```
+
+## Tools
+
+Cockpit provides a modern web interface for server administration, and the `cockpit-machines` module adds VM management capabilities.
 
 ```bash copy
 sudo dnf install cockpit cockpit-machines
 sudo systemctl enable --now cockpit.socket
 ```
 
-### Podman container
+### Accessing Cockpit
+
+After installation, access the web interface at `https://your-server-ip:9090`. The interface provides:
+
+- **Virtual Machines** - Create, start, stop, and console access
+- **Storage** - Manage disks and storage pools
+- **Networking** - Configure network interfaces and bridges
+- **Terminal** - Web-based terminal access
+- **Users** - System user management
+- **Services** - systemd service control
+
+### Firewall Configuration
+
+If firewalld is active, allow Cockpit access:
+
+```bash copy
+# Allow Cockpit through firewall
+sudo firewall-cmd --permanent --add-service=cockpit
+sudo firewall-cmd --reload
+
+# Verify
+sudo firewall-cmd --list-services
+```
+
+### Additional Cockpit Modules
+
+Extend Cockpit functionality with additional packages:
+
+```bash copy
+# Storage management (LVM, RAID, etc.)
+sudo dnf install cockpit-storaged
+
+# Container management
+sudo dnf install cockpit-podman
+
+# Performance monitoring (PCP)
+sudo dnf install cockpit-pcp
+
+# Software updates
+sudo dnf install cockpit-packagekit
+```
+
+## Creating Virtual Machines
+
+### Using virt-install (CLI)
+
+Create VMs from the command line for automation and scripting:
+
+```bash copy
+# Download Fedora cloud image
+curl -LO https://download.fedoraproject.org/pub/fedora/linux/releases/42/Cloud/x86_64/images/Fedora-Cloud-Base-42-1.1.x86_64.qcow2
+
+# Create VM from cloud image
+virt-install \
+  --name fedora-vm \
+  --memory 4096 \
+  --vcpus 2 \
+  --disk path=/var/lib/libvirt/images/fedora-vm.qcow2,size=40 \
+  --os-variant fedora42 \
+  --network network=default \
+  --graphics vnc \
+  --import \
+  --noautoconsole
+```
+
+### Common virt-install Options
+
+| Option | Description | Example |
+|--------|-------------|---------|
+| `--name` | VM name | `--name myvm` |
+| `--memory` | RAM in MB | `--memory 8192` |
+| `--vcpus` | CPU cores | `--vcpus 4` |
+| `--disk` | Storage config | `--disk size=50` |
+| `--cdrom` | ISO installer | `--cdrom /path/to.iso` |
+| `--network` | Network type | `--network bridge=br0` |
+| `--os-variant` | OS optimization | `--os-variant ubuntu24.04` |
+| `--graphics` | Display type | `--graphics spice` |
+
+### virsh Management Commands
+
+```bash copy
+# List all VMs
+virsh list --all
+
+# Start a VM
+virsh start vm-name
+
+# Graceful shutdown
+virsh shutdown vm-name
+
+# Force stop
+virsh destroy vm-name
+
+# Delete VM (keeps disk)
+virsh undefine vm-name
+
+# Delete VM with storage
+virsh undefine vm-name --remove-all-storage
+
+# Console access
+virsh console vm-name
+
+# View VM configuration
+virsh dumpxml vm-name
+```
+
+## Podman Container
+
+Podman is a daemonless container engine that's fully compatible with Docker but runs rootless by default, providing enhanced security.
 
 ```bash copy
 sudo dnf install podman
 podman machine init
 podman machine start
+```
+
+### Rootless Container Execution
+
+Podman's primary advantage is running containers without root privileges:
+
+```bash copy
+# Verify rootless setup
+podman info | grep -i rootless
+
+# Run container as regular user
+podman run --rm alpine:latest id
+# Output: uid=0(root) gid=0(root) - root inside, your user outside
+
+# Check user namespace mapping
+podman unshare cat /proc/self/uid_map
+```
+
+### Container Networking
+
+Podman supports multiple networking modes for different use cases:
+
+```bash copy
+# Default bridge networking with port mapping
+podman run -d -p 8080:80 --name webserver nginx:alpine
+
+# Connect to multiple networks with static IPs
+podman run --network net1:ip=10.89.1.5 --network net2:ip=10.89.10.10 alpine ip addr
+
+# Host networking (container uses host network stack)
+podman run --network host nginx:alpine
+
+# Create custom network
+podman network create mynetwork
+podman run --network mynetwork alpine
+```
+
+### Volume Mounts and Persistence
+
+```bash copy
+# Mount host directory with SELinux context
+podman run -v ~/data:/data:Z alpine:latest ls -la /data
+
+# Named volumes for persistence
+podman volume create mydata
+podman run -v mydata:/app/data alpine
+
+# Bind mount with read-only access
+podman run -v /etc/hosts:/etc/hosts:ro alpine cat /etc/hosts
+```
+
+### Podman Compose
+
+Use Docker Compose files with Podman:
+
+```bash copy
+# Install podman-compose
+sudo dnf install podman-compose
+
+# Run compose file
+podman-compose up -d
+
+# Or use podman's built-in compose
+podman compose up -d
+```
+
+### Systemd Integration
+
+Generate systemd service files for containers:
+
+```bash copy
+# Generate systemd unit for existing container
+podman generate systemd --name mycontainer --files
+
+# Enable container to start on boot
+systemctl --user enable container-mycontainer.service
+systemctl --user start container-mycontainer.service
+
+# For rootful containers
+sudo systemctl enable container-mycontainer.service
+```
+
+### Container Resource Limits
+
+```bash copy
+# Limit CPU and memory
+podman run --cpus 2 --memory 1g nginx:alpine
+
+# CPU shares (relative weight)
+podman run --cpu-shares 512 nginx:alpine
+
+# Memory with swap limit
+podman run --memory 1g --memory-swap 2g nginx:alpine
+```
+
+## Performance Tuning
+
+### CPU Pinning for VMs
+
+Pin virtual CPUs to physical cores for consistent performance. Edit VM configuration:
+
+```xml
+<vcpu placement='static'>4</vcpu>
+<cputune>
+  <vcpupin vcpu="0" cpuset="2"/>
+  <vcpupin vcpu="1" cpuset="3"/>
+  <vcpupin vcpu="2" cpuset="4"/>
+  <vcpupin vcpu="3" cpuset="5"/>
+  <emulatorpin cpuset="0-1"/>
+</cputune>
+```
+
+Apply with: `virsh edit vm-name`
+
+### Hugepages for Memory Performance
+
+Enable hugepages for VMs with large memory allocations:
+
+```bash copy
+# Check current hugepage configuration
+cat /proc/meminfo | grep Huge
+
+# Allocate hugepages (2MB pages, allocate 4GB worth)
+echo 2048 | sudo tee /sys/kernel/mm/hugepages/hugepages-2048kB/nr_hugepages
+
+# Make persistent in /etc/sysctl.conf
+echo "vm.nr_hugepages = 2048" | sudo tee -a /etc/sysctl.conf
+```
+
+### I/O Tuning
+
+Use virtio drivers for best I/O performance:
+
+```bash copy
+# Create VM with virtio disk and network
+virt-install \
+  --name fast-vm \
+  --memory 8192 \
+  --vcpus 4 \
+  --disk path=/var/lib/libvirt/images/fast-vm.qcow2,size=100,bus=virtio,cache=writeback \
+  --network network=default,model=virtio \
+  --os-variant fedora42 \
+  --cdrom /path/to/fedora.iso
+```
+
+## Backup and Snapshots
+
+### VM Snapshots
+
+```bash copy
+# Create snapshot
+virsh snapshot-create-as vm-name snapshot1 "Before update"
+
+# List snapshots
+virsh snapshot-list vm-name
+
+# Revert to snapshot
+virsh snapshot-revert vm-name snapshot1
+
+# Delete snapshot
+virsh snapshot-delete vm-name snapshot1
+```
+
+### Backup VM Images
+
+```bash copy
+# Shutdown VM for consistent backup
+virsh shutdown vm-name
+
+# Copy disk image
+cp /var/lib/libvirt/images/vm-name.qcow2 /backup/
+
+# Export VM configuration
+virsh dumpxml vm-name > /backup/vm-name.xml
+
+# Compress backup
+qemu-img convert -c -O qcow2 vm-name.qcow2 vm-name-backup.qcow2
+```
+
+## Monitoring and Troubleshooting
+
+### Resource Monitoring
+
+```bash copy
+# VM statistics
+virt-top
+
+# Detailed VM info
+virsh dominfo vm-name
+virsh domstats vm-name
+
+# CPU usage
+virsh cpu-stats vm-name
+
+# Memory stats (requires balloon driver)
+virsh dommemstat vm-name
+```
+
+### Log Files
+
+Key log locations for troubleshooting:
+
+| Log | Path | Purpose |
+|-----|------|---------|
+| libvirtd | `/var/log/libvirt/libvirtd.log` | libvirt daemon logs |
+| QEMU | `/var/log/libvirt/qemu/vm-name.log` | Per-VM QEMU logs |
+| Cockpit | `journalctl -u cockpit` | Cockpit service logs |
+| Podman | `podman logs container-name` | Container stdout/stderr |
+
+```bash copy
+# Enable debug logging for libvirt
+sudo virsh -c qemu:///system managedsave-define --config \
+  "<libvirtd><log_level>1</log_level></libvirtd>"
+
+# View QEMU process for specific VM
+ps aux | grep qemu | grep vm-name
 ```
