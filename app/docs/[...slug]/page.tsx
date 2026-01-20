@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import matter from "gray-matter";
 import { MDXRemote } from "next-mdx-remote/rsc";
+import remarkGfm from "remark-gfm";
 import type { MDXComponents } from "mdx/types";
 import { siteConfig } from "@/config/site";
 import { Badge } from "@/components/ui/Badge";
@@ -249,6 +250,29 @@ const mdxComponents: MDXComponents = {
     <blockquote className="border-l-4 border-border pl-4 italic my-4 text-muted-foreground">
       {children}
     </blockquote>
+  ),
+  // Markdown table elements (from remark-gfm)
+  table: ({ children }) => (
+      <div className="my-6 w-full overflow-x-auto">
+        <table className="w-full border-collapse text-sm">
+          {children}
+        </table>
+      </div>
+  ),
+  thead: ({ children }) => (
+      <thead className="border-b bg-muted/50">{children}</thead>
+  ),
+  tbody: ({ children }) => <tbody>{children}</tbody>,
+  tr: ({ children }) => (
+      <tr className="border-b transition-colors hover:bg-muted/50">{children}</tr>
+  ),
+  th: ({ children }) => (
+      <th className="h-10 px-4 text-left align-middle font-medium text-muted-foreground">
+        {children}
+      </th>
+  ),
+  td: ({ children }) => (
+      <td className="p-4 align-middle text-foreground">{children}</td>
   ),
   // UI Components - Cards
   Card,
@@ -496,7 +520,15 @@ export default async function Page({
             </div>
           )}
           <article className="prose prose-foreground w-full max-w-none">
-            <MDXRemote source={content} components={mdxComponents} />
+            <MDXRemote
+                source={content}
+                components={mdxComponents}
+                options={{
+                  mdxOptions: {
+                    remarkPlugins: [remarkGfm],
+                  },
+                }}
+            />
           </article>
         </div>
         <aside className="w-full xl:w-64 xl:sticky xl:top-28 shrink-0">
