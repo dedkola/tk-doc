@@ -2,6 +2,8 @@
 
 <div align="center">
 
+![TK Docs](public/github_page_collage.png)
+
 **A modern, high-performance documentation platform built with Next.js 16 and MDX**
 
 [![Next.js](https://img.shields.io/badge/Next.js-16-black)](https://nextjs.org/)
