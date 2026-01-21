@@ -1,0 +1,535 @@
+---
+title: Port forward and external IP to Pods Kubernetes service
+description: Port forward and external IP to Pods Kubernetes service
+tags: [kubernetes, metallb, microk8s, k8s, container, pod, service, port-forward, nodeport, loadbalancer, clusterip, externalname, headless]
+---
+
+## Understanding Kubernetes Service Types
+
+Kubernetes Services provide an abstract way to expose an application running on a set of Pods. Services enable network access to Pods through a stable endpoint, abstracting away the dynamic nature of Pod IPs. There are four primary Service types in Kubernetes:
+
+| Service Type | Use Case | Accessibility | Port Range |
+|--------------|----------|---------------|------------|
+| **ClusterIP** | Internal cluster communication | Within cluster only | Any valid port |
+| **NodePort** | External access via node IP | External via `<NodeIP>:<NodePort>` | 30000-32767 |
+| **LoadBalancer** | Production external access | External via cloud/MetalLB IP | Any valid port |
+| **ExternalName** | Map to external DNS | DNS CNAME record | N/A |
+
+### How Service Networking Works
+
+When you create a Service, Kubernetes assigns it a cluster-scoped virtual IP address (ClusterIP). The `kube-proxy` component running on each node programs iptables or IPVS rules to redirect traffic destined for the Service's ClusterIP to one of the backing Pods. This provides:
+
+- **Load balancing** across multiple Pod replicas
+- **Service discovery** via DNS (`<service-name>.<namespace>.svc.cluster.local`)
+- **Stable endpoints** even when Pods are rescheduled
+
+---
+
+## ClusterIP Service (Default)
+
+ClusterIP is the default Service type. It exposes the Service on an internal IP address accessible only within the cluster. This is ideal for internal microservices communication.
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-api
+  labels:
+    app: backend
+spec:
+  type: ClusterIP  # Default, can be omitted
+  selector:
+    app: backend
+  ports:
+    - name: http
+      protocol: TCP
+      port: 8080        # Port the Service listens on
+      targetPort: 3000  # Port on the Pod
+```
+
+### Key ClusterIP Concepts
+
+- **port**: The port the Service exposes within the cluster
+- **targetPort**: The actual port your container listens on (can be a named port)
+- **selector**: Label selector to identify backing Pods
+
+### Accessing ClusterIP Services
+
+From within the cluster, you can access the service via:
+
+```bash
+# Using service DNS name
+curl http://backend-api.default.svc.cluster.local:8080
+
+# Using cluster IP directly
+curl http://10.96.45.123:8080
+```
+
+---
+
+## NodePort Example - Expose Port to Kubernetes API
+
+NodePort extends ClusterIP by additionally exposing the Service on a static port on each Node's IP. When you set `type: NodePort`, Kubernetes allocates a port from the configured range (default: **30000-32767**) and every node proxies that port into your Service.
+
+### NodePort Architecture
+
+<Card className="bg-slate-50 dark:bg-slate-900 border-2">
+  <CardContent className="pt-6">
+    <div className="flex flex-col items-center gap-4">
+      {/* External Client */}
+      <div className="w-full max-w-md bg-blue-100 dark:bg-blue-900 border-2 border-blue-400 rounded-lg p-4 text-center">
+        <div className="font-bold text-blue-800 dark:text-blue-200">External Client</div>
+        <code className="text-sm text-blue-600 dark:text-blue-300">http://NodeIP:30080</code>
+      </div>
+      
+      <div className="text-2xl text-slate-400">↓</div>
+      
+      {/* Nodes */}
+      <div className="flex flex-wrap justify-center gap-3">
+        <div className="bg-orange-100 dark:bg-orange-900 border-2 border-orange-400 rounded-lg p-3 text-center min-w-24">
+          <div className="font-semibold text-orange-800 dark:text-orange-200">Node 1</div>
+          <code className="text-xs text-orange-600 dark:text-orange-300">:30080</code>
+        </div>
+        <div className="bg-orange-100 dark:bg-orange-900 border-2 border-orange-400 rounded-lg p-3 text-center min-w-24">
+          <div className="font-semibold text-orange-800 dark:text-orange-200">Node 2</div>
+          <code className="text-xs text-orange-600 dark:text-orange-300">:30080</code>
+        </div>
+        <div className="bg-orange-100 dark:bg-orange-900 border-2 border-orange-400 rounded-lg p-3 text-center min-w-24">
+          <div className="font-semibold text-orange-800 dark:text-orange-200">Node 3</div>
+          <code className="text-xs text-orange-600 dark:text-orange-300">:30080</code>
+        </div>
+      </div>
+      
+      <div className="text-2xl text-slate-400">↓</div>
+      
+      {/* Service */}
+      <div className="bg-purple-100 dark:bg-purple-900 border-2 border-purple-400 rounded-lg p-4 text-center">
+        <div className="font-bold text-purple-800 dark:text-purple-200">Service (ClusterIP)</div>
+        <code className="text-sm text-purple-600 dark:text-purple-300">:80</code>
+      </div>
+      
+      <div className="text-2xl text-slate-400">↓</div>
+      
+      {/* Pods */}
+      <div className="flex flex-wrap justify-center gap-3">
+        <div className="bg-green-100 dark:bg-green-900 border-2 border-green-400 rounded-lg p-3 text-center min-w-20">
+          <div className="font-semibold text-green-800 dark:text-green-200">Pod 1</div>
+          <code className="text-xs text-green-600 dark:text-green-300">:80</code>
+        </div>
+        <div className="bg-green-100 dark:bg-green-900 border-2 border-green-400 rounded-lg p-3 text-center min-w-20">
+          <div className="font-semibold text-green-800 dark:text-green-200">Pod 2</div>
+          <code className="text-xs text-green-600 dark:text-green-300">:80</code>
+        </div>
+        <div className="bg-green-100 dark:bg-green-900 border-2 border-green-400 rounded-lg p-3 text-center min-w-20">
+          <div className="font-semibold text-green-800 dark:text-green-200">Pod 3</div>
+          <code className="text-xs text-green-600 dark:text-green-300">:80</code>
+        </div>
+      </div>
+    </div>
+  </CardContent>
+</Card>
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-service
+spec:
+  type: NodePort
+  selector:
+    app: nginx
+  ports:
+    - port: 80
+      targetPort: 80
+      nodePort: 30080
+```
+
+### NodePort Port Configuration
+
+| Port Field | Description | Required |
+|------------|-------------|----------|
+| `port` | Port exposed on the ClusterIP (internal) | Yes |
+| `targetPort` | Port on the Pod container | Yes |
+| `nodePort` | Static port on all nodes (30000-32767) | Optional (auto-assigned if omitted) |
+
+### Accessing NodePort Services
+
+You can access the service from outside the cluster using any node's IP:
+
+```bash
+# Access via any node IP address
+curl http://192.168.1.100:30080
+curl http://192.168.1.101:30080
+curl http://192.168.1.102:30080
+
+# Check allocated NodePort
+kubectl get svc nginx-service -o jsonpath='{.spec.ports[0].nodePort}'
+```
+
+### NodePort Use Cases
+
+- **Development and testing** environments
+- **On-premises clusters** without LoadBalancer support
+- **Custom load balancing** solutions (HAProxy, Nginx, Traefik)
+- **Bare-metal deployments** with external load balancers
+
+<Alert variant="info">
+**Note:** NodePort opens the specified port on ALL nodes, even those not running the target Pods. Traffic is forwarded internally to nodes with running Pods.
+</Alert>
+
+---
+
+## LoadBalancer Example - Expose Pod to External LAN IP with MetalLB
+
+LoadBalancer is the standard way to expose a Service externally in production. When you create a LoadBalancer Service, Kubernetes first provisions a NodePort, then requests an external load balancer from the cloud provider (or MetalLB for bare-metal/on-premises clusters).
+
+### LoadBalancer Architecture
+
+<Card className="bg-slate-50 dark:bg-slate-900 border-2">
+  <CardContent className="pt-6">
+    <div className="flex flex-col items-center gap-4">
+      {/* External Client */}
+      <div className="w-full max-w-md bg-blue-100 dark:bg-blue-900 border-2 border-blue-400 rounded-lg p-4 text-center">
+        <div className="font-bold text-blue-800 dark:text-blue-200">External Client</div>
+        <code className="text-sm text-blue-600 dark:text-blue-300">http://192.168.1.240:27017</code>
+      </div>
+      
+      <div className="text-2xl text-slate-400">↓</div>
+      
+      {/* LoadBalancer */}
+      <div className="bg-cyan-100 dark:bg-cyan-900 border-2 border-cyan-500 rounded-lg p-4 text-center shadow-lg">
+        <div className="font-bold text-cyan-800 dark:text-cyan-200">LoadBalancer</div>
+        <div className="text-sm text-cyan-700 dark:text-cyan-300">External IP</div>
+        <code className="text-sm font-mono text-cyan-600 dark:text-cyan-300">192.168.1.240</code>
+      </div>
+      
+      <div className="text-2xl text-slate-400">↓</div>
+      
+      {/* Nodes */}
+      <div className="flex flex-wrap justify-center gap-3">
+        <div className="bg-orange-100 dark:bg-orange-900 border-2 border-orange-400 rounded-lg p-3 text-center min-w-24">
+          <div className="font-semibold text-orange-800 dark:text-orange-200">Node 1</div>
+        </div>
+        <div className="bg-orange-100 dark:bg-orange-900 border-2 border-orange-400 rounded-lg p-3 text-center min-w-24">
+          <div className="font-semibold text-orange-800 dark:text-orange-200">Node 2</div>
+        </div>
+        <div className="bg-orange-100 dark:bg-orange-900 border-2 border-orange-400 rounded-lg p-3 text-center min-w-24">
+          <div className="font-semibold text-orange-800 dark:text-orange-200">Node 3</div>
+        </div>
+      </div>
+      
+      <div className="text-2xl text-slate-400">↓</div>
+      
+      {/* Service */}
+      <div className="bg-purple-100 dark:bg-purple-900 border-2 border-purple-400 rounded-lg p-4 text-center">
+        <div className="font-bold text-purple-800 dark:text-purple-200">Service (ClusterIP)</div>
+      </div>
+      
+      <div className="text-2xl text-slate-400">↓</div>
+      
+      {/* Pods */}
+      <div className="flex flex-wrap justify-center gap-3">
+        <div className="bg-green-100 dark:bg-green-900 border-2 border-green-400 rounded-lg p-3 text-center min-w-20">
+          <div className="font-semibold text-green-800 dark:text-green-200">Pod 1</div>
+        </div>
+        <div className="bg-green-100 dark:bg-green-900 border-2 border-green-400 rounded-lg p-3 text-center min-w-20">
+          <div className="font-semibold text-green-800 dark:text-green-200">Pod 2</div>
+        </div>
+        <div className="bg-green-100 dark:bg-green-900 border-2 border-green-400 rounded-lg p-3 text-center min-w-20">
+          <div className="font-semibold text-green-800 dark:text-green-200">Pod 3</div>
+        </div>
+      </div>
+    </div>
+  </CardContent>
+</Card>
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb-service
+spec:
+  selector:
+    app: mongodb
+  ports:
+  - protocol: TCP
+    port: 27017
+    targetPort: 27017
+  type: LoadBalancer
+```
+
+### MetalLB for Bare-Metal Clusters
+
+For on-premises or bare-metal Kubernetes clusters (like MicroK8s, K3s, or kubeadm), there's no cloud provider to provision load balancers. **MetalLB** fills this gap by providing a network load balancer implementation.
+
+MetalLB operates in two modes:
+
+| Mode | Protocol | Use Case |
+|------|----------|----------|
+| **Layer 2 (ARP/NDP)** | ARP/IPv6 NDP | Simple setup, single node handles traffic |
+| **BGP** | Border Gateway Protocol | Production, true load distribution |
+
+### LoadBalancer with Specific IP (MetalLB)
+
+You can request a specific IP from your MetalLB address pool:
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: webapp-service
+  annotations:
+    metallb.universe.tf/loadBalancerIPs: 192.168.1.240
+spec:
+  selector:
+    app: webapp
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080
+  type: LoadBalancer
+```
+
+### Checking LoadBalancer Status
+
+```bash
+# Get external IP assigned to service
+kubectl get svc mongodb-service
+
+# Example output:
+# NAME              TYPE           CLUSTER-IP      EXTERNAL-IP     PORT(S)           AGE
+# mongodb-service   LoadBalancer   10.96.142.89    192.168.1.241   27017:31456/TCP   5m
+
+# Describe service for detailed info
+kubectl describe svc mongodb-service
+```
+
+### Disabling NodePort Allocation (Kubernetes v1.24+)
+
+For load balancers that route directly to Pods (bypassing NodePorts), you can disable NodePort allocation:
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: direct-lb-service
+spec:
+  type: LoadBalancer
+  allocateLoadBalancerNodePorts: false  # No NodePort allocated
+  selector:
+    app: myapp
+  ports:
+    - port: 80
+      targetPort: 8080
+```
+
+---
+
+## ExternalName Service
+
+ExternalName Services map a Service to an external DNS name. Instead of proxying traffic, Kubernetes DNS returns a CNAME record pointing to the external hostname. This is useful for:
+
+- Accessing external databases or APIs
+- Migrating services gradually to Kubernetes
+- Creating consistent internal DNS names for external services
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: external-database
+  namespace: production
+spec:
+  type: ExternalName
+  externalName: database.external-provider.com
+```
+
+### How ExternalName Works
+
+When a Pod queries `external-database.production.svc.cluster.local`, the cluster DNS returns a CNAME record pointing to `database.external-provider.com`. The client then resolves and connects to the external hostname directly.
+
+<Alert variant="warning">
+**Limitation:** ExternalName does not support port mapping. The client must connect to the correct port on the external service.
+</Alert>
+
+---
+
+## Headless Services (clusterIP: None)
+
+Headless Services disable the ClusterIP mechanism, allowing direct Pod discovery via DNS. Instead of a single virtual IP, DNS queries return the IP addresses of all backing Pods.
+
+### Use Cases for Headless Services
+
+- **StatefulSets** requiring stable network identities
+- **Databases** (Cassandra, MongoDB, MySQL clusters) with client-side load balancing
+- **Custom service discovery** mechanisms
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: cassandra
+  labels:
+    app: cassandra
+spec:
+  clusterIP: None  # Makes this a headless service
+  selector:
+    app: cassandra
+  ports:
+    - port: 9042
+      targetPort: 9042
+```
+
+### DNS Behavior for Headless Services
+
+```bash
+# Standard Service DNS query returns ClusterIP
+nslookup my-service.default.svc.cluster.local
+# Returns: 10.96.0.100
+
+# Headless Service DNS query returns Pod IPs
+nslookup cassandra.default.svc.cluster.local
+# Returns:
+# 10.244.1.5
+# 10.244.2.8
+# 10.244.3.12
+```
+
+---
+
+## Port Forwarding with kubectl
+
+`kubectl port-forward` creates a secure tunnel from your local machine to a Pod, Service, or Deployment in the cluster. This is essential for debugging and development without exposing services externally.
+
+### Port Forward Syntax
+
+```bash
+# Forward to a Pod
+kubectl port-forward pod/<pod-name> <local-port>:<pod-port>
+
+# Forward to a Service
+kubectl port-forward svc/<service-name> <local-port>:<service-port>
+
+# Forward to a Deployment
+kubectl port-forward deployment/<deployment-name> <local-port>:<container-port>
+```
+
+### Practical Examples
+
+```bash
+# Forward local port 8080 to service port 80
+kubectl port-forward svc/frontend 8080:80
+
+# Forward with auto-selected local port
+kubectl port-forward deployment/mongo :27017
+
+# Forward multiple ports
+kubectl port-forward pod/my-pod 8080:80 8443:443
+
+# Run in background
+kubectl port-forward svc/api-gateway 8080:80 &
+
+# Forward from specific address (not just localhost)
+kubectl port-forward --address 0.0.0.0 svc/webapp 8080:80
+```
+
+### Port Forward vs NodePort vs LoadBalancer
+
+| Method | Scope | Persistence | Use Case |
+|--------|-------|-------------|----------|
+| `port-forward` | Single user, local | Temporary (session) | Development, debugging |
+| `NodePort` | All nodes | Persistent | Testing, simple external access |
+| `LoadBalancer` | External IP | Persistent | Production external access |
+
+---
+
+## External IPs
+
+You can expose Services on specific external IPs that route to cluster nodes, regardless of Service type:
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-service
+spec:
+  selector:
+    app: myapp
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080
+  externalIPs:
+    - 198.51.100.32
+    - 198.51.100.33
+```
+
+When traffic arrives at `198.51.100.32:80`, Kubernetes routes it to the Service's endpoints.
+
+<Alert variant="warning">
+**Security Note:** Using `externalIPs` requires that those IPs actually route to your nodes. Kubernetes does not validate this, so misconfiguration can lead to unreachable services.
+</Alert>
+
+---
+
+## Multi-Port Services
+
+Services can expose multiple ports, useful for applications that listen on different ports for different protocols:
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: multi-port-service
+spec:
+  selector:
+    app: myapp
+  ports:
+    - name: http      # Name required for multi-port services
+      protocol: TCP
+      port: 80
+      targetPort: 8080
+    - name: https
+      protocol: TCP
+      port: 443
+      targetPort: 8443
+    - name: metrics
+      protocol: TCP
+      port: 9090
+      targetPort: 9090
+```
+
+---
+
+## Troubleshooting Services
+
+### Common Diagnostic Commands
+
+```bash
+# List all services
+kubectl get svc -A
+
+# Describe service for events and endpoints
+kubectl describe svc <service-name>
+
+# Check endpoints (should list Pod IPs if selector matches)
+kubectl get endpoints <service-name>
+
+# Check if Pods match the Service selector
+kubectl get pods -l app=nginx
+
+# Test service DNS resolution from a Pod
+kubectl run -it --rm debug --image=busybox -- nslookup nginx-service
+
+# Test connectivity from within cluster
+kubectl run -it --rm debug --image=curlimages/curl -- curl http://nginx-service:80
+```
+
+### Common Issues and Solutions
+
+| Issue | Cause | Solution |
+|-------|-------|----------|
+| No endpoints | Selector doesn't match Pod labels | Verify labels with `kubectl get pods --show-labels` |
+| External IP pending | No LoadBalancer controller | Install MetalLB or use NodePort |
+| Connection refused | targetPort incorrect | Check Pod's container port |
+| DNS not resolving | CoreDNS issues | Check `kubectl get pods -n kube-system -l k8s-app=kube-dns` |

@@ -1,0 +1,454 @@
+---
+title: MySQL InnoDB Cluster on K3s and expose it to LAN by LoadBalancer
+description: How to deploy MySQL InnoDB Cluster on Kubernetes with MetalLB
+tags: [k3s, metallb, loadbalancer, mysql, innodb, cluster, kubernetes]
+---
+Takes from Official MySQL Operator documentation [here](https://dev.mysql.com/doc/mysql-operator/en/mysql-operator-installation.html)
+
+Install K3s and MetalLB here [K3s with LoadBalancer MetalLB](/docs/vm/k3s_metallb_loadbalancer)
+
+## Understanding MySQL InnoDB Cluster Architecture
+
+**MySQL InnoDB Cluster** is a complete high availability solution for MySQL that provides:
+
+- **Group Replication**: Automatic data replication across all cluster members using a virtual synchronous replication protocol
+- **MySQL Router**: Lightweight middleware that provides transparent routing between your application and the MySQL cluster
+- **MySQL Shell**: Advanced client and code editor for managing the cluster
+
+### Key Components
+
+| Component | Description | Default Port |
+|-----------|-------------|--------------|
+| **MySQL Server** | Database instances running Group Replication | 3306, 33060 (X Protocol) |
+| **MySQL Router** | Connection routing and load balancing | 6446 (RW), 6447 (RO), 6448 (X RW), 6449 (X RO) |
+| **Group Replication** | Synchronous multi-primary/single-primary replication | 33061 |
+
+### How MySQL Operator Works
+
+The MySQL Operator for Kubernetes manages the full lifecycle of MySQL InnoDB Cluster setups:
+
+1. **Provisioning**: Automatically creates StatefulSets, Services, ConfigMaps, and Secrets
+2. **Configuration**: Manages Group Replication configuration and MySQL Router setup
+3. **Monitoring**: Watches cluster health and responds to failures
+4. **Scaling**: Handles adding/removing instances with data synchronization
+5. **Upgrades**: Performs rolling upgrades with minimal downtime
+
+### Deploy MySQL Operator
+```bash
+kubectl apply -f https://raw.githubusercontent.com/mysql/mysql-operator/trunk/deploy/deploy-crds.yaml
+kubectl apply -f https://raw.githubusercontent.com/mysql/mysql-operator/trunk/deploy/deploy-operator.yaml
+```
+
+The first command installs **Custom Resource Definitions (CRDs)** that define new Kubernetes resource types:
+- `InnoDBCluster` - Main cluster resource
+- `MySQLBackup` - Backup resource
+- `ClusterSecretRef` - Secret reference for multi-cluster setups
+
+The second command deploys the operator itself, which watches for these custom resources.
+
+Verify the deployment
+```bash
+kubectl get deployment mysql-operator --namespace mysql-operator
+```
+
+You should see output similar to:
+```plaintext
+NAME             READY   UP-TO-DATE   AVAILABLE   AGE
+mysql-operator   1/1     1            1           2m
+```
+
+#### Additional Operator Verification Commands
+
+Check operator pods are running:
+```bash
+kubectl get pods --namespace mysql-operator
+```
+
+View operator logs for troubleshooting:
+```bash
+kubectl logs -f deployment/mysql-operator --namespace mysql-operator
+```
+
+### Create credentials secret
+
+The secret stores MySQL root credentials used by the cluster. The operator reads this secret during cluster initialization.
+
+```bash
+kubectl create secret generic mypwds \
+        --from-literal=rootUser=root \
+        --from-literal=rootHost=% \
+        --from-literal=rootPassword="123"
+```
+
+<Alert variant="warning">
+**Security Note**: For production environments, use strong passwords and consider using Kubernetes Secrets management solutions like HashiCorp Vault, Sealed Secrets, or External Secrets Operator.
+</Alert>
+
+**Secret Parameters Explained:**
+- `rootUser`: MySQL root username (typically "root")
+- `rootHost`: Host pattern for root access (`%` means any host, use specific IP/hostname for security)
+- `rootPassword`: Root password (should be complex in production)
+
+#### Alternative: Creating Secret from YAML
+
+For version control and GitOps workflows:
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mypwds
+type: Opaque
+stringData:
+  rootUser: root
+  rootHost: "%"
+  rootPassword: "your-secure-password"
+```
+
+### Deploy MySQL InnoDB Cluster
+```bash
+nano mycluster.yaml
+
+```
+```yaml
+apiVersion: mysql.oracle.com/v2
+kind: InnoDBCluster
+metadata:
+  name: mycluster
+spec:
+  secretName: mypwds
+  tlsUseSelfSigned: true
+  instances: 3
+  router:
+    instances: 1
+```
+
+**Cluster Specification Explained:**
+
+| Field | Description |
+|-------|-------------|
+| `secretName` | Reference to the Kubernetes secret containing root credentials |
+| `tlsUseSelfSigned` | When `true`, the operator generates self-signed certificates for TLS encryption |
+| `instances` | Number of MySQL server instances (minimum 3 for fault tolerance) |
+| `router.instances` | Number of MySQL Router instances for load balancing |
+
+<Alert variant="info">
+**Why 3 Instances?** InnoDB Cluster uses Group Replication which requires a majority (quorum) to function. With 3 nodes, you can tolerate 1 failure. With 5 nodes, you can tolerate 2 failures.
+</Alert>
+
+```bash
+kubectl apply -f mycluster.yaml
+kubectl get innodbcluster --watch
+```
+
+The cluster goes through several states during initialization:
+- `PENDING` → Resources being created
+- `INITIALIZING` → MySQL instances starting
+- `ONLINE` → Cluster is ready
+
+#### Extended Cluster Configuration
+
+For production deployments, consider these additional options:
+
+```yaml
+apiVersion: mysql.oracle.com/v2
+kind: InnoDBCluster
+metadata:
+  name: mycluster-production
+spec:
+  secretName: mypwds
+  tlsUseSelfSigned: true
+  instances: 3
+  version: "9.0.1"  # Specific MySQL version
+  router:
+    instances: 2    # Multiple routers for HA
+  datadirVolumeClaimTemplate:
+    accessModes:
+      - ReadWriteOnce
+    resources:
+      requests:
+        storage: 50Gi
+    storageClassName: local-path  # K3s default storage class
+  mycnf: |
+    [mysqld]
+    max_connections=500
+    innodb_buffer_pool_size=1G
+    innodb_log_file_size=256M
+```
+
+#### Resource Limits Configuration
+
+Control CPU and memory for MySQL pods:
+
+```yaml
+apiVersion: mysql.oracle.com/v2
+kind: InnoDBCluster
+metadata:
+  name: mycluster-resources
+spec:
+  secretName: mypwds
+  tlsUseSelfSigned: true
+  instances: 3
+  router:
+    instances: 1
+  podSpec:
+    containers:
+      - name: mysql
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "1Gi"
+          limits:
+            cpu: "2"
+            memory: "4Gi"
+```
+
+### Expose MySQL InnoDB Cluster to LAN
+
+<Alert variant="destructive">
+**Warning**: Exposing MySQL directly to LAN without proper security measures is dangerous!
+</Alert>
+
+Dont do this!!!
+
+```bash
+kubectl patch service mycluster -p '{"spec": {"type": "LoadBalancer"}}'
+```
+
+#### Why Direct Exposure is Dangerous
+
+1. **No authentication layer**: Anyone on the network can attempt connections
+2. **Brute force attacks**: Exposed ports are targets for automated attacks
+3. **Data exfiltration**: Compromised credentials lead to data theft
+4. **Compliance violations**: Many standards (PCI-DSS, HIPAA) prohibit direct database exposure
+
+#### Secure Alternatives
+
+**Option 1: Internal ClusterIP with Application Proxy**
+
+Keep MySQL internal and access through your application:
+```bash
+# MySQL remains ClusterIP (default)
+# Applications in the cluster connect via service name
+mysql -h mycluster -P 6446 -u root -p
+```
+
+**Option 2: NodePort for Controlled Access**
+
+Expose on specific node ports with firewall rules:
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: mycluster-nodeport
+spec:
+  type: NodePort
+  selector:
+    mysql.oracle.com/cluster: mycluster
+    component: mysqlrouter
+  ports:
+    - name: mysql-rw
+      port: 6446
+      targetPort: 6446
+      nodePort: 30446
+```
+
+**Option 3: VPN or SSH Tunnel**
+
+Access from outside via secure tunnel:
+```bash
+# SSH tunnel from local machine
+ssh -L 3306:mycluster.default.svc.cluster.local:6446 user@k3s-node
+```
+
+Next example deploy WordPress with MySQL InnoDB Cluster [here](/docs/vm/wordpress_to_innodb_cluster_k3s)
+
+## Cluster Management
+
+### Connect Mysqlsh
+```bash
+ kubectl run --rm -it myshell --image=container-registry.oracle.com/mysql/community-operator -- mysqlsh
+```
+
+Once connected, you can interact with the cluster using MySQL Shell's JavaScript or Python mode:
+
+```javascript
+// Connect to the cluster
+\connect root@mycluster:6446
+
+// Check cluster status
+var cluster = dba.getCluster()
+cluster.status()
+```
+
+### Connect to specific pod in cluster
+```bash
+kunectl get pods
+kubectl --namespace default exec -it mycluster-2 -- bash
+
+mysqlsh root@localhost
+```
+
+## Monitoring and Troubleshooting
+
+### Check Cluster Status
+
+View overall cluster health:
+```bash
+kubectl get innodbcluster
+```
+
+Example output:
+```plaintext
+NAME        STATUS   ONLINE   INSTANCES   ROUTERS   AGE
+mycluster   ONLINE   3        3           1         1h
+```
+
+### View Cluster Events
+
+Monitor events for debugging:
+```bash
+kubectl describe innodbcluster mycluster
+```
+
+### Check Individual Pod Status
+
+```bash
+kubectl get pods -l mysql.oracle.com/cluster=mycluster
+```
+
+### View MySQL Logs
+
+```bash
+# View logs for specific MySQL instance
+kubectl logs mycluster-0 -c mysql
+
+# Follow logs in real-time
+kubectl logs -f mycluster-0 -c mysql
+```
+
+### Check Group Replication Status
+
+Connect to MySQL and run:
+```sql
+SELECT * FROM performance_schema.replication_group_members;
+```
+
+Expected output shows all members with `ONLINE` state:
+```plaintext
++---------------------------+--------------------------------------+-------------+-------------+--------------+-------------+
+| CHANNEL_NAME              | MEMBER_ID                            | MEMBER_HOST | MEMBER_PORT | MEMBER_STATE | MEMBER_ROLE |
++---------------------------+--------------------------------------+-------------+-------------+--------------+-------------+
+| group_replication_applier | 3b3c6a7c-1234-5678-9abc-def012345678 | mycluster-0 |        3306 | ONLINE       | PRIMARY     |
+| group_replication_applier | 4c4d7b8d-2345-6789-abcd-ef0123456789 | mycluster-1 |        3306 | ONLINE       | SECONDARY   |
+| group_replication_applier | 5d5e8c9e-3456-789a-bcde-f01234567890 | mycluster-2 |        3306 | ONLINE       | SECONDARY   |
++---------------------------+--------------------------------------+-------------+-------------+--------------+-------------+
+```
+
+### Common Issues and Solutions
+
+| Issue | Symptom | Solution |
+|-------|---------|----------|
+| Cluster stuck in PENDING | Pods not starting | Check PVC binding: `kubectl get pvc` |
+| Split-brain scenario | Multiple primaries | Restart affected pods, check network |
+| High replication lag | Slow queries | Check `performance_schema.replication_group_member_stats` |
+| Router not connecting | Connection refused | Verify router pods: `kubectl get pods -l component=mysqlrouter` |
+
+## Scaling the Cluster
+
+### Add More Instances
+
+Update the `instances` field:
+```bash
+kubectl patch innodbcluster mycluster --type=merge -p '{"spec":{"instances":5}}'
+```
+
+### Scale Router Instances
+
+For higher connection capacity:
+```bash
+kubectl patch innodbcluster mycluster --type=merge -p '{"spec":{"router":{"instances":3}}}'
+```
+
+## Backup and Recovery
+
+### Create Backup Using MySQL Shell
+
+```bash
+kubectl run --rm -it backup-shell --image=container-registry.oracle.com/mysql/community-operator -- mysqlsh root@mycluster:6446 -- util.dumpInstance('/backup')
+```
+
+### Backup to Persistent Volume
+
+Create a backup job with PVC:
+```yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: mysql-backup
+spec:
+  template:
+    spec:
+      containers:
+        - name: backup
+          image: container-registry.oracle.com/mysql/community-operator
+          command:
+            - mysqlsh
+            - root@mycluster:6446
+            - --password=$(MYSQL_ROOT_PASSWORD)
+            - -e
+            - "util.dumpInstance('/backup', {threads: 4})"
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mypwds
+                  key: rootPassword
+          volumeMounts:
+            - name: backup-storage
+              mountPath: /backup
+      volumes:
+        - name: backup-storage
+          persistentVolumeClaim:
+            claimName: mysql-backup-pvc
+      restartPolicy: Never
+```
+
+## Performance Tuning
+
+### Key MySQL Parameters for InnoDB Cluster
+
+Add to your cluster's `mycnf` section:
+
+```ini
+[mysqld]
+# Connection handling
+max_connections = 500
+thread_cache_size = 50
+
+# InnoDB settings
+innodb_buffer_pool_size = 2G
+innodb_buffer_pool_instances = 4
+innodb_log_file_size = 512M
+innodb_flush_log_at_trx_commit = 1
+
+# Group Replication tuning
+group_replication_poll_spin_loops = 0
+group_replication_compression_threshold = 1000000
+group_replication_flow_control_mode = QUOTA
+```
+
+### Router Connection Pool Settings
+
+For high-traffic applications:
+```yaml
+spec:
+  router:
+    instances: 2
+    podSpec:
+      containers:
+        - name: router
+          env:
+            - name: MYSQL_ROUTER_max_total_connections
+              value: "1024"
+```

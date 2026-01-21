@@ -1,0 +1,460 @@
+---
+title: Install Nginx on microK8s with Metallb using Kubernetes Deployment
+description: Install Nginx on microK8s with Metallb using Kubernetes Deployment
+tags: [nginx, metallb, microk8s, k8s, ubuntu, container]
+---
+
+## Overview
+
+This guide walks you through deploying an Nginx web server on MicroK8s using Kubernetes Deployment resources and exposing it externally with MetalLB load balancer. This setup is ideal for bare-metal Kubernetes clusters that don't have access to cloud provider load balancers.
+
+### Prerequisites
+
+Before proceeding, ensure you have:
+
+- **MicroK8s installed and running** on your Ubuntu system
+- **MetalLB addon enabled** with a configured IP address pool
+- **kubectl access** configured (MicroK8s uses `microk8s kubectl` by default)
+
+To enable MetalLB on MicroK8s, run:
+
+```bash copy
+microk8s enable metallb:192.168.1.240-192.168.1.250
+```
+
+<Alert type="info">
+Replace the IP range `192.168.1.240-192.168.1.250` with an unused IP range from your local network that MetalLB can allocate to LoadBalancer services.
+</Alert>
+
+---
+
+## Understanding Key Kubernetes Concepts
+
+### What is a Deployment?
+
+A **Deployment** is a Kubernetes resource that provides declarative updates for Pods and ReplicaSets. Key features include:
+
+- **Declarative state management**: You define the desired state, and Kubernetes ensures it matches
+- **Rolling updates**: Automatically replaces old pods with new ones during updates
+- **Rollback capability**: Easily revert to a previous version if something goes wrong
+- **Scaling**: Adjust the number of replicas based on demand
+
+### What is MetalLB?
+
+**MetalLB** is a load-balancer implementation for bare-metal Kubernetes clusters. Unlike cloud providers (AWS, GCP, Azure) that offer integrated load balancers, bare-metal clusters need MetalLB to provide this functionality. It operates in two modes:
+
+| Mode | Description | Use Case |
+|------|-------------|----------|
+| **Layer 2 (L2)** | Uses ARP/NDP to announce IP addresses | Simple setup, single-node failover |
+| **BGP** | Advertises routes via Border Gateway Protocol | Multi-node load balancing, enterprise networks |
+
+---
+
+## Step 1: Deploy Nginx Container on microK8s
+
+### Deployment Manifest Breakdown
+
+Create file `nginx-deployment.yaml` with the following content:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:latest
+        ports:
+        - containerPort: 80
+```
+
+### Understanding the Deployment Manifest
+
+Let's break down the key fields in the deployment YAML:
+
+| Field | Description |
+|-------|-------------|
+| `apiVersion: apps/v1` | Specifies the Kubernetes API version for Deployments |
+| `kind: Deployment` | Defines this resource as a Deployment controller |
+| `metadata.name` | Unique identifier for this deployment within the namespace |
+| `spec.replicas: 3` | Creates 3 identical pod instances for high availability |
+| `spec.selector.matchLabels` | Defines how the Deployment finds which Pods to manage |
+| `spec.template` | Pod template that defines the container specifications |
+| `containerPort: 80` | The port that Nginx listens on inside the container |
+
+<Alert type="warning">
+**Important**: The `spec.selector.matchLabels` must match `spec.template.metadata.labels`. In Kubernetes `apps/v1`, the selector is **immutable** after creation—you cannot change it after the Deployment is created.
+</Alert>
+
+### How Replicas and High Availability Work
+
+When you set `replicas: 3`, Kubernetes:
+
+1. **Creates a ReplicaSet** that manages the desired number of pods
+2. **Schedules pods across nodes** for better fault tolerance
+3. **Self-heals**: If a pod crashes or a node fails, Kubernetes automatically creates new pods to maintain the desired count
+4. **Load balances traffic** across all healthy pods via the Service
+
+---
+
+### Apply deployment
+```bash copy
+microk8s kubectl apply -f nginx-deployment.yaml
+```
+
+### Verify Deployment Status
+
+After applying, verify that the deployment was successful:
+
+```bash copy
+microk8s kubectl get deployments
+```
+
+**Expected output:**
+
+```plaintext
+NAME               READY   UP-TO-DATE   AVAILABLE   AGE
+nginx-deployment   3/3     3            3           30s
+```
+
+The columns indicate:
+- **READY**: `3/3` means all 3 desired replicas are running
+- **UP-TO-DATE**: Number of replicas updated to match the desired state
+- **AVAILABLE**: Number of replicas available to serve requests
+
+### Check deployment
+```bash copy
+microk8s kubectl get pods
+```
+
+**Expected output:**
+
+```plaintext
+NAME                                READY   STATUS    RESTARTS   AGE
+nginx-deployment-6b7f675859-abc12   1/1     Running   0          45s
+nginx-deployment-6b7f675859-def34   1/1     Running   0          45s
+nginx-deployment-6b7f675859-ghi56   1/1     Running   0          45s
+```
+
+### View Detailed Pod Information
+
+For troubleshooting or detailed inspection:
+
+```bash copy
+microk8s kubectl describe pod -l app=nginx
+```
+
+### Watch Pods in Real-Time
+
+Monitor pod status during deployments or scaling:
+
+```bash copy
+microk8s kubectl get pods -l app=nginx -w
+```
+
+---
+
+## Step 2: Expose the Deployment Using MetalLB
+
+### Understanding Kubernetes Service Types
+
+Before creating the LoadBalancer service, it's important to understand the different service types available:
+
+| Service Type | External Access | IP Assignment | Use Case |
+|--------------|-----------------|---------------|----------|
+| **ClusterIP** | No (internal only) | Internal cluster IP | Inter-service communication |
+| **NodePort** | Yes (node IP + port) | Uses node's IP + high port (30000-32767) | Development, testing |
+| **LoadBalancer** | Yes (dedicated IP) | External IP from MetalLB pool | Production workloads |
+| **ExternalName** | DNS-based | Maps to external DNS name | External service integration |
+
+### Service Manifest Breakdown
+
+Create file `nginx-service.yaml` with the following content:
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-service
+spec:
+  selector:
+    app: nginx
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 80
+  type: LoadBalancer
+```
+
+### Understanding the Service Manifest
+
+| Field | Description |
+|-------|-------------|
+| `spec.selector.app: nginx` | Routes traffic to pods with label `app: nginx` |
+| `spec.ports.port: 80` | The port exposed by the service (external-facing) |
+| `spec.ports.targetPort: 80` | The port on the pod that receives traffic |
+| `spec.type: LoadBalancer` | Instructs MetalLB to allocate an external IP |
+
+### How Traffic Flow Works
+
+**Client → MetalLB → Service → Pod(s)**
+
+| Step | Component | Address | Action |
+|------|-----------|---------|--------|
+| 1 | Client (Browser) | — | Sends HTTP request |
+| 2 | MetalLB External IP | `192.168.1.240` | Receives traffic, responds to ARP |
+| 3 | Service (nginx-service) | `:80` | Load-balances across pods |
+| 4 | Pod(s) (nginx) | `:80` | Processes request, returns response |
+
+1. **Client** sends a request to the external IP assigned by MetalLB
+2. **MetalLB** (Layer 2 mode) responds to ARP requests for the external IP
+3. **Service** receives traffic and load-balances across available pods
+4. **Pods** process the request and return the response
+
+### Apply the Service:
+
+```bash copy
+microk8s kubectl apply -f nginx-service.yaml
+```
+
+### Check service and external IP
+```bash copy
+microk8s kubectl get service nginx-service
+```
+
+**Expected output:**
+
+```plaintext
+NAME            TYPE           CLUSTER-IP      EXTERNAL-IP     PORT(S)        AGE
+nginx-service   LoadBalancer   10.152.183.45   192.168.1.240   80:31234/TCP   15s
+```
+
+The `EXTERNAL-IP` field shows the IP address allocated by MetalLB. This is the address you'll use to access your Nginx server from any device on your network.
+
+<Alert type="info">
+If `EXTERNAL-IP` shows `<pending>`, MetalLB may not be configured correctly or has exhausted its IP pool. Check MetalLB logs with `microk8s kubectl logs -n metallb-system -l app=metallb`.
+</Alert>
+
+### Verify the Deployment is Accessible
+
+Test the Nginx server using curl:
+
+```bash copy
+curl http://$(microk8s kubectl get svc nginx-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+```
+
+Or access it directly via browser at `http://192.168.1.240` (replace with your actual external IP).
+
+---
+
+## Step 3: Check Cluster Health
+
+### Check cluster health
+
+```bash
+microk8s inspect
+```
+
+### Additional Health Checks
+
+Verify all components are functioning correctly:
+
+```bash copy
+microk8s kubectl get all -o wide
+```
+
+Check MetalLB speaker pods (responsible for Layer 2 announcements):
+
+```bash copy
+microk8s kubectl get pods -n metallb-system
+```
+
+View service endpoints to confirm pods are registered:
+
+```bash copy
+microk8s kubectl get endpoints nginx-service
+```
+
+**Expected output:**
+
+```plaintext
+NAME            ENDPOINTS                                         AGE
+nginx-service   10.1.28.5:80,10.1.28.6:80,10.1.28.7:80            2m
+```
+
+---
+
+## Advanced Configuration
+
+### Scaling the Deployment
+
+Scale up or down based on demand:
+
+```bash copy
+microk8s kubectl scale deployment nginx-deployment --replicas=5
+```
+
+Or use declarative scaling by editing the deployment:
+
+```bash copy
+microk8s kubectl edit deployment nginx-deployment
+```
+
+### Request a Specific IP from MetalLB
+
+You can request a specific IP address by adding an annotation to your service:
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-service
+  annotations:
+    metallb.universe.tf/loadBalancerIPs: "192.168.1.245"
+spec:
+  selector:
+    app: nginx
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 80
+  type: LoadBalancer
+```
+
+### Configure Resource Limits (Recommended for Production)
+
+Add resource constraints to prevent pod starvation:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:latest
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "100m"
+          limits:
+            memory: "128Mi"
+            cpu: "250m"
+```
+
+| Resource Field | Description |
+|----------------|-------------|
+| `requests.memory` | Guaranteed minimum memory allocation |
+| `requests.cpu` | Guaranteed minimum CPU (100m = 0.1 CPU cores) |
+| `limits.memory` | Maximum memory the container can use |
+| `limits.cpu` | Maximum CPU the container can use |
+
+### Add Health Checks (Liveness and Readiness Probes)
+
+Improve reliability with health checks:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:latest
+        ports:
+        - containerPort: 80
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 5
+```
+
+| Probe Type | Purpose |
+|------------|---------|
+| **livenessProbe** | Restarts container if probe fails (container is unhealthy) |
+| **readinessProbe** | Removes pod from service endpoints if probe fails (traffic routing) |
+
+---
+
+## Troubleshooting
+
+### Common Issues and Solutions
+
+| Issue | Cause | Solution |
+|-------|-------|----------|
+| Pods stuck in `Pending` | Insufficient resources or node issues | Check `kubectl describe pod <pod-name>` |
+| `EXTERNAL-IP` is `<pending>` | MetalLB not configured or no IPs available | Verify MetalLB addon is enabled and IP pool is configured |
+| Service not accessible | Firewall blocking traffic | Check network policies and host firewall rules |
+| Pods in `CrashLoopBackOff` | Container startup failure | Check logs with `kubectl logs <pod-name>` |
+
+### Useful Debugging Commands
+
+```bash copy
+# View pod logs
+microk8s kubectl logs -l app=nginx --all-containers
+
+# Describe service for detailed info
+microk8s kubectl describe svc nginx-service
+
+# Check events for recent activities
+microk8s kubectl get events --sort-by=.metadata.creationTimestamp
+
+# Debug networking
+microk8s kubectl run debug --image=busybox -it --rm -- wget -qO- nginx-service:80
+```
+
+---
+
+## Cleanup
+
+Remove all resources when done:
+
+```bash copy
+microk8s kubectl delete -f nginx-service.yaml
+microk8s kubectl delete -f nginx-deployment.yaml
+```
+
+Or delete by label:
+
+```bash copy
+microk8s kubectl delete all -l app=nginx
+

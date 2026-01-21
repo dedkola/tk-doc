@@ -1,19 +1,239 @@
 ---
 title: LXC export ssh keys
 description: Export ssh keys to LXC container
-tags: [lxc, ssh, keys]
+tags: [lxc, ssh, keys, proxmox, containers, authentication]
 ---
 
-### To upload ssh keys to the container or VM
+## Overview
+
+Managing SSH keys in LXC (Linux Containers) is essential for secure, passwordless authentication. This guide covers how to export and configure SSH public keys from a host system to an LXC container, enabling secure remote access without password prompts.
+
+LXC containers are lightweight virtualization solutions that share the host kernel while maintaining isolated user spaces. Unlike full virtual machines, containers have minimal overhead, making SSH key management a common requirement for automation and remote administration.
+
+---
+
+## Prerequisites
+
+Before proceeding, ensure the following requirements are met:
+
+- **LXC tooling installed** on the host system (`lxc` or `lxd` commands available)
+- **SSH server installed** inside the container (`openssh-server`)
+- **Target user exists** in the container with a home directory
+- **`.ssh` directory exists** with proper permissions in the container
+
+<Alert variant="info">
+The `.ssh` directory must have `700` permissions, and `authorized_keys` file must have `600` permissions for SSH to accept the keys.
+</Alert>
+
+---
+
+## Upload SSH Keys to a Container
+
+### Method 1: Pipe Public Key via `lxc exec`
+
+The most straightforward approach uses `lxc exec` to pipe the public key content directly into the container's `authorized_keys` file:
 
 ```bash copy
 cat <public_key_file_on_host> | lxc exec <container> -- sh -c "cat >> /home/ubuntu/.ssh/authorized_keys"
 ```
 
+**Command breakdown:**
+| Component | Description |
+|-----------|-------------|
+| `cat <public_key_file_on_host>` | Reads the public key file on the host (e.g., `~/.ssh/id_rsa.pub`) |
+| `lxc exec <container>` | Executes a command inside the specified LXC container |
+| `-- sh -c "..."` | Runs a shell command within the container namespace |
+| `cat >> ...authorized_keys` | Appends the piped content to the authorized_keys file |
+
+### Method 2: Using `lxc file push`
+
+For more control over file transfers, use `lxc file push` to directly copy files into the container:
+
+```bash copy
+# Push a single public key file
+lxc file push ~/.ssh/id_rsa.pub <container>/home/ubuntu/.ssh/authorized_keys --mode=600
+
+# Or append to existing keys by pulling, appending, and pushing back
+lxc file pull <container>/home/ubuntu/.ssh/authorized_keys /tmp/container_keys
+cat ~/.ssh/id_rsa.pub >> /tmp/container_keys
+lxc file push /tmp/container_keys <container>/home/ubuntu/.ssh/authorized_keys --mode=600
+```
+
+### Method 3: Multiple Keys at Once
+
+When deploying multiple SSH keys (e.g., for team access), combine them before transfer:
+
+```bash copy
+# Combine multiple public keys into one file
+cat ~/.ssh/id_rsa.pub ~/.ssh/id_ed25519.pub /path/to/team_keys.pub > /tmp/all_keys.pub
+
+# Push combined keys to container
+cat /tmp/all_keys.pub | lxc exec <container> -- sh -c "cat >> /home/ubuntu/.ssh/authorized_keys"
+```
+
+---
+
+## Verify SSH Directory Permissions
+
+Incorrect permissions are the most common cause of SSH key authentication failures. Verify and fix permissions inside the container:
+
+```bash copy
+# Enter the container and check permissions
+lxc exec <container> -- bash -c "ls -la /home/ubuntu/.ssh/"
+
+# Fix permissions if needed
+lxc exec <container> -- bash -c "chmod 700 /home/ubuntu/.ssh && chmod 600 /home/ubuntu/.ssh/authorized_keys && chown -R ubuntu:ubuntu /home/ubuntu/.ssh"
+```
+
+**Expected permissions:**
+
+| Path | Permission | Octal |
+|------|------------|-------|
+| `/home/ubuntu/.ssh` | `drwx------` | `700` |
+| `/home/ubuntu/.ssh/authorized_keys` | `-rw-------` | `600` |
+
+---
+
+## Restart SSH Service
+
 If needed
+
+After modifying SSH configuration or adding new keys, restart the SSH daemon to ensure changes take effect:
 
 ### Restart ssh on remote
 
 ```bash copy
 lxc exec VMName -- systemctl restart ssh
+```
+
+### Alternative: Reload Without Full Restart
+
+For minimal disruption on production containers, use `reload` instead of `restart`:
+
+```bash copy
+# Reload SSH configuration without dropping existing connections
+lxc exec <container> -- systemctl reload sshd
+
+# Verify SSH service status
+lxc exec <container> -- systemctl status sshd --no-pager
+```
+
+---
+
+## Test SSH Connection
+
+After configuring keys, verify the connection works:
+
+```bash copy
+# Get container IP address
+lxc list <container> --format=csv -c 4 | cut -d' ' -f1
+
+# Test SSH connection (replace IP with actual address)
+ssh -i ~/.ssh/id_rsa ubuntu@<container_ip> "echo 'SSH key authentication successful!'"
+```
+
+---
+
+## Proxmox VE Specific: Using `pct` Commands
+
+For Proxmox VE environments, the `pct` (Proxmox Container Toolkit) provides alternative methods for container management:
+
+```bash copy
+# Enter container namespace directly
+pct enter <CTID>
+
+# Execute command inside container
+pct exec <CTID> -- cat /home/ubuntu/.ssh/authorized_keys
+
+# Push SSH keys using pct push
+pct push <CTID> ~/.ssh/id_rsa.pub /home/ubuntu/.ssh/authorized_keys --perms 600
+```
+
+<Alert variant="warning">
+The `pct` command is specific to Proxmox VE. For standalone LXC/LXD installations, use the `lxc` commands shown in previous sections.
+</Alert>
+
+---
+
+## Cloud-Init Integration
+
+For automated deployments, configure SSH keys during container creation using Cloud-Init:
+
+```bash copy
+# Create container with SSH key via Cloud-Init (LXD)
+lxc launch ubuntu:22.04 my-container --config=user.user-data="#cloud-config
+ssh_authorized_keys:
+  - $(cat ~/.ssh/id_rsa.pub)
+users:
+  - name: ubuntu
+    ssh_authorized_keys:
+      - $(cat ~/.ssh/id_rsa.pub)
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+"
+```
+
+For Proxmox VE with Cloud-Init enabled templates:
+
+```bash copy
+# Set SSH public key for Cloud-Init VM/Container
+qm set <VMID> --sshkey ~/.ssh/id_rsa.pub
+
+# For containers with Cloud-Init support
+pct set <CTID> --sshkeys ~/.ssh/id_rsa.pub
+```
+
+---
+
+## Troubleshooting
+
+### Common Issues and Solutions
+
+| Issue | Possible Cause | Solution |
+|-------|---------------|----------|
+| Permission denied (publickey) | Wrong file permissions | Run `chmod 700 ~/.ssh && chmod 600 ~/.ssh/authorized_keys` inside container |
+| Connection refused | SSH not running | Start SSH: `lxc exec <container> -- systemctl start ssh` |
+| Host key verification failed | Changed container/reinstall | Remove old key: `ssh-keygen -R <container_ip>` |
+| Key not accepted | Wrong key format | Ensure key is in OpenSSH format, not PuTTY PPK |
+
+### Debug SSH Connection
+
+Enable verbose SSH output to diagnose connection issues:
+
+```bash copy
+# Verbose SSH connection for debugging
+ssh -vvv -i ~/.ssh/id_rsa ubuntu@<container_ip>
+
+# Check SSH daemon logs inside container
+lxc exec <container> -- journalctl -u ssh -n 50 --no-pager
+```
+
+### Verify SELinux/AppArmor Contexts
+
+On systems with mandatory access control, verify security contexts:
+
+```bash copy
+# Check AppArmor status (Ubuntu/Debian)
+lxc exec <container> -- aa-status
+
+# For SELinux systems, restore contexts
+lxc exec <container> -- restorecon -Rv /home/ubuntu/.ssh/
+```
+
+---
+
+## Security Best Practices
+
+1. **Use Ed25519 keys** — Modern, secure, and faster than RSA
+2. **Disable password authentication** — Set `PasswordAuthentication no` in `/etc/ssh/sshd_config`
+3. **Limit SSH access by user** — Use `AllowUsers` directive in SSH config
+4. **Use non-root users** — Avoid adding keys to the root account
+5. **Rotate keys regularly** — Remove unused keys from `authorized_keys`
+6. **Enable fail2ban** — Protect against brute-force attacks
+
+```bash copy
+# Disable password authentication inside container
+lxc exec <container> -- sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
+lxc exec <container> -- sed -i 's/PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
+lxc exec <container> -- systemctl reload ssh
 ```

@@ -1,0 +1,595 @@
+---
+title: MariaDB Cluster with WordPress on MicroK8s with Helm
+description: How to deploy MariaDB Cluster write primary and secondary replicas with WordPress on MicroK8s wit Helm
+tags: [mariadb, wordpress, microk8s, kubernetes, cluster, replication]
+---
+
+import { Alert } from "@/components/ui/Alert";
+
+<Alert variant="warning">
+  **Warning**: Don't use this configuration in any production environment. This is for testing purposes only in local and Home LAN environments. For production deployments, consider implementing proper security measures including strong passwords, network policies, TLS encryption, and backup strategies.
+</Alert>
+
+## Overview
+
+This guide walks you through deploying a MariaDB cluster with primary-secondary replication architecture alongside WordPress on MicroK8s using Helm charts. The setup demonstrates how to leverage Kubernetes for database high availability and horizontal read scaling.
+
+### Architecture Explained
+
+The replication architecture consists of:
+
+- **Primary Node**: Handles all write operations (INSERT, UPDATE, DELETE) and propagates changes to secondaries
+- **Secondary Nodes (Replicas)**: Receive replicated data from the primary and can serve read queries, improving read performance
+- **WordPress Frontend**: Connects to the primary MariaDB node for database operations
+
+This topology is ideal for read-heavy workloads where you can distribute SELECT queries across multiple replicas while maintaining a single source of truth for writes.
+
+### Prerequisites
+
+Before starting, ensure you have the following components installed and configured:
+
+| Component | Minimum Version | Purpose |
+|-----------|----------------|---------|
+| MicroK8s | 1.28+ | Kubernetes distribution |
+| Helm | 3.12+ | Package manager for Kubernetes |
+| kubectl | 1.28+ | Kubernetes CLI tool |
+| Storage Class | - | For persistent volume provisioning |
+
+Enable required MicroK8s addons:
+
+```bash
+microk8s enable dns storage helm3 metallb
+```
+
+### Understanding MariaDB Replication
+
+MariaDB replication uses a **binary log (binlog)** based mechanism where:
+
+1. The primary server records all data modifications in its binary log
+2. Secondary servers connect to the primary and read the binary log
+3. Each secondary applies the logged events to maintain data consistency
+
+Key replication parameters in the configuration:
+- `replicationPassword`: Credentials for the replication user that secondaries use to connect to the primary
+- `replicaCount`: Number of secondary read replicas to deploy
+
+---
+
+## MariaDB Cluster Configuration
+
+### Values for MariaDB Cluster
+
+Create the MariaDB Helm values file that defines the replication topology:
+
+```bash
+nano mariadb.yaml
+```
+```yaml
+architecture: "replication"
+auth:
+  user: "user"
+  rootPassword: "123"
+  password: "123"
+  replicationPassword: "123"
+mariadb:
+secondary:
+  replicaCount: 4
+tls:
+  enabled: true
+networkPolicy:
+  enabled: false
+```
+
+#### Configuration Parameters Breakdown
+
+| Parameter | Value | Description |
+|-----------|-------|-------------|
+| `architecture` | `replication` | Enables primary-secondary replication mode (alternatives: `standalone`) |
+| `auth.rootPassword` | - | Root user password for administrative access |
+| `auth.replicationPassword` | - | Password for the replication user connecting secondaries to primary |
+| `secondary.replicaCount` | `4` | Number of read replicas to create |
+| `tls.enabled` | `true` | Enables TLS encryption for client connections |
+| `networkPolicy.enabled` | `false` | Disables Kubernetes NetworkPolicy (enable in production) |
+
+<Alert variant="info">
+  **Tip**: For production environments, use strong randomly-generated passwords. You can generate secure passwords using: `openssl rand -base64 32`
+</Alert>
+
+---
+
+## WordPress Configuration
+
+### Values for WordPress
+
+The WordPress deployment uses a Kubernetes manifest that defines the Service, PersistentVolumeClaim, and Deployment resources:
+```bash
+nano wordpress.yaml
+```
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: wordpress
+  labels:
+    app: wordpress
+spec:
+  ports:
+    - port: 80
+  selector:
+    app: wordpress
+    tier: frontend
+  type: LoadBalancer
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: wp-pv-claim
+  labels:
+    app: wordpress
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wordpress
+  labels:
+    app: wordpress
+spec:
+  selector:
+    matchLabels:
+      app: wordpress
+      tier: frontend
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: wordpress
+        tier: frontend
+    spec:
+      containers:
+      - image: wordpress:6.2.1-apache
+        name: wordpress
+        env:
+        - name: WORDPRESS_DB_HOST
+          value: wordpress-mariadb
+        - name: WORDPRESS_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mysql-pass
+              key: password
+        - name: WORDPRESS_DB_USER
+          value: wordpress
+        ports:
+        - containerPort: 80
+          name: wordpress
+        volumeMounts:
+        - name: wordpress-persistent-storage
+          mountPath: /var/www/html
+      volumes:
+      - name: wordpress-persistent-storage
+        persistentVolumeClaim:
+          claimName: wp-pv-claim
+```
+
+#### WordPress Manifest Components
+
+**Service (`LoadBalancer`)**: Exposes WordPress externally on port 80, automatically obtaining an external IP from MetalLB or your cloud provider's load balancer.
+
+**PersistentVolumeClaim**: Requests 20Gi of persistent storage for WordPress files, themes, and plugins. Uses `ReadWriteOnce` access mode suitable for single-pod deployments.
+
+**Deployment Strategy**: Uses `Recreate` strategy which terminates the old pod before creating a new one during updates. This prevents multiple pods accessing the same PersistentVolume simultaneously.
+
+**Environment Variables**:
+- `WORDPRESS_DB_HOST`: Points to the MariaDB primary service
+- `WORDPRESS_DB_PASSWORD`: Securely retrieved from a Kubernetes Secret
+- `WORDPRESS_DB_USER`: Database username for WordPress
+
+---
+
+## Deployment
+
+### Deploy it
+
+Add the Bitnami Helm repository and deploy both MariaDB and WordPress:
+
+```bash
+helm repo add bitnami https://charts.bitnami.com/bitnami
+
+microk8s helm install maria oci://registry-1.docker.io/bitnamicharts/mariadb -f mariadb.yaml
+microk8s helm install wordpress oci://registry-1.docker.io/bitnamicharts/wordpress -f wordpress.yaml
+```
+
+### Create the Database Password Secret
+
+Before the WordPress deployment can start, create the Secret containing the database password:
+
+```bash
+kubectl create secret generic mysql-pass --from-literal=password='123'
+```
+
+### Verify Deployment Status
+
+Check the status of all deployed resources:
+
+```bash
+# Check MariaDB pods (should show 1 primary + 4 secondaries)
+kubectl get pods -l app.kubernetes.io/name=mariadb
+
+# Check WordPress pod
+kubectl get pods -l app=wordpress
+
+# View services and their external IPs
+kubectl get svc
+
+# Check persistent volume claims
+kubectl get pvc
+```
+
+Expected output for MariaDB pods:
+
+```plaintext
+NAME                  READY   STATUS    RESTARTS   AGE
+maria-mariadb-primary-0     1/1     Running   0          5m
+maria-mariadb-secondary-0   1/1     Running   0          5m
+maria-mariadb-secondary-1   1/1     Running   0          4m
+maria-mariadb-secondary-2   1/1     Running   0          3m
+maria-mariadb-secondary-3   1/1     Running   0          2m
+```
+
+---
+
+## Verifying Replication
+
+### Connect to Primary and Check Replication Status
+
+Connect to the MariaDB primary pod and verify replication is working:
+
+```bash
+# Get a shell into the primary pod
+kubectl exec -it maria-mariadb-primary-0 -- bash
+
+# Connect to MariaDB as root
+mysql -u root -p
+
+# Check replication status on primary
+SHOW MASTER STATUS\G
+
+# View connected replicas
+SHOW SLAVE HOSTS;
+```
+
+### Test Replication
+
+Create a test database and verify it replicates to secondaries:
+
+```bash
+# On the primary
+CREATE DATABASE test_replication;
+USE test_replication;
+CREATE TABLE test_table (id INT PRIMARY KEY, data VARCHAR(100));
+INSERT INTO test_table VALUES (1, 'Hello from primary');
+```
+
+Then connect to a secondary and verify:
+
+```bash
+# Connect to a secondary pod
+kubectl exec -it maria-mariadb-secondary-0 -- bash
+
+# Connect and verify data
+mysql -u root -p -e "SELECT * FROM test_replication.test_table;"
+```
+
+---
+
+## Scaling Operations
+
+### Scale Read Replicas
+
+Increase or decrease the number of secondary replicas:
+
+```bash
+# Scale to 6 replicas
+microk8s helm upgrade maria oci://registry-1.docker.io/bitnamicharts/mariadb \
+  -f mariadb.yaml \
+  --set secondary.replicaCount=6
+
+# Or scale down to 2 replicas
+microk8s helm upgrade maria oci://registry-1.docker.io/bitnamicharts/mariadb \
+  -f mariadb.yaml \
+  --set secondary.replicaCount=2
+```
+
+### Monitor Resource Usage
+
+Check resource consumption of MariaDB pods:
+
+```bash
+kubectl top pods -l app.kubernetes.io/name=mariadb
+```
+
+---
+
+## Troubleshooting
+
+### Common Issues
+
+| Issue | Possible Cause | Solution |
+|-------|---------------|----------|
+| Secondary pods in CrashLoopBackOff | Incorrect replication password | Verify `replicationPassword` matches primary configuration |
+| WordPress can't connect to DB | Wrong `WORDPRESS_DB_HOST` value | Ensure it matches the MariaDB service name |
+| PVC stuck in Pending | No StorageClass available | Enable storage addon: `microk8s enable storage` |
+| Replication lag increasing | High write load or network issues | Check pod resources and network latency |
+
+### View MariaDB Logs
+
+```bash
+# Primary logs
+kubectl logs maria-mariadb-primary-0
+
+# Secondary logs
+kubectl logs maria-mariadb-secondary-0
+
+# Follow logs in real-time
+kubectl logs -f maria-mariadb-primary-0
+```
+
+### Check Replication Lag
+
+Connect to a secondary and check the replication delay:
+
+```bash
+kubectl exec -it maria-mariadb-secondary-0 -- \
+  mysql -u root -p -e "SHOW SLAVE STATUS\G" | grep -E "Seconds_Behind_Master|Slave_IO_Running|Slave_SQL_Running"
+```
+
+---
+
+## Cleanup
+
+Remove all deployed resources:
+
+```bash
+# Uninstall Helm releases
+microk8s helm uninstall maria
+microk8s helm uninstall wordpress
+
+# Delete PVCs (WARNING: This deletes all data!)
+kubectl delete pvc --all
+
+# Delete the password secret
+kubectl delete secret mysql-pass
+```
+
+---
+
+## Advanced Configuration Examples
+
+### Enable Prometheus Metrics
+
+Add metrics monitoring to your MariaDB cluster for observability:
+
+```yaml
+# Additional values for mariadb.yaml
+metrics:
+  enabled: true
+  image:
+    registry: docker.io
+    repository: bitnami/mysqld-exporter
+  serviceMonitor:
+    enabled: true
+    namespace: monitoring
+    labels:
+      release: prometheus
+  resources:
+    limits:
+      cpu: 100m
+      memory: 128Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi
+```
+
+### Configure Resource Limits
+
+Set resource requests and limits for production workloads:
+
+```yaml
+# Resource configuration for primary
+primary:
+  resources:
+    limits:
+      cpu: "2"
+      memory: 4Gi
+    requests:
+      cpu: "500m"
+      memory: 1Gi
+  persistence:
+    size: 50Gi
+    storageClass: "fast-storage"
+
+# Resource configuration for secondaries
+secondary:
+  resources:
+    limits:
+      cpu: "1"
+      memory: 2Gi
+    requests:
+      cpu: "250m"
+      memory: 512Mi
+  persistence:
+    size: 50Gi
+```
+
+### Custom MariaDB Configuration
+
+Override MariaDB server configuration with custom parameters:
+
+```yaml
+# Primary node configuration
+primary:
+  configuration: |-
+    [mysqld]
+    skip-name-resolve
+    explicit_defaults_for_timestamp
+    basedir=/opt/bitnami/mariadb
+    datadir=/bitnami/mariadb/data
+    port=3306
+    socket=/opt/bitnami/mariadb/tmp/mysql.sock
+    tmpdir=/opt/bitnami/mariadb/tmp
+    max_allowed_packet=64M
+    bind-address=0.0.0.0
+    pid-file=/opt/bitnami/mariadb/tmp/mysqld.pid
+    log-error=/opt/bitnami/mariadb/logs/mysqld.log
+    character-set-server=UTF8
+    collation-server=utf8_general_ci
+    slow_query_log=1
+    long_query_time=10.0
+    max_connections=200
+    innodb_buffer_pool_size=1G
+    innodb_log_file_size=256M
+    innodb_flush_log_at_trx_commit=2
+
+# Secondary nodes configuration
+secondary:
+  configuration: |-
+    [mysqld]
+    skip-name-resolve
+    explicit_defaults_for_timestamp
+    basedir=/opt/bitnami/mariadb
+    datadir=/bitnami/mariadb/data
+    port=3306
+    socket=/opt/bitnami/mariadb/tmp/mysql.sock
+    tmpdir=/opt/bitnami/mariadb/tmp
+    max_allowed_packet=64M
+    bind-address=0.0.0.0
+    pid-file=/opt/bitnami/mariadb/tmp/mysqld.pid
+    log-error=/opt/bitnami/mariadb/logs/mysqld.log
+    character-set-server=UTF8
+    collation-server=utf8_general_ci
+    read_only=1
+    max_connections=200
+    innodb_buffer_pool_size=512M
+```
+
+### Initialize Database with Scripts
+
+Pre-populate your database with initial schema and data:
+
+```yaml
+initdbScripts:
+  init-wordpress-db.sql: |
+    -- Create WordPress database and user
+    CREATE DATABASE IF NOT EXISTS wordpress CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+    CREATE USER IF NOT EXISTS 'wordpress'@'%' IDENTIFIED BY 'your_secure_password';
+    GRANT ALL PRIVILEGES ON wordpress.* TO 'wordpress'@'%';
+    FLUSH PRIVILEGES;
+    
+  health-check-script.sh: |
+    #!/bin/sh
+    if [[ $(hostname) == *primary* ]]; then
+      echo "Primary node initialized successfully"
+      mysql -P 3306 -uroot -p${MARIADB_ROOT_PASSWORD} -e "SELECT 1";
+    fi
+```
+
+---
+
+## Production Considerations
+
+### Security Hardening
+
+For production deployments, implement the following security measures:
+
+1. **Strong Passwords**: Use randomly generated passwords with at least 32 characters
+2. **Network Policies**: Enable and configure Kubernetes NetworkPolicy to restrict pod-to-pod communication
+3. **TLS Encryption**: Enable TLS for both client connections and replication traffic
+4. **Pod Security Standards**: Apply restrictive security contexts
+5. **Secrets Management**: Use external secrets managers like HashiCorp Vault or AWS Secrets Manager
+
+### High Availability Considerations
+
+| Consideration | Recommendation |
+|--------------|----------------|
+| **Pod Anti-Affinity** | Distribute replicas across different nodes |
+| **Pod Disruption Budget** | Ensure minimum available replicas during maintenance |
+| **Backup Strategy** | Implement regular automated backups using Velero or mysqldump |
+| **Monitoring & Alerting** | Set up Prometheus alerts for replication lag and resource usage |
+| **Failover Testing** | Regularly test failover procedures |
+
+### Backup Configuration Example
+
+Configure automated backups using a CronJob:
+
+```yaml
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: mariadb-backup
+spec:
+  schedule: "0 2 * * *"  # Daily at 2 AM
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: backup
+            image: bitnami/mariadb:latest
+            command:
+            - /bin/sh
+            - -c
+            - |
+              mysqldump -h maria-mariadb-primary \
+                -u root -p${MARIADB_ROOT_PASSWORD} \
+                --all-databases --single-transaction \
+                --routines --triggers \
+                | gzip > /backup/backup-$(date +%Y%m%d-%H%M%S).sql.gz
+            env:
+            - name: MARIADB_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: maria-mariadb
+                  key: mariadb-root-password
+            volumeMounts:
+            - name: backup-volume
+              mountPath: /backup
+          restartPolicy: OnFailure
+          volumes:
+          - name: backup-volume
+            persistentVolumeClaim:
+              claimName: mariadb-backup-pvc
+```
+
+---
+
+## Comparison: Replication vs Galera Cluster
+
+Understanding when to use each architecture:
+
+| Feature | Primary-Secondary Replication | Galera Cluster |
+|---------|------------------------------|----------------|
+| **Write Nodes** | Single (primary only) | Multi-master (all nodes) |
+| **Read Scaling** | Excellent | Good |
+| **Write Scaling** | Limited | Better distribution |
+| **Consistency** | Eventual (asynchronous) | Synchronous (strong) |
+| **Failover** | Manual or requires automation | Automatic |
+| **Network Sensitivity** | Tolerant | Requires low latency |
+| **Complexity** | Lower | Higher |
+| **Use Case** | Read-heavy workloads | Write-heavy, HA requirements |
+
+For WordPress specifically, primary-secondary replication is often preferred due to the read-heavy nature of most WordPress sites (displaying content) versus the relatively low write activity (publishing posts, comments).
+
+---
+
+## References
+
+- [Bitnami MariaDB Helm Chart Documentation](https://github.com/bitnami/charts/tree/main/bitnami/mariadb)
+- [MariaDB Replication Documentation](https://mariadb.com/kb/en/standard-replication/)
+- [Kubernetes Persistent Volumes](https://kubernetes.io/docs/concepts/storage/persistent-volumes/)
+- [MicroK8s Documentation](https://microk8s.io/docs)

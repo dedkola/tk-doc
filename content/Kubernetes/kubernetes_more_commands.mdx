@@ -1,0 +1,452 @@
+---
+title: Microk8s Kubernetes More Commands for mostly debugging and troubleshooting
+description: Kubernetes More Commands for mostly debugging and troubleshooting
+tags: [kubernetes, troubleshooting, logs, debugging, kubectl, microk8s, minikube]
+---
+
+This guide provides essential commands for debugging and troubleshooting MicroK8s Kubernetes clusters. These commands help diagnose networking issues, inspect cluster state, analyze pod failures, and monitor resource usage.
+
+## Cluster Configuration
+
+### Get Kubernetes API
+Ensure the Pod CIDR is consistent across the cluster. Check the API server flags
+
+```bash
+cat /var/snap/microk8s/current/args/kube-apiserver
+```
+
+The kube-apiserver is the central management entity that validates and configures API objects such as pods, services, and replication controllers. Key flags to look for include:
+
+- `--service-cluster-ip-range`: Defines the IP range for cluster services
+- `--secure-port`: The port on which to serve HTTPS (default: 6443)
+- `--authorization-mode`: Authorization modes (e.g., RBAC, Node)
+- `--enable-admission-plugins`: Enabled admission control plugins
+
+You can also check other control plane component configurations:
+
+```bash
+# Check kubelet configuration
+cat /var/snap/microk8s/current/args/kubelet
+
+# Check controller-manager settings
+cat /var/snap/microk8s/current/args/kube-controller-manager
+
+# Check scheduler configuration
+cat /var/snap/microk8s/current/args/kube-scheduler
+```
+
+
+## DNS and Networking
+
+### Check the CoreDNS configuration
+
+CoreDNS is the default DNS server in Kubernetes that provides DNS-based service discovery. It reads its configuration from a ConfigMap and supports various plugins for DNS resolution, caching, and forwarding.
+
+```bash
+microk8s kubectl describe configmap -n kube-system coredns
+```
+
+**Key CoreDNS plugins to understand:**
+
+| Plugin | Purpose |
+|--------|---------|
+| `errors` | Logs errors to stdout for debugging |
+| `ready` | Provides health check endpoint on port 8181 |
+| `kubernetes` | Handles DNS queries for cluster services and pods |
+| `forward` | Forwards external DNS queries to upstream resolvers |
+| `cache` | Enables DNS response caching (default: 30s) |
+| `loop` | Detects and prevents DNS forwarding loops |
+| `reload` | Auto-reloads configuration changes (takes ~2 minutes) |
+| `loadbalance` | Round-robin load balancing for A/AAAA/MX records |
+
+To view CoreDNS logs for debugging DNS resolution issues:
+
+```bash
+microk8s kubectl logs -n kube-system -l k8s-app=kube-dns --tail=100
+```
+
+### Check if the CNI is working
+
+The Container Network Interface (CNI) plugin manages pod networking. MicroK8s uses Calico as the default CNI. A healthy cluster should show all kube-system pods in `Running` state.
+
+```bash
+microk8s kubectl get pods -n kube-system
+```
+
+**Understanding CNI states:**
+
+- **Pending**: Usually indicates the CNI isn't installed yet (CoreDNS will remain Pending without a network plugin)
+- **Running**: Pod is healthy and operational
+- **CrashLoopBackOff**: Pod is repeatedly crashing - check logs for details
+- **ContainerCreating**: Pod is being created, CNI is allocating network resources
+
+You can verify CNI plugin status and network policy:
+
+```bash
+# Check Calico node status (if using Calico CNI)
+microk8s kubectl get pods -n kube-system -l k8s-app=calico-node
+
+# View network policies
+microk8s kubectl get networkpolicies -A
+
+# Check pod network connectivity
+microk8s kubectl run test-pod --image=busybox --rm -it --restart=Never -- wget -qO- http://kubernetes.default.svc.cluster.local/healthz
+```
+
+## Debugging Pods
+
+### Debug CrashLoopBackOff Pods
+
+The `CrashLoopBackOff` status indicates a pod is repeatedly failing to start. Common causes include:
+
+- **Application errors**: Crashes due to bugs or missing configuration
+- **Resource limits**: Out of memory (OOMKilled) or CPU throttling
+- **Probe failures**: Liveness or readiness probes failing
+- **Missing dependencies**: ConfigMaps, Secrets, or volumes not found
+- **Image issues**: Wrong image tag or pull failures
+
+```bash
+microk8s kubectl describe pod -n kube-system coredns-7896dbf49-87b67
+```
+
+**Key sections to examine in describe output:**
+
+1. **Events**: Shows recent scheduling and container events
+2. **State/Last State**: Current and previous container state with exit codes
+3. **Restart Count**: Number of times the container has restarted
+4. **Conditions**: Ready, Initialized, ContainersReady, PodScheduled
+
+Additional debugging commands:
+
+```bash
+# View pod logs (current instance)
+microk8s kubectl logs -n kube-system coredns-7896dbf49-87b67
+
+# View logs from previous crashed container
+microk8s kubectl logs -n kube-system coredns-7896dbf49-87b67 --previous
+
+# Follow logs in real-time
+microk8s kubectl logs -n kube-system coredns-7896dbf49-87b67 -f
+
+# Get logs from specific container in multi-container pod
+microk8s kubectl logs -n kube-system <pod-name> -c <container-name>
+```
+
+### Interactive Pod Debugging
+
+Use `kubectl debug` to create ephemeral debugging containers or copies of failing pods:
+
+```bash
+# Create an interactive debugging session in a running pod
+microk8s kubectl debug mypod -it --image=busybox
+
+# Create a copy of a pod with a debug container attached
+microk8s kubectl debug mypod -it --image=busybox --copy-to=my-debugger
+
+# Debug a node directly (container runs in host namespaces)
+microk8s kubectl debug node/mynode -it --image=busybox
+```
+
+### Common Exit Codes Reference
+
+| Exit Code | Meaning |
+|-----------|---------|
+| 0 | Success (container completed normally) |
+| 1 | Application error |
+| 137 | Container killed (OOMKilled or SIGKILL) |
+| 139 | Segmentation fault (SIGSEGV) |
+| 143 | Graceful termination (SIGTERM) |
+
+## Certificate Management
+
+### Refresh Certificates
+
+Kubernetes uses TLS certificates for secure communication between components. MicroK8s provides a convenient command to refresh certificates when they expire or need rotation.
+
+```bash
+sudo microk8s refresh-certs --cert server.crt
+```
+
+Available certificate options:
+'server.crt': refreshes the server certificate
+'front-proxy-client.crt': refreshes the front proxy client certificate
+'ca.crt': refreshes the root CA and all certificates created from it.
+Warning: refreshing the root CA requires nodes to leave and re-join the cluster
+
+**Certificate expiration check:**
+
+```bash
+# Check certificate expiration dates
+sudo microk8s kubectl get csr
+
+# View certificate details
+openssl x509 -in /var/snap/microk8s/current/certs/server.crt -text -noout | grep -A2 "Validity"
+```
+
+**Understanding Kubernetes certificates:**
+
+| Certificate | Purpose |
+|-------------|---------|
+| `server.crt` | API server serving certificate |
+| `front-proxy-client.crt` | Client cert for front-proxy (aggregation layer) |
+| `ca.crt` | Root Certificate Authority for the cluster |
+| `kubelet.crt` | Kubelet serving certificate |
+| `etcd/server.crt` | etcd server certificate |
+
+## Cluster Inspection and Configuration
+
+### Inspect cluster
+
+The `inspect` command collects detailed diagnostic information about your MicroK8s cluster and saves it to a tarball for analysis or sharing with support teams.
+
+```bash
+microk8s inspect
+```
+
+This command gathers:
+- Service status for all MicroK8s daemons
+- Network configuration and iptables rules
+- Kubernetes API server, controller-manager, and scheduler logs
+- kubelet and containerd logs
+- CNI configuration and status
+- Storage and addon configurations
+
+### Print config
+
+Export the kubeconfig file for use with external kubectl clients or for backup purposes.
+
+```bash
+sudo microk8s kubectl config view --raw
+```
+
+To save the kubeconfig to a file for external access:
+
+```bash
+# Export kubeconfig to file
+sudo microk8s kubectl config view --raw > ~/.kube/microk8s-config
+
+# Use with standard kubectl
+export KUBECONFIG=~/.kube/microk8s-config
+kubectl get nodes
+```
+
+### Check logs cluster agent
+
+The cluster-agent daemon handles multi-node cluster operations including node joining, token management, and cluster state synchronization.
+
+```bash
+journalctl -u snap.microk8s.daemon-cluster-agent
+```
+
+View logs for other MicroK8s daemons:
+
+```bash
+# API server logs
+journalctl -u snap.microk8s.daemon-apiserver
+
+# Kubelet logs
+journalctl -u snap.microk8s.daemon-kubelet
+
+# Containerd logs
+journalctl -u snap.microk8s.daemon-containerd
+
+# Follow logs in real-time
+journalctl -u snap.microk8s.daemon-kubelet -f
+```
+
+### Get all Pods info
+
+List all pods across all namespaces with detailed information including node placement and IP addresses.
+
+```bash
+microk8s kubectl get pods -A -o wide
+```
+
+**Output columns explained:**
+
+| Column | Description |
+|--------|-------------|
+| NAMESPACE | The namespace where the pod runs |
+| NAME | Pod name (includes ReplicaSet hash for deployments) |
+| READY | Containers ready vs total (e.g., 1/1) |
+| STATUS | Current pod phase (Running, Pending, etc.) |
+| RESTARTS | Number of container restarts |
+| AGE | Time since pod creation |
+| IP | Pod's internal cluster IP |
+| NODE | Node where the pod is scheduled |
+
+Additional useful listing commands:
+
+```bash
+# Get pods with labels
+microk8s kubectl get pods -A --show-labels
+
+# Get pods sorted by restart count
+microk8s kubectl get pods -A --sort-by='.status.containerStatuses[0].restartCount'
+
+# Get pods in JSON format for parsing
+microk8s kubectl get pods -A -o json | jq '.items[] | {name: .metadata.name, status: .status.phase}'
+
+# Watch pods in real-time
+microk8s kubectl get pods -A -w
+```
+
+### Cluster Events
+
+Events provide a timeline of what's happening in your cluster. They're crucial for debugging scheduling, networking, and container issues.
+
+```bash
+# Get all events sorted by timestamp
+microk8s kubectl get events -A --sort-by='.lastTimestamp'
+
+# Get events for a specific namespace
+microk8s kubectl get events -n kube-system
+
+# Watch events in real-time
+microk8s kubectl get events -A -w
+
+# Get warning events only
+microk8s kubectl get events -A --field-selector type=Warning
+```
+
+
+## Monitoring
+
+The Metrics Server is a cluster-wide aggregator of resource usage data. It collects metrics from the kubelet's Summary API and exposes them through the Kubernetes Metrics API, which is used by `kubectl top` and Horizontal Pod Autoscaler (HPA).
+
+### Enabling the Metrics Server in MicroK8s
+
+```bash
+microk8s enable metrics-server
+```
+
+After enabling, wait 1-2 minutes for the metrics-server pod to become ready and start collecting data.
+
+```bash
+# Verify metrics-server is running
+microk8s kubectl get pods -n kube-system -l k8s-app=metrics-server
+
+# Check if metrics API is available
+microk8s kubectl get --raw "/apis/metrics.k8s.io/v1beta1/nodes" | jq '.'
+```
+
+### Check nodes usage
+
+View CPU and memory consumption across all nodes in the cluster.
+
+```bash
+microk8s kubectl top nodes
+```
+
+**Understanding the output:**
+
+| Metric | Description |
+|--------|-------------|
+| CPU(cores) | Current CPU usage in millicores (m) or cores |
+| CPU% | Percentage of allocatable CPU being used |
+| MEMORY(bytes) | Current memory usage in bytes (Mi/Gi) |
+| MEMORY% | Percentage of allocatable memory being used |
+
+### Check pods usage
+
+Monitor resource consumption of all pods across namespaces.
+
+```bash
+microk8s kubectl top pods -A
+```
+
+Additional monitoring commands:
+
+```bash
+# Get resource usage for pods in a specific namespace
+microk8s kubectl top pods -n kube-system
+
+# Sort pods by CPU usage
+microk8s kubectl top pods -A --sort-by=cpu
+
+# Sort pods by memory usage
+microk8s kubectl top pods -A --sort-by=memory
+
+# Get container-level resource usage
+microk8s kubectl top pods -A --containers
+```
+
+### Raw Metrics API Access
+
+Access the Metrics API directly for advanced monitoring or automation:
+
+```bash
+# Get metrics for a specific node
+microk8s kubectl get --raw "/apis/metrics.k8s.io/v1beta1/nodes/<node-name>" | jq '.'
+
+# Get metrics for a specific pod
+microk8s kubectl get --raw "/apis/metrics.k8s.io/v1beta1/namespaces/<namespace>/pods/<pod-name>" | jq '.'
+```
+
+**Example response structure:**
+```json
+{
+  "kind": "NodeMetrics",
+  "apiVersion": "metrics.k8s.io/v1beta1",
+  "metadata": { "name": "mynode" },
+  "timestamp": "2026-01-21T10:30:00Z",
+  "window": "30s",
+  "usage": {
+    "cpu": "487558164n",
+    "memory": "732212Ki"
+  }
+}
+```
+
+**CPU units explained:**
+- `n` (nanocores): 1 core = 1,000,000,000n
+- `m` (millicores): 1 core = 1000m
+- `1` = 1 full CPU core
+
+**Memory units explained:**
+- `Ki` (kibibytes): 1024 bytes
+- `Mi` (mebibytes): 1024 Ki
+- `Gi` (gibibytes): 1024 Mi
+
+## Resource Quotas and Limits
+
+To prevent resource exhaustion, define ResourceQuotas for namespaces:
+
+```yaml
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: compute-quota
+  namespace: development
+spec:
+  hard:
+    requests.cpu: "4"
+    requests.memory: 8Gi
+    limits.cpu: "8"
+    limits.memory: 16Gi
+    pods: "20"
+```
+
+Apply and verify:
+
+```bash
+# Apply the quota
+microk8s kubectl apply -f quota.yaml
+
+# Check quota usage
+microk8s kubectl describe resourcequota -n development
+```
+
+## Useful Aliases
+
+Add these aliases to your `~/.bashrc` or `~/.zshrc` for faster troubleshooting:
+
+```bash
+alias mk='microk8s kubectl'
+alias mkgp='microk8s kubectl get pods -A'
+alias mkgs='microk8s kubectl get svc -A'
+alias mkgn='microk8s kubectl get nodes -o wide'
+alias mklog='microk8s kubectl logs -f'
+alias mktop='microk8s kubectl top pods -A --sort-by=memory'
+alias mkevents='microk8s kubectl get events -A --sort-by=.lastTimestamp'
+```

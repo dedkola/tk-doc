@@ -1,0 +1,832 @@
+---
+title: MicroK8s install with Helm and OneDev
+description: MicroK8s install with Helm and OneDev
+tags: [microk8s, helm, onedev, k8s, ubuntu]
+---
+
+## Overview
+
+This guide covers the complete installation of MicroK8s — a lightweight, single-package Kubernetes distribution developed by Canonical — along with Helm (the Kubernetes package manager) and OneDev (a self-hosted Git server with CI/CD capabilities).
+
+### What is MicroK8s?
+
+MicroK8s is a minimal, CNCF-certified Kubernetes distribution designed for:
+- **Developer workstations** — Quick local Kubernetes environment
+- **Edge computing** — Low resource footprint ideal for IoT devices
+- **CI/CD pipelines** — Fast cluster bootstrapping for testing
+- **Production environments** — High availability clusters with minimal overhead
+
+**Key characteristics:**
+| Feature | Description |
+|---------|-------------|
+| Memory footprint | ~540MB RAM minimum |
+| Startup time | Less than 30 seconds |
+| Package format | Snap package with automatic updates |
+| CNI | Calico (default), Flannel, Cilium available |
+| Container runtime | containerd |
+
+### What is Helm?
+
+Helm is the package manager for Kubernetes that helps you define, install, and upgrade complex Kubernetes applications. Helm uses **Charts** — pre-configured packages of Kubernetes resources.
+
+### What is OneDev?
+
+OneDev is an all-in-one DevOps platform featuring:
+- Git repository management
+- Issue tracking with custom workflows
+- Built-in CI/CD engine
+- Code search and navigation
+- Pull request support
+
+---
+
+## Install MicroK8s
+
+The `--classic` flag grants the snap full system access, which is required for MicroK8s to manage containers, networking, and storage.
+
+```bash copy
+sudo snap install microk8s --classic
+````
+### Add user to microk8s group
+
+After installation, add your user to the `microk8s` group to avoid using `sudo` for every command. Replace `ded` with your actual username.
+
+The `-a` flag appends the user to the group without removing them from other groups. The `-G` flag specifies the group name.
+
+```bash copy
+sudo usermod -a -G microk8s ded
+sudo chown -R ded ~/.kube
+````
+
+> **Important:** After adding yourself to the group, either log out and log back in, or run `newgrp microk8s` to apply the group membership immediately.
+
+### Verify Installation
+
+Before enabling addons, verify that MicroK8s is running correctly:
+
+```bash copy
+# Check MicroK8s version
+microk8s version
+
+# Wait for cluster to be ready (blocks until ready)
+microk8s status --wait-ready
+```
+
+**Expected output:**
+```
+microk8s is running
+high-availability: no
+  datastore master nodes: 127.0.0.1:19001
+  datastore standby nodes: none
+```
+
+---
+
+## Enable Services (Addons)
+
+MicroK8s uses an addon system to enable additional functionality. Each addon installs and configures specific Kubernetes components.
+### Addon Reference Table
+
+| Addon | Purpose | Resource Usage |
+|-------|---------|----------------|
+| `dashboard` | Web-based Kubernetes UI for cluster management | Low |
+| `metallb` | Bare-metal load balancer for external IP allocation | Low |
+| `ingress` | NGINX-based ingress controller for HTTP/HTTPS routing | Medium |
+| `storage` | Hostpath storage provisioner for PersistentVolumeClaims | Low |
+| `dns` | CoreDNS for internal cluster DNS resolution | Low |
+| `registry` | Private container registry (localhost:32000) | Medium |
+| `community` | Access to community-maintained addons | None |
+| `istio` | Service mesh for traffic management and security | High |
+
+### Enable Core Addons
+
+```bash copy
+
+microk8s status --wait-ready
+microk8s enable dashboard
+microk8s enable metallb
+microk8s enable ingress
+microk8s enable storage
+microk8s enable dns
+microk8s enable registry
+microk8s enable community
+microk8s enable istio
+```
+
+> **Note on MetalLB:** When enabling MetalLB, you'll be prompted to enter an IP address range. Choose a range within your LAN subnet that's not used by DHCP. For example: `192.168.1.240-192.168.1.250`
+
+### Understanding Each Addon
+
+**Dashboard** — Provides a web UI for visualizing cluster resources, deploying applications, and troubleshooting.
+
+**MetalLB** — Essential for bare-metal Kubernetes. In cloud environments, LoadBalancer services get external IPs from the cloud provider. MetalLB provides this functionality on-premises by announcing IPs via ARP (Layer 2) or BGP (Layer 3).
+
+**Ingress** — Routes external HTTP/HTTPS traffic to internal services based on hostnames and paths. Uses NGINX by default.
+
+**Storage** — Enables the `microk8s-hostpath` StorageClass, allowing dynamic provisioning of PersistentVolumes on the node's filesystem.
+
+**DNS (CoreDNS)** — Provides service discovery within the cluster. Services can be reached via `<service>.<namespace>.svc.cluster.local`.
+
+**Registry** — Local container registry accessible at `localhost:32000`. Useful for development workflows without pushing to external registries.
+
+**Istio** — Service mesh providing:
+- Traffic management (load balancing, canary deployments)
+- Security (mTLS, authorization policies)
+- Observability (metrics, tracing, logging)
+
+---
+
+## Monitoring and Troubleshooting
+
+### Check Cluster Status
+
+Use these commands to inspect the state of your cluster, diagnose issues, and verify that components are running correctly.
+
+```bash copy
+microk8s kubectl get all --all-namespaces
+microk8s kubectl get svc
+microk8s kubectl get pods -n metallb-system
+microk8s kubectl get all -n onedev
+microk8s helm list -n onedev
+microk8s kubectl get events -n onedev
+microk8s kubectl get pods -n onedev
+microk8s kubectl describe node
+```
+
+### Command Reference
+
+| Command | Description |
+|---------|-------------|
+| `get all --all-namespaces` | Lists all resources (pods, services, deployments, etc.) across all namespaces |
+| `get svc` | Lists services in the default namespace |
+| `get pods -n <namespace>` | Lists pods in a specific namespace |
+| `get events -n <namespace>` | Shows recent events (useful for debugging failed deployments) |
+| `describe node` | Detailed node information including capacity, conditions, and allocated resources |
+| `helm list -n <namespace>` | Lists Helm releases in a namespace |
+
+### Additional Diagnostic Commands
+
+```bash copy
+# Check cluster component health
+microk8s kubectl get componentstatuses
+
+# View logs from a specific pod
+microk8s kubectl logs <pod-name> -n <namespace>
+
+# Follow logs in real-time
+microk8s kubectl logs -f <pod-name> -n <namespace>
+
+# Get detailed pod information
+microk8s kubectl describe pod <pod-name> -n <namespace>
+
+# Check resource usage (requires metrics-server addon)
+microk8s enable metrics-server
+microk8s kubectl top nodes
+microk8s kubectl top pods -n <namespace>
+
+# View cluster events sorted by time
+microk8s kubectl get events --sort-by='.lastTimestamp' -A
+```
+
+---
+
+## Install Helm
+
+Helm is installed separately from MicroK8s. While MicroK8s provides a built-in `microk8s helm3` command, installing Helm as a standalone tool provides more flexibility.
+
+### Helm Architecture
+
+Helm 3 uses a client-only architecture:
+- **Helm CLI** — Command-line tool that communicates directly with the Kubernetes API
+- **Charts** — Packages containing templated Kubernetes manifests
+- **Releases** — Instances of charts deployed to a cluster
+- **Repositories** — Servers hosting chart packages
+
+```bash copy
+sudo snap install helm --classic
+helm repo add onedev https://dl.cloudsmith.io/public/onedev/onedev/helm/charts
+helm repo update onedev
+```
+
+### Essential Helm Commands
+
+```bash copy
+# List all configured repositories
+helm repo list
+
+# Search for charts in repositories
+helm search repo onedev
+
+# Show chart information
+helm show chart onedev/onedev
+
+# Show default values for a chart
+helm show values onedev/onedev
+
+# Download a chart locally without installing
+helm pull onedev/onedev --untar
+```
+
+---
+
+## Configure kubectl
+
+By default, MicroK8s uses its own `microk8s kubectl` wrapper. To use the standard `kubectl` command with your MicroK8s cluster, you need to export the kubeconfig.
+
+### What is kubeconfig?
+
+The kubeconfig file (`~/.kube/config`) contains:
+- **Clusters** — Kubernetes API server endpoints and CA certificates
+- **Users** — Authentication credentials (certificates, tokens)
+- **Contexts** — Mappings between clusters and users
+
+```bash copy
+sudo snap install kubectl --classic
+sudo microk8s kubectl config view --raw > ~/.kube/config
+kubectl get nodes
+```
+
+> **Security Note:** The exported kubeconfig contains cluster admin credentials. Ensure `~/.kube/config` has restrictive permissions: `chmod 600 ~/.kube/config`
+
+### Working with Multiple Clusters
+
+If you manage multiple Kubernetes clusters, use contexts:
+
+```bash copy
+# View current context
+kubectl config current-context
+
+# List all contexts
+kubectl config get-contexts
+
+# Switch to a different context
+kubectl config use-context <context-name>
+
+# View cluster info
+kubectl cluster-info
+```
+
+---
+
+## Access Kubernetes Dashboard
+
+The Kubernetes Dashboard provides a web-based UI for cluster management. By default, it's only accessible from localhost for security.
+
+### Dashboard Access Methods
+
+**Method 1: Dashboard Proxy (Simple)**
+
+This creates a secure tunnel to the dashboard:
+
+```bash copy
+ microk8s dashboard-proxy
+```
+
+**Method 2: Screen Session (Persistent)**
+
+For long-running access, use a screen session to keep the proxy running in the background:
+
+```bash copy
+screen -S dashboard-proxy
+```
+
+Then run `microk8s dashboard-proxy` inside the screen session. Detach with `Ctrl+A, D`.
+
+More for Screen here [Usinng Screen with MicroK8s dashboard proxy example](/docs/ubuntu/screen_microk8s_basic)
+
+**Method 3: Port Forward (Manual)**
+
+```bash copy
+# Get the dashboard token
+microk8s kubectl describe secret -n kube-system microk8s-dashboard-token
+
+# Forward the port
+microk8s kubectl port-forward -n kube-system service/kubernetes-dashboard 10443:443
+
+# Access at: https://localhost:10443
+```
+
+### Exposing Dashboard on LAN (Not Recommended for Production)
+
+To access the dashboard from other machines on your network, you can create a NodePort service:
+
+```bash copy
+# Create NodePort service for dashboard
+microk8s kubectl expose deployment kubernetes-dashboard \
+  -n kube-system \
+  --type=NodePort \
+  --port=443 \
+  --target-port=8443 \
+  --name=dashboard-nodeport
+```
+
+> **Warning:** Exposing the dashboard externally is a security risk. Use VPN or SSH tunneling for remote access instead.
+
+---
+
+## Install OneDev
+
+OneDev is deployed using Helm with automatic namespace creation. The `-n onedev` flag specifies the target namespace, and `--create-namespace` creates it if it doesn't exist.
+
+### Pre-installation Checklist
+
+Before installing OneDev, ensure:
+- [ ] Storage addon is enabled (`microk8s enable storage`)
+- [ ] DNS addon is enabled (`microk8s enable dns`)
+- [ ] Sufficient disk space for Git repositories
+- [ ] MetalLB configured (if exposing externally)
+
+```bash copy
+helm install onedev onedev/onedev -n onedev --create-namespace
+```
+
+### Understanding Helm Install Command
+
+| Component | Description |
+|-----------|-------------|
+| `helm install` | Command to deploy a new release |
+| `onedev` (first) | Release name — identifier for this deployment |
+| `onedev/onedev` | Chart reference — `<repo>/<chart>` format |
+| `-n onedev` | Target namespace |
+| `--create-namespace` | Create namespace if it doesn't exist |
+
+### Customizing Installation with Values
+
+To customize the installation, create a `values.yaml` file:
+
+```yaml copy
+# values.yaml - OneDev custom configuration
+persistence:
+  enabled: true
+  size: 50Gi
+  storageClass: microk8s-hostpath
+
+resources:
+  requests:
+    memory: "1Gi"
+    cpu: "500m"
+  limits:
+    memory: "4Gi"
+    cpu: "2000m"
+
+# MySQL database settings (if using external database)
+mysql:
+  enabled: false
+
+# Ingress configuration
+ingress:
+  enabled: true
+  className: nginx
+  hosts:
+    - host: onedev.local
+      paths:
+        - path: /
+          pathType: Prefix
+```
+
+Then install with custom values:
+
+```bash copy
+helm install onedev onedev/onedev -n onedev --create-namespace -f values.yaml
+```
+
+### Verify Installation
+
+```bash copy
+# Watch pods until they're ready
+kubectl get pods -n onedev -w
+
+# Check persistent volume claims
+kubectl get pvc -n onedev
+
+# View OneDev logs
+kubectl logs -l app=onedev -n onedev --tail=100
+```
+
+---
+
+## Expose OneDev to LAN
+
+By default, OneDev uses a ClusterIP service, accessible only within the cluster. To access it from your LAN, upgrade the release to use a LoadBalancer service type.
+
+### Service Types Explained
+
+| Type | Accessibility | Use Case |
+|------|---------------|----------|
+| `ClusterIP` | Internal only | Inter-pod communication |
+| `NodePort` | Node IP:Port | Direct access via node |
+| `LoadBalancer` | External IP | Production-grade external access |
+
+```bash copy
+helm upgrade onedev onedev/onedev -n onedev --set service.type=LoadBalancer --reuse-values
+```
+
+### Understanding the Upgrade Command
+
+| Flag | Description |
+|------|-------------|
+| `--set service.type=LoadBalancer` | Override specific value |
+| `--reuse-values` | Keep all previously set values |
+
+### Verify External IP Assignment
+
+After the upgrade, MetalLB will assign an external IP:
+
+```bash copy
+# Check service external IP
+kubectl get svc -n onedev
+
+# Expected output:
+# NAME      TYPE           CLUSTER-IP      EXTERNAL-IP     PORT(S)
+# onedev    LoadBalancer   10.152.183.XX   192.168.1.240   80:XXXXX/TCP
+```
+
+### Alternative: Using NodePort
+
+If MetalLB isn't configured, use NodePort:
+
+```bash copy
+helm upgrade onedev onedev/onedev -n onedev --set service.type=NodePort --set service.nodePort=30080 --reuse-values
+```
+
+Access at: `http://<node-ip>:30080`
+
+### Configuring Ingress for Domain Access
+
+For hostname-based access, configure an Ingress resource:
+
+```yaml copy
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: onedev-ingress
+  namespace: onedev
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: onedev.yourdomain.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: onedev
+                port:
+                  number: 80
+```
+
+---
+
+## Namespace Management
+
+Namespaces provide logical isolation for Kubernetes resources. They're essential for:
+- **Multi-tenancy** — Separate teams or projects
+- **Resource quotas** — Limit CPU/memory per namespace
+- **Network policies** — Control traffic between namespaces
+- **RBAC** — Fine-grained access control
+
+### Viewing Namespaces
+
+```bash copy
+kubectl get namespaces
+kubectl get pods --all-namespaces
+```
+
+### Default Namespaces
+
+| Namespace | Purpose |
+|-----------|---------|
+| `default` | Default namespace for resources without explicit namespace |
+| `kube-system` | Kubernetes system components (API server, scheduler, etc.) |
+| `kube-public` | Publicly accessible resources |
+| `kube-node-lease` | Node heartbeat data for health monitoring |
+
+### Working with Namespaces
+
+Set the default namespace for kubectl commands:
+
+```bash copy
+kubectl config set-context --current --namespace=default
+```
+
+### Additional Namespace Operations
+
+```bash copy
+# Create a new namespace
+kubectl create namespace development
+
+# Delete a namespace (WARNING: deletes all resources within)
+kubectl delete namespace development
+
+# View resources in a specific namespace
+kubectl get all -n kube-system
+
+# View current namespace context
+kubectl config view --minify | grep namespace
+```
+
+### Resource Quotas
+
+Limit resource consumption per namespace:
+
+```yaml copy
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: compute-quota
+  namespace: development
+spec:
+  hard:
+    requests.cpu: "4"
+    requests.memory: 8Gi
+    limits.cpu: "8"
+    limits.memory: 16Gi
+    pods: "20"
+```
+
+---
+
+## Export and Backup Configurations
+
+Exporting Kubernetes resources to YAML files is essential for:
+- **Backup and disaster recovery**
+- **Version control** — Store configurations in Git
+- **Migration** — Move resources between clusters
+- **Documentation** — Reference current state
+
+### Export Service Configuration
+
+```bash copy
+kubectl get svc mycluster -o yaml > mycluster.yaml
+```
+
+### Additional Export Commands
+
+```bash copy
+# Export deployment
+kubectl get deployment <name> -o yaml > deployment.yaml
+
+# Export all resources in a namespace
+kubectl get all -n onedev -o yaml > onedev-backup.yaml
+
+# Export specific resource types
+kubectl get configmaps,secrets -n onedev -o yaml > onedev-configs.yaml
+
+# Export without cluster-specific metadata (cleaner for reuse)
+kubectl get deployment <name> -o yaml | \
+  kubectl neat > deployment-clean.yaml
+```
+
+> **Note:** `kubectl neat` is a plugin that removes cluster-specific fields. Install with: `kubectl krew install neat`
+
+### Helm Release Backup
+
+```bash copy
+# Export Helm release values
+helm get values onedev -n onedev > onedev-values.yaml
+
+# Export all Helm release info
+helm get all onedev -n onedev > onedev-release.yaml
+
+# Export Helm release manifest
+helm get manifest onedev -n onedev > onedev-manifest.yaml
+```
+
+---
+
+## Maintenance Commands
+
+### MicroK8s Lifecycle
+
+```bash copy
+# Stop MicroK8s (preserves data)
+microk8s stop
+
+# Start MicroK8s
+microk8s start
+
+# Completely reset MicroK8s (WARNING: destroys all data)
+microk8s reset
+
+# Uninstall MicroK8s
+sudo snap remove microk8s
+```
+
+### Helm Release Management
+
+```bash copy
+# View release history
+helm history onedev -n onedev
+
+# Rollback to previous version
+helm rollback onedev -n onedev
+
+# Rollback to specific revision
+helm rollback onedev 2 -n onedev
+
+# Uninstall release
+helm uninstall onedev -n onedev
+```
+
+### Storage Management
+
+```bash copy
+# List persistent volumes
+kubectl get pv
+
+# List persistent volume claims
+kubectl get pvc --all-namespaces
+
+# Describe PVC for troubleshooting
+kubectl describe pvc <pvc-name> -n <namespace>
+
+# Delete stuck PVC (after removing finalizers if needed)
+kubectl patch pvc <pvc-name> -n <namespace> \
+  -p '{"metadata":{"finalizers":null}}'
+kubectl delete pvc <pvc-name> -n <namespace>
+```
+
+---
+
+## Troubleshooting Guide
+
+### Common Issues and Solutions
+
+| Issue | Possible Cause | Solution |
+|-------|---------------|----------|
+| Pod stuck in `Pending` | Insufficient resources | Check node capacity: `kubectl describe node` |
+| Pod in `CrashLoopBackOff` | Application error | Check logs: `kubectl logs <pod>` |
+| PVC stuck in `Pending` | Storage not available | Enable storage addon: `microk8s enable storage` |
+| No external IP | MetalLB not configured | Configure MetalLB with IP range |
+| DNS resolution fails | CoreDNS not running | Check: `kubectl get pods -n kube-system -l k8s-app=kube-dns` |
+
+### Debug a Running Pod
+
+```bash copy
+# Execute shell in pod
+kubectl exec -it <pod-name> -n <namespace> -- /bin/sh
+
+# Copy files from/to pod
+kubectl cp <pod-name>:/path/to/file ./local-file -n <namespace>
+kubectl cp ./local-file <pod-name>:/path/to/file -n <namespace>
+
+# Port forward for debugging
+kubectl port-forward pod/<pod-name> 8080:80 -n <namespace>
+```
+
+### Network Debugging
+
+```bash copy
+# Test DNS resolution from within cluster
+kubectl run debug --image=busybox --rm -it --restart=Never -- nslookup kubernetes
+
+# Check endpoints
+kubectl get endpoints -n <namespace>
+
+# Verify network policies
+kubectl get networkpolicies -n <namespace>
+```
+
+---
+
+## High Availability Setup
+
+For production environments, MicroK8s supports high availability clustering with multiple nodes.
+
+### Adding Nodes to Cluster
+
+On the master node, generate a join token:
+
+```bash copy
+microk8s add-node
+```
+
+This outputs a command like:
+```
+microk8s join 192.168.1.100:25000/abc123xyz...
+```
+
+On the worker node:
+
+```bash copy
+# Install MicroK8s
+sudo snap install microk8s --classic
+
+# Join the cluster
+microk8s join 192.168.1.100:25000/abc123xyz...
+```
+
+### Verify Cluster Nodes
+
+```bash copy
+# List all nodes in cluster
+kubectl get nodes -o wide
+
+# Check node roles
+kubectl get nodes --show-labels
+```
+
+### HA Considerations
+
+| Configuration | Nodes Required | Fault Tolerance |
+|---------------|----------------|-----------------|
+| Single node | 1 | None |
+| 3-node HA | 3 | 1 node failure |
+| 5-node HA | 5 | 2 node failures |
+
+> **Note:** For HA datastore, MicroK8s uses Dqlite (distributed SQLite). At least 3 nodes are recommended for production HA.
+
+---
+
+## Security Best Practices
+
+### RBAC Configuration
+
+Create a limited service account for CI/CD pipelines:
+
+```yaml copy
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cicd-deployer
+  namespace: onedev
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: deployer-role
+  namespace: onedev
+rules:
+  - apiGroups: ["", "apps", "extensions"]
+    resources: ["deployments", "services", "pods", "configmaps", "secrets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: deployer-binding
+  namespace: onedev
+subjects:
+  - kind: ServiceAccount
+    name: cicd-deployer
+    namespace: onedev
+roleRef:
+  kind: Role
+  name: deployer-role
+  apiGroup: rbac.authorization.k8s.io
+```
+
+### Network Policies
+
+Restrict traffic to OneDev namespace:
+
+```yaml copy
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: onedev-network-policy
+  namespace: onedev
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 80
+  egress:
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 53
+        - protocol: UDP
+          port: 53
+```
+
+---
+
+## Related Resources
+
+- [Using Screen with MicroK8s](/docs/ubuntu/screen_microk8s_basic)
+- [Deploy MySQL on Kubernetes](/docs/kubernetes/deploy_mysql_kubernetes_basic)
+- [Deploy DockerHub Image to K3s](/docs/kubernetes/deploy_dockerhub_image_to_k3s)
+- [GitLab Runner Setup](/docs/docker/gitlab_runner)
+
+### External Documentation
+
+- [MicroK8s Official Documentation](https://microk8s.io/docs)
+- [Helm Official Documentation](https://helm.sh/docs/)
+- [OneDev Documentation](https://docs.onedev.io/)
+- [Kubernetes Documentation](https://kubernetes.io/docs/)
+
