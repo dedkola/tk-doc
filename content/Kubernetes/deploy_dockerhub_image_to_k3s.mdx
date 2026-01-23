@@ -10,12 +10,12 @@ This guide demonstrates how to deploy a container image from DockerHub to a K3s 
 
 ### Key Concepts
 
-| Component | Description |
-|-----------|-------------|
-| **Deployment** | Kubernetes resource that manages a set of replicated Pods, ensuring the desired state matches the actual state |
-| **Service** | Exposes your Deployment to network traffic, either internally or externally via LoadBalancer |
-| **PersistentVolumeClaim (PVC)** | Requests storage resources from the cluster for data persistence |
-| **Namespace** | Virtual cluster that provides isolation between workloads |
+| Component                       | Description                                                                                                    |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| **Deployment**                  | Kubernetes resource that manages a set of replicated Pods, ensuring the desired state matches the actual state |
+| **Service**                     | Exposes your Deployment to network traffic, either internally or externally via LoadBalancer                   |
+| **PersistentVolumeClaim (PVC)** | Requests storage resources from the cluster for data persistence                                               |
+| **Namespace**                   | Virtual cluster that provides isolation between workloads                                                      |
 
 ### Prerequisites
 
@@ -114,11 +114,11 @@ Labels are key-value pairs attached to objects for identification and selection:
 
 #### Container Configuration
 
-| Field | Value | Purpose |
-|-------|-------|---------|
-| `image` | `docker.io/dedkola/postgres:17` | Full image path with registry, repository, and tag |
+| Field                     | Value                                             | Purpose                                            |
+| ------------------------- | ------------------------------------------------- | -------------------------------------------------- |
+| `image`                   | `docker.io/dedkola/postgres:17`                   | Full image path with registry, repository, and tag |
 | `imagePullPolicy: Always` | Forces pulling the latest image on each Pod start |
-| `containerPort: 5432` | PostgreSQL default port exposed by the container |
+| `containerPort: 5432`     | PostgreSQL default port exposed by the container  |
 
 #### Resource Requests vs Limits
 
@@ -127,17 +127,19 @@ Kubernetes uses **requests** and **limits** to manage container resources:
 - **Requests**: Minimum guaranteed resources. The scheduler uses this to find a suitable node
 - **Limits**: Maximum resources a container can use. Enforced by the kubelet
 
-| Resource | Value | Description |
-|----------|-------|-------------|
-| Request | 1Gi | Guaranteed minimum memory |
-| Limit | 2Gi | Maximum allowed (OOM kill if exceeded) |
+| Resource | Value | Description                            |
+| -------- | ----- | -------------------------------------- |
+| Request  | 1Gi   | Guaranteed minimum memory              |
+| Limit    | 2Gi   | Maximum allowed (OOM kill if exceeded) |
 
 **CPU Limits Behavior:**
+
 - Enforced via CPU throttling by the Linux kernel
 - Container is throttled when approaching the limit
 - Hard limit — containers cannot exceed their CPU limit
 
 **Memory Limits Behavior:**
+
 - Enforced via OOM (Out of Memory) kills
 - Container may be terminated if it exceeds memory limit under memory pressure
 - Reactive enforcement — brief overages may not trigger immediate termination
@@ -157,6 +159,7 @@ kubectl top pod -n test-app
 ```
 
 **Expected output format:**
+
 ```plaintext
 NAME                                   CPU(cores)   MEMORY(bytes)
 postgres-deployment-6577845884-8964z   25m          256Mi
@@ -219,12 +222,12 @@ The `describe` command provides comprehensive information including:
 
 ### Common Troubleshooting Scenarios
 
-| Issue | Command | What to Look For |
-|-------|---------|------------------|
-| Pod not starting | `kubectl describe pod <name> -n test-app` | Events section for errors |
-| Container crashing | `kubectl logs --previous <pod> -n test-app` | Error messages before crash |
-| Image pull errors | `kubectl get events -n test-app` | `ErrImagePull` or `ImagePullBackOff` |
-| Resource issues | `kubectl top pod -n test-app` | CPU/memory usage near limits |
+| Issue              | Command                                     | What to Look For                     |
+| ------------------ | ------------------------------------------- | ------------------------------------ |
+| Pod not starting   | `kubectl describe pod <name> -n test-app`   | Events section for errors            |
+| Container crashing | `kubectl logs --previous <pod> -n test-app` | Error messages before crash          |
+| Image pull errors  | `kubectl get events -n test-app`            | `ErrImagePull` or `ImagePullBackOff` |
+| Resource issues    | `kubectl top pod -n test-app`               | CPU/memory usage near limits         |
 
 ---
 
@@ -234,11 +237,11 @@ For production environments, **always use PersistentVolumeClaims (PVC)** to ensu
 
 ### Understanding PVC Access Modes
 
-| Access Mode | Abbreviation | Description |
-|-------------|--------------|-------------|
-| `ReadWriteOnce` | RWO | Volume can be mounted read-write by a single node |
-| `ReadOnlyMany` | ROX | Volume can be mounted read-only by many nodes |
-| `ReadWriteMany` | RWX | Volume can be mounted read-write by many nodes |
+| Access Mode     | Abbreviation | Description                                       |
+| --------------- | ------------ | ------------------------------------------------- |
+| `ReadWriteOnce` | RWO          | Volume can be mounted read-write by a single node |
+| `ReadOnlyMany`  | ROX          | Volume can be mounted read-only by many nodes     |
+| `ReadWriteMany` | RWX          | Volume can be mounted read-write by many nodes    |
 
 > **For PostgreSQL**: Use `ReadWriteOnce` since database files should only be written by one instance at a time.
 
@@ -329,12 +332,12 @@ spec:
 
 When you create a PVC, Kubernetes attempts to find a matching PersistentVolume (PV) or dynamically provision one:
 
-| Status | Description |
-|--------|-------------|
-| Pending | Waiting for a PV to be bound |
-| Bound | Successfully bound to a PV |
+| Status   | Description                          |
+| -------- | ------------------------------------ |
+| Pending  | Waiting for a PV to be bound         |
+| Bound    | Successfully bound to a PV           |
 | Released | PVC deleted, PV awaiting reclamation |
-| Failed | Automatic reclamation failed |
+| Failed   | Automatic reclamation failed         |
 
 ### Verify PVC Status
 
@@ -350,6 +353,7 @@ kubectl get pv | grep postgres
 ```
 
 **Expected output:**
+
 ```plaintext
 NAME           STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   AGE
 postgres-pvc   Bound    pvc-a1b2c3d4-e5f6-7890-abcd-ef1234567890   10Gi       RWO            local-path     5m
@@ -454,4 +458,3 @@ kubectl create secret generic postgres-secret \
 - Set **limits** to prevent runaway resource consumption
 - Monitor actual usage with `kubectl top` and adjust accordingly
 - Use **LimitRange** to enforce default limits in a namespace
-

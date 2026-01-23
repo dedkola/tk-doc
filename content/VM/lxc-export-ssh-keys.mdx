@@ -22,7 +22,8 @@ Before proceeding, ensure the following requirements are met:
 - **`.ssh` directory exists** with proper permissions in the container
 
 <Alert variant="info">
-The `.ssh` directory must have `700` permissions, and `authorized_keys` file must have `600` permissions for SSH to accept the keys.
+  The `.ssh` directory must have `700` permissions, and `authorized_keys` file
+  must have `600` permissions for SSH to accept the keys.
 </Alert>
 
 ---
@@ -87,9 +88,9 @@ lxc exec <container> -- bash -c "chmod 700 /home/ubuntu/.ssh && chmod 600 /home/
 
 **Expected permissions:**
 
-| Path | Permission | Octal |
-|------|------------|-------|
-| `/home/ubuntu/.ssh` | `drwx------` | `700` |
+| Path                                | Permission   | Octal |
+| ----------------------------------- | ------------ | ----- |
+| `/home/ubuntu/.ssh`                 | `drwx------` | `700` |
 | `/home/ubuntu/.ssh/authorized_keys` | `-rw-------` | `600` |
 
 ---
@@ -150,7 +151,8 @@ pct push <CTID> ~/.ssh/id_rsa.pub /home/ubuntu/.ssh/authorized_keys --perms 600
 ```
 
 <Alert variant="warning">
-The `pct` command is specific to Proxmox VE. For standalone LXC/LXD installations, use the `lxc` commands shown in previous sections.
+  The `pct` command is specific to Proxmox VE. For standalone LXC/LXD
+  installations, use the `lxc` commands shown in previous sections.
 </Alert>
 
 ---
@@ -189,12 +191,12 @@ pct set <CTID> --sshkeys ~/.ssh/id_rsa.pub
 
 ### Common Issues and Solutions
 
-| Issue | Possible Cause | Solution |
-|-------|---------------|----------|
-| Permission denied (publickey) | Wrong file permissions | Run `chmod 700 ~/.ssh && chmod 600 ~/.ssh/authorized_keys` inside container |
-| Connection refused | SSH not running | Start SSH: `lxc exec <container> -- systemctl start ssh` |
-| Host key verification failed | Changed container/reinstall | Remove old key: `ssh-keygen -R <container_ip>` |
-| Key not accepted | Wrong key format | Ensure key is in OpenSSH format, not PuTTY PPK |
+| Issue                         | Possible Cause              | Solution                                                                    |
+| ----------------------------- | --------------------------- | --------------------------------------------------------------------------- |
+| Permission denied (publickey) | Wrong file permissions      | Run `chmod 700 ~/.ssh && chmod 600 ~/.ssh/authorized_keys` inside container |
+| Connection refused            | SSH not running             | Start SSH: `lxc exec <container> -- systemctl start ssh`                    |
+| Host key verification failed  | Changed container/reinstall | Remove old key: `ssh-keygen -R <container_ip>`                              |
+| Key not accepted              | Wrong key format            | Ensure key is in OpenSSH format, not PuTTY PPK                              |
 
 ### Debug SSH Connection
 

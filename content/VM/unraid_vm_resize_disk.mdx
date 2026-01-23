@@ -4,6 +4,123 @@ description: How to resize disk on existing Unraid VM Linux
 tags: [unraid, vm, linux, resize, disk, ubuntu]
 ---
 
+## Overview
+
+When running Linux virtual machines on Unraid, you may need to expand the disk space as your storage requirements grow. This guide covers the complete process of resizing virtual disks and expanding the underlying LVM (Logical Volume Manager) partitions to utilize the newly added space.
+
+### Understanding LVM Architecture
+
+LVM provides a flexible approach to disk management in Linux by abstracting physical storage into logical components:
+
+- **Physical Volume (PV)**: The actual physical disk or partition
+- **Volume Group (VG)**: A pool of storage created from one or more physical volumes
+- **Logical Volume (LV)**: Virtual partitions created from the volume group's free space
+- **Filesystem**: The layer that organizes data on the logical volume (ext4, xfs, btrfs, etc.)
+
+The resize process involves expanding each layer from bottom to top: physical disk → partition → physical volume → logical volume → filesystem.
+
+## Prerequisites
+
+Before beginning the resize operation:
+
+1. **Backup your data** - Always create a backup before modifying disk structures
+2. **Verify VM is powered off** when resizing the vdisk file in Unraid
+3. **Check current disk layout** to understand your LVM configuration
+4. **Ensure sufficient host storage** - Verify Unraid has enough free space for the expanded disk
+
+## Step 1: Resize the Virtual Disk in Unraid
+
+First, expand the virtual disk image on your Unraid host:
+
+### Via Unraid Web UI
+
+1. Navigate to the VM tab
+2. Stop the virtual machine
+3. Click on the VM icon and select "Edit"
+4. Increase the vdisk size in the configuration
+5. Apply changes and start the VM
+
+### Via Command Line on Unraid Host
+
+```bash
+# Locate your vdisk file (typically in /mnt/user/domains/)
+cd /mnt/user/domains/your-vm-name/
+
+# Check current size
+ls -lh vdisk1.img
+
+# Resize vdisk (example: add 50GB)
+qemu-img resize vdisk1.img +50G
+
+# Verify new size
+qemu-img info vdisk1.img
+```
+
+## Step 2: Expand the Partition Inside the VM
+
+After the virtual disk is resized on the host, boot your VM and expand the partition:
+
+### Check Current Partition Layout
+
+```bash
+# View partition table
+sudo fdisk -l /dev/vda
+sudo lsblk
+
+# Check partition details
+sudo parted /dev/vda print
+```
+
+### Resize Partition Using growpart
+
+```bash
+# Install cloud-utils if not present (includes growpart)
+sudo apt-get update && sudo apt-get install -y cloud-guest-utils
+
+# Grow partition 3 (adjust number based on your layout)
+sudo growpart /dev/vda 3
+
+# Verify the change
+sudo lsblk
+```
+
+### Alternative: Manual Partition Resize with parted
+
+```bash
+# Start parted in interactive mode
+sudo parted /dev/vda
+
+# Print partition table
+(parted) print
+
+# Resize partition 3 to use all available space
+(parted) resizepart 3 100%
+
+# Exit parted
+(parted) quit
+```
+
+## Step 3: Expand LVM Physical Volume
+
+After the partition is resized, inform LVM about the new space:
+
+```bash
+# Check current PV size
+sudo pvdisplay
+sudo pvs
+
+# Resize the physical volume to use all partition space
+sudo pvresize /dev/vda3
+
+# Verify the expanded PV
+sudo pvdisplay /dev/vda3
+sudo pvs
+```
+
+## Step 4: Extend the Logical Volume
+
+Now expand the logical volume to consume the newly available space in the volume group.
+
 You need manually resize LVM partition on Unraid VM Linux.
 
 ```bash
@@ -11,8 +128,305 @@ sudo vgdisplay
 sudo lvextend -l +100%FREE /dev/ubuntu-vg/ubuntu-lv
 sudo lvdisplay
 df -T /
-## for ext4
+# for ext4
 sudo resize2fs /dev/ubuntu-vg/ubuntu-lv
-##
+#
 df -h /
 ```
+
+### Understanding lvextend Options
+
+```bash
+# Extend by specific size (e.g., add 20GB)
+sudo lvextend -L +20G /dev/ubuntu-vg/ubuntu-lv
+
+# Extend to a specific total size (e.g., make it 100GB)
+sudo lvextend -L 100G /dev/ubuntu-vg/ubuntu-lv
+
+# Extend by percentage of free space (e.g., use 50% of free)
+sudo lvextend -l +50%FREE /dev/ubuntu-vg/ubuntu-lv
+
+# Extend using all free space (recommended for single-LV setups)
+sudo lvextend -l +100%FREE /dev/ubuntu-vg/ubuntu-lv
+
+# Verify the logical volume size
+sudo lvdisplay /dev/ubuntu-vg/ubuntu-lv
+sudo lvs
+```
+
+## Step 5: Resize the Filesystem
+
+The final step is expanding the filesystem to use the newly allocated space in the logical volume. The command varies by filesystem type:
+
+### For ext4 Filesystem
+
+```bash
+# Check filesystem before resize
+sudo e2fsck -f /dev/ubuntu-vg/ubuntu-lv
+
+# Resize ext4 filesystem (can be done online/mounted)
+sudo resize2fs /dev/ubuntu-vg/ubuntu-lv
+
+# Verify the new size
+df -h /
+```
+
+### For XFS Filesystem
+
+```bash
+# XFS must be mounted during resize
+sudo xfs_growfs /
+
+# Verify using df
+df -h /
+```
+
+### For Btrfs Filesystem
+
+```bash
+# Btrfs resize (must be mounted)
+sudo btrfs filesystem resize max /
+
+# Check filesystem usage
+sudo btrfs filesystem usage /
+```
+
+## Verification and Validation
+
+After completing all steps, thoroughly verify the changes:
+
+### Complete System Check
+
+```bash
+# Display complete storage hierarchy
+lsblk -f
+
+# Check disk usage by filesystem
+df -Th
+
+# Verify LVM configuration
+sudo vgdisplay
+sudo lvdisplay
+sudo pvdisplay
+
+# Check filesystem integrity
+sudo fsck -N /dev/ubuntu-vg/ubuntu-lv
+
+# Display inode usage (important for ext4)
+df -i /
+```
+
+### Create Test Data
+
+```bash
+# Create a test file to confirm write capability
+sudo dd if=/dev/zero of=/test-file bs=1M count=100
+
+# Verify file creation
+ls -lh /test-file
+
+# Remove test file
+sudo rm /test-file
+```
+
+## Troubleshooting Common Issues
+
+### Issue: Partition table not updated after qemu-img resize
+
+**Solution**: Restart the VM completely or use partprobe:
+
+```bash
+sudo partprobe /dev/vda
+```
+
+### Issue: LVM doesn't see new space after partition resize
+
+**Solution**: Ensure kernel recognizes new partition size:
+
+```bash
+# Reread partition table
+sudo partprobe
+
+# Manually notify kernel
+echo 1 | sudo tee /sys/class/block/vda/device/rescan
+
+# Verify change
+sudo lsblk
+```
+
+### Issue: resize2fs reports filesystem already resized
+
+**Solution**: Check if filesystem block count matches LV size:
+
+```bash
+# Check LV size in bytes
+sudo lvdisplay /dev/ubuntu-vg/ubuntu-lv | grep "LV Size"
+
+# Check filesystem block size and count
+sudo tune2fs -l /dev/ubuntu-vg/ubuntu-lv | grep -E 'Block (size|count)'
+
+# If they match, no resize needed
+```
+
+### Issue: Unable to extend LV - not enough free space
+
+**Solution**: Verify VG has free extents:
+
+```bash
+# Check VG free space
+sudo vgdisplay ubuntu-vg | grep "Free"
+
+# If no free space, ensure previous steps completed
+sudo pvresize /dev/vda3
+sudo pvdisplay
+```
+
+## Advanced Scenarios
+
+### Resizing Without Downtime (Online Resize)
+
+For production systems, minimize downtime:
+
+```bash
+# All steps can be performed while filesystem is mounted
+# Only the initial vdisk resize requires VM shutdown
+
+# After expanding vdisk and restarting VM:
+sudo growpart /dev/vda 3
+sudo pvresize /dev/vda3
+sudo lvextend -l +100%FREE /dev/ubuntu-vg/ubuntu-lv
+sudo resize2fs /dev/ubuntu-vg/ubuntu-lv  # For ext4
+
+# Verify without unmounting
+df -h /
+```
+
+### Working with Multiple Logical Volumes
+
+If your volume group contains multiple logical volumes:
+
+```bash
+# List all logical volumes in the VG
+sudo lvs ubuntu-vg
+
+# Extend specific LV with desired amount
+sudo lvextend -L +30G /dev/ubuntu-vg/data-lv
+sudo resize2fs /dev/ubuntu-vg/data-lv
+
+# Keep some space free in VG for snapshots
+sudo lvextend -l +75%FREE /dev/ubuntu-vg/root-lv
+sudo resize2fs /dev/ubuntu-vg/root-lv
+```
+
+### Creating LVM Snapshots Before Resize
+
+Create safety snapshots for critical systems:
+
+```bash
+# Check available space in VG
+sudo vgs ubuntu-vg
+
+# Create snapshot (10GB for snapshot metadata/changes)
+sudo lvcreate -L 10G -s -n root-snapshot /dev/ubuntu-vg/ubuntu-lv
+
+# Proceed with resize operations
+# If issues occur, revert:
+sudo lvconvert --merge /dev/ubuntu-vg/root-snapshot
+
+# After successful resize, remove snapshot
+sudo lvremove /dev/ubuntu-vg/root-snapshot
+```
+
+## Performance Considerations
+
+### Filesystem Alignment
+
+Ensure optimal I/O performance after resize:
+
+```bash
+# Check alignment for ext4
+sudo blockdev --getalignoff /dev/ubuntu-vg/ubuntu-lv
+
+# For new filesystems, specify stripe size (if using RAID)
+sudo mkfs.ext4 -E stride=32,stripe_width=64 /dev/ubuntu-vg/ubuntu-lv
+```
+
+### I/O Scheduler Optimization
+
+```bash
+# Check current I/O scheduler
+cat /sys/block/vda/queue/scheduler
+
+# For VMs, deadline or noop are often optimal
+echo deadline | sudo tee /sys/block/vda/queue/scheduler
+```
+
+## Automation Script
+
+For frequent resize operations, use this comprehensive script:
+
+```bash
+#!/bin/bash
+# automated-lvm-resize.sh
+# Usage: ./automated-lvm-resize.sh /dev/ubuntu-vg/ubuntu-lv
+
+set -euo pipefail
+
+LV_PATH="${1:-/dev/ubuntu-vg/ubuntu-lv}"
+DEVICE="/dev/vda"
+PART_NUM="3"
+
+echo "=== Starting LVM Resize Process ==="
+
+# Step 1: Grow partition
+echo "Growing partition ${DEVICE}${PART_NUM}..."
+sudo growpart "$DEVICE" "$PART_NUM"
+
+# Step 2: Resize physical volume
+echo "Resizing physical volume..."
+sudo pvresize "${DEVICE}${PART_NUM}"
+
+# Step 3: Extend logical volume
+
+echo "Extending logical volume..."
+sudo lvextend -l +100%FREE "$LV_PATH"
+
+# Step 4: Detect filesystem type and resize
+FS_TYPE=$(sudo blkid -o value -s TYPE "$LV_PATH")
+echo "Detected filesystem: $FS_TYPE"
+
+case "$FS_TYPE" in
+    ext4|ext3|ext2)
+        echo "Resizing ext filesystem..."
+        sudo resize2fs "$LV_PATH"
+        ;;
+    xfs)
+        MOUNT_POINT=$(df -P "$LV_PATH" | tail -1 | awk '{print $6}')
+        echo "Resizing XFS filesystem at $MOUNT_POINT..."
+        sudo xfs_growfs "$MOUNT_POINT"
+        ;;
+    btrfs)
+        MOUNT_POINT=$(df -P "$LV_PATH" | tail -1 | awk '{print $6}')
+        echo "Resizing Btrfs filesystem at $MOUNT_POINT..."
+        sudo btrfs filesystem resize max "$MOUNT_POINT"
+        ;;
+    *)
+        echo "Unsupported filesystem type: $FS_TYPE"
+        exit 1
+        ;;
+esac
+
+# Step 5: Display results
+echo "=== Resize Complete ==="
+echo "Filesystem usage:"
+df -h "$LV_PATH"
+
+echo -e "\nLVM details:"
+sudo lvdisplay "$LV_PATH" | grep -E "LV Name|LV Size"
+```
+
+## References
+
+- [LVM Administrator Guide - Red Hat](https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/)
+- [Unraid VM Management Documentation](https://docs.unraid.net/)
+- [Linux Kernel Storage Documentation](https://www.kernel.org/doc/html/latest/admin-guide/)

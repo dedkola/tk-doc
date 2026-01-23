@@ -1,0 +1,424 @@
+---
+title: Expose Nginx Load Balancer MetalLB with K3s
+description: Expose Nginx Load Balancer MetalLB with K3s
+tags: [k3s, loadbalancer, metallb, nginx, kubernetes]
+---
+
+## Overview
+
+This guide demonstrates how to expose an Nginx web server using MetalLB load balancer in a K3s Kubernetes cluster. MetalLB is a load-balancer implementation for bare metal Kubernetes clusters that uses standard routing protocols, providing external IP addresses for services of type `LoadBalancer`.
+
+### Key Concepts
+
+**LoadBalancer Service Type**: In Kubernetes, a Service of type `LoadBalancer` automatically provisions an external load balancer. On bare metal clusters without cloud provider integration, MetalLB fulfills this role by allocating external IPs from a configured pool and announcing them via Layer 2 (ARP/NDP) or BGP protocols.
+
+**MetalLB Operating Modes**:
+
+- **Layer 2 Mode**: Uses ARP (IPv4) or NDP (IPv6) to announce the external IP on the local network. Simple to configure, no router cooperation needed.
+- **BGP Mode**: Integrates with network routers using Border Gateway Protocol for advanced routing scenarios and true load balancing across multiple nodes.
+
+### Prerequisites
+
+Before deploying, ensure:
+
+- K3s cluster is running (K3s includes Traefik by default, but MetalLB provides LoadBalancer IPs)
+- MetalLB is installed and configured with an IPAddressPool
+- kubectl is configured to access your cluster
+
+### Quick Deployment Methods
+
+#### Method 1: Imperative Commands (Quick Testing)
+
+```bash
+kubectl create deploy nginx --image nginx:latest
+kubectl expose deploy nginx --port 3000 --target-port 80 --type LoadBalancer
+```
+
+**Command Breakdown**:
+
+- `kubectl create deploy nginx`: Creates a Deployment named "nginx" with default replica count (1)
+- `--image nginx:latest`: Uses the latest Nginx image from Docker Hub
+- `kubectl expose deploy nginx`: Creates a Service resource for the nginx Deployment
+- `--port 3000`: External port that clients will connect to
+- `--target-port 80`: Internal container port where Nginx listens
+- `--type LoadBalancer`: Requests an external IP from MetalLB
+
+#### Method 2: Declarative YAML (Production Recommended)
+
+```bash
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:latest
+        ports:
+        - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx
+spec:
+  type: LoadBalancer
+  selector:
+    app: nginx
+  ports:
+    - port: 3000
+      targetPort: 80
+```
+
+**Manifest Explanation**:
+
+- **replicas: 2**: Runs two Nginx pod instances for high availability
+- **selector.matchLabels**: Links Service to Pods with label `app: nginx`
+- **containerPort: 80**: Exposes container port 80 (Nginx default)
+- **type: LoadBalancer**: Triggers MetalLB to assign an external IP
+- **port: 3000**: External service port
+- **targetPort: 80**: Routes traffic to container port 80
+
+---
+
+## Deployment and Verification
+
+### Deploy the Application
+
+```bash
+# Apply the declarative manifest
+kubectl apply -f nginx-lb.yaml
+
+# Verify deployment status
+kubectl get deployments
+kubectl get pods -l app=nginx -o wide
+
+# Check service and external IP assignment
+kubectl get svc nginx
+```
+
+**Expected Output**:
+
+```
+NAME    TYPE           CLUSTER-IP      EXTERNAL-IP      PORT(S)          AGE
+nginx   LoadBalancer   10.43.123.45    192.168.1.240    3000:30123/TCP   1m
+```
+
+The `EXTERNAL-IP` field shows the IP assigned by MetalLB from its configured pool.
+
+### Verify Connectivity
+
+```bash
+# Test the external IP (replace with your assigned IP)
+curl http://192.168.1.240:3000
+
+# Check MetalLB speaker logs
+kubectl logs -n metallb-system -l component=speaker
+
+# Verify service endpoints
+kubectl get endpoints nginx
+```
+
+---
+
+## Advanced Configuration Options
+
+### Client IP Preservation
+
+By default, traffic routed through a LoadBalancer may obscure the original client IP. To preserve source IPs, configure `externalTrafficPolicy: Local`:
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Local
+  selector:
+    app: nginx
+  ports:
+    - port: 3000
+      targetPort: 80
+```
+
+**Benefits**:
+
+- Preserves client source IP addresses
+- Traffic is routed directly to nodes hosting the pods
+- Useful for logging, security policies, and IP-based access control
+
+**Trade-offs**:
+
+- Nodes without local endpoints are excluded from load balancing
+- May result in uneven traffic distribution
+
+### Scaling the Deployment
+
+Adjust the number of Nginx replicas based on load requirements:
+
+```bash
+# Scale to 5 replicas
+kubectl scale deployment nginx --replicas=5
+
+# Verify scaled pods
+kubectl get pods -l app=nginx
+
+# Enable horizontal pod autoscaling (requires metrics-server)
+kubectl autoscale deployment nginx --min=2 --max=10 --cpu-percent=80
+```
+
+**Autoscaling Behavior**:
+
+- Monitors CPU utilization across pods
+- Scales up when average CPU exceeds 80%
+- Scales down when demand decreases
+- Maintains minimum 2 and maximum 10 replicas
+
+### Resource Limits and Requests
+
+Define resource constraints for production environments:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:latest
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "100m"
+            limits:
+              memory: "128Mi"
+              cpu: "200m"
+```
+
+**Resource Management**:
+
+- **requests**: Guaranteed minimum resources for scheduling
+- **limits**: Maximum resources the container can consume
+- Prevents resource starvation and improves cluster stability
+
+---
+
+## MetalLB Configuration Reference
+
+### Layer 2 Mode Configuration
+
+```yaml
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: first-pool
+  namespace: metallb-system
+spec:
+  addresses:
+    - 192.168.1.240-192.168.1.250
+---
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata:
+  name: l2-advert
+  namespace: metallb-system
+spec:
+  ipAddressPools:
+    - first-pool
+```
+
+**Layer 2 Characteristics**:
+
+- Uses ARP/NDP for IP announcement
+- All traffic for a service goes to one node (elected leader)
+- Automatic failover if the leader node becomes unavailable
+- No router configuration required
+
+### BGP Mode Configuration
+
+```yaml
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: bgp-pool
+  namespace: metallb-system
+spec:
+  addresses:
+    - 192.168.1.240/29
+  autoAssign: true
+---
+apiVersion: metallb.io/v1beta2
+kind: BGPPeer
+metadata:
+  name: router-peer
+  namespace: metallb-system
+spec:
+  myASN: 64512
+  peerASN: 64512
+  peerAddress: 192.168.1.1
+---
+apiVersion: metallb.io/v1beta1
+kind: BGPAdvertisement
+metadata:
+  name: bgp-advert
+  namespace: metallb-system
+spec:
+  ipAddressPools:
+    - bgp-pool
+  communities:
+    - 65535:65282
+```
+
+**BGP Mode Advantages**:
+
+- True load balancing across multiple nodes
+- Better suited for production environments
+- Integrates with existing network infrastructure
+- Supports advanced routing policies and communities
+
+---
+
+## Troubleshooting Guide
+
+### Service Not Getting External IP
+
+```bash
+# Check MetalLB controller logs
+kubectl logs -n metallb-system -l app=metallb,component=controller
+
+# Verify IPAddressPool configuration
+kubectl get ipaddresspools -n metallb-system
+
+# Check L2Advertisement or BGPAdvertisement
+kubectl get l2advertisements -n metallb-system
+kubectl get bgpadvertisements -n metallb-system
+```
+
+**Common Issues**:
+
+- IPAddressPool range exhausted or not defined
+- Advertisement resource missing or misconfigured
+- Network policy blocking MetalLB speaker communication
+
+### Pods Not Receiving Traffic
+
+```bash
+# Check service endpoints
+kubectl describe svc nginx
+
+# Verify pod readiness
+kubectl get pods -l app=nginx
+
+# Test service internally
+kubectl run test-pod --rm -it --image=busybox -- wget -O- http://nginx:3000
+```
+
+### Testing Network Connectivity
+
+```bash
+# Check connectivity from another node
+curl http://<EXTERNAL-IP>:3000
+
+# Verify ARP table (Layer 2 mode)
+arp -a | grep <EXTERNAL-IP>
+
+# Check MetalLB speaker on specific node
+kubectl logs -n metallb-system <speaker-pod-name>
+```
+
+---
+
+## Production Best Practices
+
+1. **Use Declarative Manifests**: Always use YAML files for reproducible deployments
+2. **Configure Resource Limits**: Prevent resource exhaustion with proper limits
+3. **Enable Health Checks**: Implement readiness and liveness probes
+4. **Version Pin Images**: Use specific tags instead of `:latest`
+5. **Monitor External IPs**: Track IP allocation and usage from MetalLB pools
+6. **Plan IP Ranges**: Ensure IPAddressPool ranges don't conflict with DHCP or other services
+7. **Document Network Topology**: Keep records of BGP ASNs, peer relationships, and IP assignments
+
+### Enhanced Deployment with Health Checks
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx
+  labels:
+    app: nginx
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:1.25.3 # Pinned version
+          ports:
+            - containerPort: 80
+              protocol: TCP
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "100m"
+            limits:
+              memory: "128Mi"
+              cpu: "200m"
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 5
+```
+
+**Health Check Benefits**:
+
+- **livenessProbe**: Restarts container if it becomes unresponsive
+- **readinessProbe**: Removes pod from service endpoints until ready
+- Ensures traffic only reaches healthy pods
+- Improves reliability during rolling updates
+
+---
+
+## Additional Resources
+
+- [MetalLB Official Documentation](https://metallb.universe.tf/)
+- [Kubernetes Service Types](https://kubernetes.io/docs/concepts/services-networking/service/)
+- [K3s Documentation](https://docs.k3s.io/)
+- [Nginx Docker Hub](https://hub.docker.com/_/nginx)

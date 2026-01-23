@@ -9,21 +9,24 @@ tags: [docker, ubuntu, container, containerization, docker desktop]
 Docker Desktop for Linux provides a complete Docker development environment with a graphical user interface, Kubernetes integration, and advanced features like Docker Scout and Docker Extensions. This guide covers both Docker Engine installation using the convenience script and Docker Desktop setup on Ubuntu.
 
 <Alert variant="info">
-  **Docker Desktop vs Docker Engine**: Docker Desktop runs containers inside a lightweight VM and includes additional tools like Docker Compose, Docker Build, and a GUI. Docker Engine is the core runtime that can run standalone. Both can be installed side-by-side on the same machine.
+  **Docker Desktop vs Docker Engine**: Docker Desktop runs containers inside a
+  lightweight VM and includes additional tools like Docker Compose, Docker
+  Build, and a GUI. Docker Engine is the core runtime that can run standalone.
+  Both can be installed side-by-side on the same machine.
 </Alert>
 
 ## Prerequisites
 
 Before installing Docker, ensure your system meets the following requirements:
 
-| Requirement | Minimum | Recommended |
-|-------------|---------|-------------|
-| Ubuntu Version | 22.04 LTS (Jammy) | 24.04 LTS (Noble) |
-| CPU Architecture | x86_64 (64-bit) | x86_64 or ARM64 |
-| RAM | 4 GB | 8 GB or more |
-| Disk Space | 20 GB | 50 GB+ for images |
-| Kernel | 5.4+ | Latest stable |
-| Virtualization | KVM support | KVM enabled in BIOS |
+| Requirement      | Minimum           | Recommended         |
+| ---------------- | ----------------- | ------------------- |
+| Ubuntu Version   | 22.04 LTS (Jammy) | 24.04 LTS (Noble)   |
+| CPU Architecture | x86_64 (64-bit)   | x86_64 or ARM64     |
+| RAM              | 4 GB              | 8 GB or more        |
+| Disk Space       | 20 GB             | 50 GB+ for images   |
+| Kernel           | 5.4+              | Latest stable       |
+| Virtualization   | KVM support       | KVM enabled in BIOS |
 
 ### Remove Conflicting Packages
 
@@ -34,7 +37,10 @@ sudo apt remove docker.io docker-compose docker-compose-v2 docker-doc podman-doc
 ```
 
 <Alert variant="warning">
-  **Important**: Images, containers, volumes, and networks stored in `/var/lib/docker/` are preserved when uninstalling Docker packages. If you want a fresh installation, remove these directories after uninstalling conflicting packages.
+  **Important**: Images, containers, volumes, and networks stored in
+  `/var/lib/docker/` are preserved when uninstalling Docker packages. If you
+  want a fresh installation, remove these directories after uninstalling
+  conflicting packages.
 </Alert>
 
 ---
@@ -66,10 +72,14 @@ sudo sh ./get-docker.sh
 ```
 
 <Alert variant="info">
-  **Convenience Script Details**: The `get.docker.com` script automatically detects your Linux distribution, configures the package repository, and installs the latest stable Docker Engine, CLI, containerd, Docker Compose plugin, and Docker Buildx plugin.
+  **Convenience Script Details**: The `get.docker.com` script automatically
+  detects your Linux distribution, configures the package repository, and
+  installs the latest stable Docker Engine, CLI, containerd, Docker Compose
+  plugin, and Docker Buildx plugin.
 </Alert>
 
 **What the convenience script installs:**
+
 - `docker-ce` — Docker Engine daemon
 - `docker-ce-cli` — Docker command-line interface
 - `containerd.io` — Container runtime
@@ -105,7 +115,8 @@ newgrp docker
 ```
 
 <Alert variant="warning">
-  **Security Note**: Adding users to the `docker` group grants privileges equivalent to root access. Only add trusted users to this group.
+  **Security Note**: Adding users to the `docker` group grants privileges
+  equivalent to root access. Only add trusted users to this group.
 </Alert>
 
 Verify non-root access works:
@@ -129,13 +140,13 @@ export DOCKER_HOST=unix:///run/user/1000/docker.sock
 
 ### Understanding Rootless Mode
 
-| Feature | Rootful Docker | Rootless Docker |
-|---------|---------------|-----------------|
-| Daemon runs as | root | Non-root user |
-| Container UID mapping | Direct (0 = root) | User namespace remapped |
-| Socket location | `/var/run/docker.sock` | `$XDG_RUNTIME_DIR/docker.sock` |
-| Network capabilities | Full (iptables, bridge) | Limited (slirp4netns/vpnkit) |
-| Port binding | Any port | Ports > 1024 by default |
+| Feature               | Rootful Docker          | Rootless Docker                |
+| --------------------- | ----------------------- | ------------------------------ |
+| Daemon runs as        | root                    | Non-root user                  |
+| Container UID mapping | Direct (0 = root)       | User namespace remapped        |
+| Socket location       | `/var/run/docker.sock`  | `$XDG_RUNTIME_DIR/docker.sock` |
+| Network capabilities  | Full (iptables, bridge) | Limited (slirp4netns/vpnkit)   |
+| Port binding          | Any port                | Ports > 1024 by default        |
 
 ### Make Rootless Mode Persistent
 
@@ -206,7 +217,8 @@ gpg --generate-key
 
 pass init #your pub key
 ```
-Now you can sign in  Docker Desktop
+
+Now you can sign in Docker Desktop
 
 ### GPG Key Generation Details
 
@@ -268,9 +280,7 @@ Docker daemon configuration is stored in `/etc/docker/daemon.json`. Common confi
     "max-size": "10m",
     "max-file": "3"
   },
-  "default-address-pools": [
-    {"base": "172.17.0.0/16", "size": 24}
-  ],
+  "default-address-pools": [{ "base": "172.17.0.0/16", "size": 24 }],
   "live-restore": true
 }
 ```
@@ -284,6 +294,7 @@ sudo systemctl restart docker
 ### Rootless Mode Configuration
 
 For rootless mode, the configuration file is located at:
+
 - `~/.config/docker/daemon.json`
 
 ---
@@ -309,13 +320,13 @@ docker context use default
 
 ### Common Issues and Solutions
 
-| Issue | Solution |
-|-------|----------|
-| Permission denied on socket | Add user to docker group: `sudo usermod -aG docker $USER` |
-| Docker daemon not running | Start service: `sudo systemctl start docker` |
+| Issue                            | Solution                                                       |
+| -------------------------------- | -------------------------------------------------------------- |
+| Permission denied on socket      | Add user to docker group: `sudo usermod -aG docker $USER`      |
+| Docker daemon not running        | Start service: `sudo systemctl start docker`                   |
 | Cannot connect to Docker Desktop | Ensure VM is running: `systemctl --user status docker-desktop` |
-| Slow file sharing (Linux) | Check subuid/subgid configuration |
-| GPG key errors on sign-in | Re-initialize pass: `pass init <gpg-key-id>` |
+| Slow file sharing (Linux)        | Check subuid/subgid configuration                              |
+| GPG key errors on sign-in        | Re-initialize pass: `pass init <gpg-key-id>`                   |
 
 ### Check Docker Logs
 
@@ -367,16 +378,16 @@ sudo rm /usr/local/bin/com.docker.cli
 
 ## Quick Reference
 
-| Command | Description |
-|---------|-------------|
-| `docker version` | Show Docker version info |
-| `docker info` | Display system-wide information |
-| `docker ps` | List running containers |
-| `docker ps -a` | List all containers |
-| `docker images` | List images |
-| `docker pull <image>` | Download an image |
-| `docker run <image>` | Run a container |
-| `docker stop <container>` | Stop a running container |
-| `docker rm <container>` | Remove a container |
-| `docker rmi <image>` | Remove an image |
-| `docker system prune` | Remove unused data |
+| Command                   | Description                     |
+| ------------------------- | ------------------------------- |
+| `docker version`          | Show Docker version info        |
+| `docker info`             | Display system-wide information |
+| `docker ps`               | List running containers         |
+| `docker ps -a`            | List all containers             |
+| `docker images`           | List images                     |
+| `docker pull <image>`     | Download an image               |
+| `docker run <image>`      | Run a container                 |
+| `docker stop <container>` | Stop a running container        |
+| `docker rm <container>`   | Remove a container              |
+| `docker rmi <image>`      | Remove an image                 |
+| `docker system prune`     | Remove unused data              |

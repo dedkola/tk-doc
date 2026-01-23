@@ -1,7 +1,7 @@
 ---
 title: Bridge to Host Network in VM
 description: How to add a bridge to host network in virtual machines using libvirt and virt-manager.
-tags: ['bridge', 'host', 'network', 'vm', 'libvirt', 'virt-manager']
+tags: ["bridge", "host", "network", "vm", "libvirt", "virt-manager"]
 ---
 
 ## Overview
@@ -17,6 +17,7 @@ Bridge networking is a fundamental technique for connecting virtual machines dir
 **Spanning Tree Protocol (STP)**: The bridge supports STP to prevent loops when multiple paths exist between segments. STP is essential in complex network topologies with redundant links, as it automatically disables redundant paths and re-enables them if a primary path fails.
 
 **Why Use Bridging?**
+
 - VMs receive their own IP addresses from the network's DHCP server
 - Direct communication between VMs and physical network devices
 - External devices can reach VMs without port forwarding or NAT translation overhead
@@ -69,7 +70,6 @@ When you execute the above commands, NetworkManager performs the following opera
 
 2. **Device State Transitions**: The physical device (`enp114s0`) transitions through several states:
    - `unavailable` → `disconnected` → `prepare` → `config` → `needauth` → `activated`
-   
 3. **Interface Configuration**: The bridge interface performs:
    - MAC address initialization (typically inherits from the primary enslaved NIC)
    - MTU (Maximum Transmission Unit) discovery from enslaved devices
@@ -281,6 +281,7 @@ When using libvirt for VM management, you can define networks that utilize your 
 ```
 
 **Configuration Parameters Explained:**
+
 - `model type='virtio'`: Uses the virtio network driver (preferred for KVM, better performance than e1000)
 - `driver name='vhost'`: Enables vhost-net kernel module for improved performance
 - `queues='2'`: Configures multiple vhost queues for multiqueue support (improves throughput on SMP systems)
@@ -353,17 +354,20 @@ watch -n 1 'ip -s link show br0'
 ### Common Issues and Solutions
 
 **Issue**: VM cannot obtain DHCP lease
+
 - **Cause**: DHCP broadcast frames not being forwarded by bridge
-- **Solution**: 
+- **Solution**:
+
   ```bash
   # Verify bridge STP state (should be forwarding)
   ip link show br0
-  
+
   # Restart NetworkManager
   sudo systemctl restart NetworkManager
   ```
 
 **Issue**: High latency on bridge communication
+
 - **Cause**: STP convergence delays or heavy ARP traffic
 - **Solution**:
   ```bash
@@ -373,6 +377,7 @@ watch -n 1 'ip -s link show br0'
   ```
 
 **Issue**: MAC address table full (rare but possible on large deployments)
+
 - **Cause**: Too many unique source MAC addresses
 - **Solution**: Increase ageing time to reduce table growth
   ```bash
@@ -382,32 +387,37 @@ watch -n 1 'ip -s link show br0'
 ## Best Practices for Production Deployments
 
 1. **Enable STP for Redundancy**: If you have multiple physical uplinks, enable Spanning Tree to prevent loops
+
    ```bash
    sudo nmcli connection modify br0 bridge.stp yes
    ```
 
 2. **Monitor Bridge Statistics**: Regularly monitor packet loss and forwarding performance
+
    ```bash
    # Log bridge statistics for analysis
    ip -s link show br0 >> bridge-stats.log
    ```
 
 3. **Document Bridge Configuration**: Keep records of bridge settings and enslaved interfaces
+
    ```bash
    # Export current bridge configuration
    nmcli connection show br0 > bridge-config-backup.txt
    ```
 
 4. **Use Virtio Network Model**: For KVM VMs, always prefer virtio over emulated models for better performance
+
    ```xml
    <model type='virtio'/>
    ```
 
 5. **Configure MTU Appropriately**: Ensure consistent MTU across bridge and enslaved interfaces
+
    ```bash
    # Check current MTU
    ip link show | grep -i mtu
-   
+
    # Set MTU for jumbo frames (if network supports)
    sudo nmcli connection modify br0 ethernet.mtu 9000
    ```

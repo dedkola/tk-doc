@@ -20,7 +20,9 @@ Before proceeding, ensure you have:
 - **Network connectivity** between your local machine and the remote server on port `16443`
 
 <Alert type="warning">
-**Security Note:** Exposing the Kubernetes API server to a network increases the attack surface. Ensure you have proper firewall rules in place and consider using a VPN or SSH tunnel for production environments.
+  **Security Note:** Exposing the Kubernetes API server to a network increases
+  the attack surface. Ensure you have proper firewall rules in place and
+  consider using a VPN or SSH tunnel for production environments.
 </Alert>
 
 ## Understanding the Architecture
@@ -29,11 +31,11 @@ When you connect remotely to a Kubernetes cluster, your local `kubectl` client c
 
 **Key components involved:**
 
-| Component | Description | Default Port |
-|-----------|-------------|--------------|
-| kube-apiserver | Main API endpoint for all cluster operations | 16443 (MicroK8s) |
-| etcd/dqlite | Distributed key-value store for cluster state | 2379 |
-| kubelet | Node agent running on each node | 10250 |
+| Component      | Description                                   | Default Port     |
+| -------------- | --------------------------------------------- | ---------------- |
+| kube-apiserver | Main API endpoint for all cluster operations  | 16443 (MicroK8s) |
+| etcd/dqlite    | Distributed key-value store for cluster state | 2379             |
+| kubelet        | Node agent running on each node               | 10250            |
 
 ---
 
@@ -54,10 +56,11 @@ sudo nano /var/snap/microk8s/current/args/kube-apiserver
 <Alert type="info">
 **Configuration Parameters Explained:**
 
-| Parameter | Value | Purpose |
-|-----------|-------|---------|
+| Parameter             | Value                                    | Purpose                                             |
+| --------------------- | ---------------------------------------- | --------------------------------------------------- |
 | `--advertise-address` | Your server's IP (e.g., `192.168.0.100`) | Tells other components where to find the API server |
-| `--bind-address` | `0.0.0.0` | Listens on all network interfaces |
+| `--bind-address`      | `0.0.0.0`                                | Listens on all network interfaces                   |
+
 </Alert>
 
 ### Alternative: View All Available kube-apiserver Options
@@ -102,10 +105,8 @@ sudo microk8s kubectl cluster-info
 ```
 
 <Alert type="tip">
-**Troubleshooting:** If the cluster doesn't start properly, check the logs:
-```bash
-sudo journalctl -u snap.microk8s.daemon-kubelite -f
-```
+  **Troubleshooting:** If the cluster doesn't start properly, check the logs:
+  ```bash sudo journalctl -u snap.microk8s.daemon-kubelite -f ```
 </Alert>
 
 ---
@@ -131,21 +132,21 @@ The generated kubeconfig follows a standard structure:
 apiVersion: v1
 kind: Config
 clusters:
-- cluster:
-    certificate-authority-data: <base64-encoded-ca-cert>
-    server: https://<server-ip>:16443
-  name: microk8s-cluster
+  - cluster:
+      certificate-authority-data: <base64-encoded-ca-cert>
+      server: https://<server-ip>:16443
+    name: microk8s-cluster
 contexts:
-- context:
-    cluster: microk8s-cluster
-    user: admin
-  name: microk8s
+  - context:
+      cluster: microk8s-cluster
+      user: admin
+    name: microk8s
 current-context: microk8s
 users:
-- name: admin
-  user:
-    client-certificate-data: <base64-encoded-client-cert>
-    client-key-data: <base64-encoded-client-key>
+  - name: admin
+    user:
+      client-certificate-data: <base64-encoded-client-cert>
+      client-key-data: <base64-encoded-client-key>
 ```
 
 ### Set Proper Permissions
@@ -252,17 +253,15 @@ kubectl config view --flatten > ~/.kube/merged-config
 
 ## Security Best Practices
 
-<Alert type="warning">
-**Important Security Considerations:**
-</Alert>
+<Alert type="warning">**Important Security Considerations:**</Alert>
 
-| Practice | Description |
-|----------|-------------|
-| **Use firewall rules** | Restrict access to port 16443 to trusted IP addresses only |
-| **Enable RBAC** | Use Role-Based Access Control to limit user permissions |
-| **Rotate certificates** | Regularly rotate TLS certificates for enhanced security |
-| **Use SSH tunnels** | For production, consider tunneling through SSH instead of exposing the API directly |
-| **Network policies** | Implement Kubernetes NetworkPolicies to control pod-to-pod traffic |
+| Practice                | Description                                                                         |
+| ----------------------- | ----------------------------------------------------------------------------------- |
+| **Use firewall rules**  | Restrict access to port 16443 to trusted IP addresses only                          |
+| **Enable RBAC**         | Use Role-Based Access Control to limit user permissions                             |
+| **Rotate certificates** | Regularly rotate TLS certificates for enhanced security                             |
+| **Use SSH tunnels**     | For production, consider tunneling through SSH instead of exposing the API directly |
+| **Network policies**    | Implement Kubernetes NetworkPolicies to control pod-to-pod traffic                  |
 
 ### Secure Access via SSH Tunnel (Alternative)
 
@@ -280,7 +279,6 @@ kubectl --server=https://127.0.0.1:16443 get nodes
 
 ## Troubleshooting
 
-
 ### Useful Diagnostic Commands
 
 ```bash copy
@@ -296,4 +294,3 @@ curl -k https://<server-ip>:16443/healthz
 # Check certificate details
 openssl s_client -connect <server-ip>:16443 </dev/null 2>/dev/null | openssl x509 -text -noout | grep -A1 "Subject Alternative Name"
 ```
-

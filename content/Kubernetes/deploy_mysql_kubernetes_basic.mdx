@@ -19,12 +19,12 @@ Before you begin, ensure you have the following:
 
 ### Key Kubernetes Concepts
 
-| Concept | Description |
-|---------|-------------|
-| **Deployment** | Manages a set of identical Pods, ensuring the specified number of replicas are running |
-| **ReplicaSet** | Created by Deployment to maintain the desired number of Pod replicas |
-| **Service** | Exposes Pods to network traffic and provides load balancing |
-| **LoadBalancer** | Service type that provisions an external IP address for accessing the application |
+| Concept          | Description                                                                            |
+| ---------------- | -------------------------------------------------------------------------------------- |
+| **Deployment**   | Manages a set of identical Pods, ensuring the specified number of replicas are running |
+| **ReplicaSet**   | Created by Deployment to maintain the desired number of Pod replicas                   |
+| **Service**      | Exposes Pods to network traffic and provides load balancing                            |
+| **LoadBalancer** | Service type that provisions an external IP address for accessing the application      |
 
 ## MySQL Deployment Architecture
 
@@ -34,7 +34,9 @@ The deployment consists of two main Kubernetes resources:
 2. **Service**: Exposes MySQL on port 3306 via LoadBalancer
 
 <Alert type="warning">
-**Production Warning**: This basic deployment uses plaintext passwords and lacks persistent storage. For production environments, use Kubernetes Secrets for credentials and PersistentVolumeClaims for data persistence.
+  **Production Warning**: This basic deployment uses plaintext passwords and
+  lacks persistent storage. For production environments, use Kubernetes Secrets
+  for credentials and PersistentVolumeClaims for data persistence.
 </Alert>
 
 ## Create deployment file
@@ -89,12 +91,12 @@ spec:
 
 ### Service Configuration Details
 
-| Field | Value | Description |
-|-------|-------|-------------|
-| `selector.app` | mysql | Routes traffic to Pods with label `app: mysql` |
-| `port` | 3306 | External port the Service listens on |
-| `targetPort` | 3306 | Port on the container to forward traffic to |
-| `type` | LoadBalancer | Provisions an external IP via MetalLB |
+| Field          | Value        | Description                                    |
+| -------------- | ------------ | ---------------------------------------------- |
+| `selector.app` | mysql        | Routes traffic to Pods with label `app: mysql` |
+| `port`         | 3306         | External port the Service listens on           |
+| `targetPort`   | 3306         | Port on the container to forward traffic to    |
+| `type`         | LoadBalancer | Provisions an external IP via MetalLB          |
 
 ### Deploy the Application
 
@@ -125,15 +127,16 @@ mysql -u root -p -h 10.11.0.51 -P 3306
 
 ### Connection Parameters Explained
 
-| Parameter | Description |
-|-----------|-------------|
-| `-u root` | Connect as the MySQL root user |
-| `-p` | Prompt for password (enter the password from `MYSQL_ROOT_PASSWORD`) |
-| `-h 10.11.0.51` | Host IP address (your LoadBalancer external IP) |
-| `-P 3306` | MySQL port number |
+| Parameter       | Description                                                         |
+| --------------- | ------------------------------------------------------------------- |
+| `-u root`       | Connect as the MySQL root user                                      |
+| `-p`            | Prompt for password (enter the password from `MYSQL_ROOT_PASSWORD`) |
+| `-h 10.11.0.51` | Host IP address (your LoadBalancer external IP)                     |
+| `-P 3306`       | MySQL port number                                                   |
 
 <Alert type="info">
-**Finding Your External IP**: Run `microk8s kubectl get svc mysql-service` to see the `EXTERNAL-IP` assigned by MetalLB.
+  **Finding Your External IP**: Run `microk8s kubectl get svc mysql-service` to
+  see the `EXTERNAL-IP` assigned by MetalLB.
 </Alert>
 
 ### Verify Database Connectivity
@@ -164,24 +167,24 @@ microk8s kubectl describe services mysql-service
 
 ### Command Reference
 
-| Command | Purpose |
-|---------|---------|
-| `get pods --watch` | Real-time monitoring of Pod status changes |
-| `get pods -o wide` | Shows Pod IPs and node placement |
-| `logs <pod-name>` | View container logs for debugging |
-| `describe services` | Detailed Service info including endpoints |
+| Command             | Purpose                                    |
+| ------------------- | ------------------------------------------ |
+| `get pods --watch`  | Real-time monitoring of Pod status changes |
+| `get pods -o wide`  | Shows Pod IPs and node placement           |
+| `logs <pod-name>`   | View container logs for debugging          |
+| `describe services` | Detailed Service info including endpoints  |
 
 ### Understanding Pod States
 
 When running `kubectl get pods`, you may see these states:
 
-| State | Description |
-|-------|-------------|
-| `Pending` | Pod accepted but container not yet created |
-| `ContainerCreating` | Image being pulled and container starting |
-| `Running` | Container executing successfully |
-| `CrashLoopBackOff` | Container crashed and Kubernetes is restarting it |
-| `Error` | Container terminated with an error |
+| State               | Description                                       |
+| ------------------- | ------------------------------------------------- |
+| `Pending`           | Pod accepted but container not yet created        |
+| `ContainerCreating` | Image being pulled and container starting         |
+| `Running`           | Container executing successfully                  |
+| `CrashLoopBackOff`  | Container crashed and Kubernetes is restarting it |
+| `Error`             | Container terminated with an error                |
 
 ## Scaling the Deployment
 
@@ -209,7 +212,10 @@ When you scale a Deployment:
 3. **Load Balancing**: The Service automatically distributes traffic across all healthy Pods
 
 <Alert type="info">
-**Note on Database Scaling**: While this demonstrates Kubernetes scaling, running multiple MySQL instances without proper replication configuration will result in separate, independent databases. For true MySQL clustering, consider MySQL Group Replication or Galera Cluster.
+  **Note on Database Scaling**: While this demonstrates Kubernetes scaling,
+  running multiple MySQL instances without proper replication configuration will
+  result in separate, independent databases. For true MySQL clustering, consider
+  MySQL Group Replication or Galera Cluster.
 </Alert>
 
 ## Troubleshooting
@@ -350,9 +356,9 @@ containers:
       timeoutSeconds: 1
 ```
 
-| Probe Type | Purpose |
-|------------|---------|
-| **livenessProbe** | Restarts container if it becomes unresponsive |
+| Probe Type         | Purpose                                        |
+| ------------------ | ---------------------------------------------- |
+| **livenessProbe**  | Restarts container if it becomes unresponsive  |
 | **readinessProbe** | Removes Pod from Service endpoints until ready |
 
 ## Next Steps

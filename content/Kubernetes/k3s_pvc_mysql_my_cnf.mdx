@@ -13,12 +13,11 @@ metadata:
   name: mysql-pvc
 spec:
   accessModes:
-    - ReadWriteOnce  
+    - ReadWriteOnce
   resources:
     requests:
-      storage: 40Gi 
+      storage: 40Gi
 ```
-
 
 ### MySQL config
 
@@ -58,33 +57,33 @@ spec:
         app: mysqlsingle
     spec:
       containers:
-      - name: mysqlsingle
-        image: mysql:8.0
-        env:
-        - name: MYSQL_ROOT_PASSWORD
-          value: "123"
-        ports:
-        - containerPort: 3306
-        resources:
-          requests:
-            memory: "4Gi"    
-            cpu: "2"         
-          limits:
-            memory: "8Gi"    
-            cpu: "4"
-        volumeMounts:
-        - mountPath: /var/lib/mysql  
-          name: mysql-data
-        - mountPath: /etc/mysql/my.cnf
-          name: mysql-config-volume
-          subPath: my.cnf
+        - name: mysqlsingle
+          image: mysql:8.0
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              value: "123"
+          ports:
+            - containerPort: 3306
+          resources:
+            requests:
+              memory: "4Gi"
+              cpu: "2"
+            limits:
+              memory: "8Gi"
+              cpu: "4"
+          volumeMounts:
+            - mountPath: /var/lib/mysql
+              name: mysql-data
+            - mountPath: /etc/mysql/my.cnf
+              name: mysql-config-volume
+              subPath: my.cnf
       volumes:
-      - name: mysql-data
-        persistentVolumeClaim:
-          claimName: mysql-pvc
-      - name: mysql-config-volume
-        configMap:
-          name: mysql-config                             
+        - name: mysql-data
+          persistentVolumeClaim:
+            claimName: mysql-pvc
+        - name: mysql-config-volume
+          configMap:
+            name: mysql-config
 ---
 apiVersion: v1
 kind: Service
@@ -95,6 +94,6 @@ spec:
   selector:
     app: mysqlsingle
   ports:
-  - port: 3306
-    targetPort: 3306
+    - port: 3306
+      targetPort: 3306
 ```

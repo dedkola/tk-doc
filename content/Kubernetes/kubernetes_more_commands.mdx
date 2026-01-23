@@ -1,7 +1,8 @@
 ---
 title: Microk8s Kubernetes More Commands for mostly debugging and troubleshooting
 description: Kubernetes More Commands for mostly debugging and troubleshooting
-tags: [kubernetes, troubleshooting, logs, debugging, kubectl, microk8s, minikube]
+tags:
+  [kubernetes, troubleshooting, logs, debugging, kubectl, microk8s, minikube]
 ---
 
 This guide provides essential commands for debugging and troubleshooting MicroK8s Kubernetes clusters. These commands help diagnose networking issues, inspect cluster state, analyze pod failures, and monitor resource usage.
@@ -9,6 +10,7 @@ This guide provides essential commands for debugging and troubleshooting MicroK8
 ## Cluster Configuration
 
 ### Get Kubernetes API
+
 Ensure the Pod CIDR is consistent across the cluster. Check the API server flags
 
 ```bash
@@ -35,7 +37,6 @@ cat /var/snap/microk8s/current/args/kube-controller-manager
 cat /var/snap/microk8s/current/args/kube-scheduler
 ```
 
-
 ## DNS and Networking
 
 ### Check the CoreDNS configuration
@@ -48,16 +49,16 @@ microk8s kubectl describe configmap -n kube-system coredns
 
 **Key CoreDNS plugins to understand:**
 
-| Plugin | Purpose |
-|--------|---------|
-| `errors` | Logs errors to stdout for debugging |
-| `ready` | Provides health check endpoint on port 8181 |
-| `kubernetes` | Handles DNS queries for cluster services and pods |
-| `forward` | Forwards external DNS queries to upstream resolvers |
-| `cache` | Enables DNS response caching (default: 30s) |
-| `loop` | Detects and prevents DNS forwarding loops |
-| `reload` | Auto-reloads configuration changes (takes ~2 minutes) |
-| `loadbalance` | Round-robin load balancing for A/AAAA/MX records |
+| Plugin        | Purpose                                               |
+| ------------- | ----------------------------------------------------- |
+| `errors`      | Logs errors to stdout for debugging                   |
+| `ready`       | Provides health check endpoint on port 8181           |
+| `kubernetes`  | Handles DNS queries for cluster services and pods     |
+| `forward`     | Forwards external DNS queries to upstream resolvers   |
+| `cache`       | Enables DNS response caching (default: 30s)           |
+| `loop`        | Detects and prevents DNS forwarding loops             |
+| `reload`      | Auto-reloads configuration changes (takes ~2 minutes) |
+| `loadbalance` | Round-robin load balancing for A/AAAA/MX records      |
 
 To view CoreDNS logs for debugging DNS resolution issues:
 
@@ -149,13 +150,13 @@ microk8s kubectl debug node/mynode -it --image=busybox
 
 ### Common Exit Codes Reference
 
-| Exit Code | Meaning |
-|-----------|---------|
-| 0 | Success (container completed normally) |
-| 1 | Application error |
-| 137 | Container killed (OOMKilled or SIGKILL) |
-| 139 | Segmentation fault (SIGSEGV) |
-| 143 | Graceful termination (SIGTERM) |
+| Exit Code | Meaning                                 |
+| --------- | --------------------------------------- |
+| 0         | Success (container completed normally)  |
+| 1         | Application error                       |
+| 137       | Container killed (OOMKilled or SIGKILL) |
+| 139       | Segmentation fault (SIGSEGV)            |
+| 143       | Graceful termination (SIGTERM)          |
 
 ## Certificate Management
 
@@ -185,13 +186,13 @@ openssl x509 -in /var/snap/microk8s/current/certs/server.crt -text -noout | grep
 
 **Understanding Kubernetes certificates:**
 
-| Certificate | Purpose |
-|-------------|---------|
-| `server.crt` | API server serving certificate |
+| Certificate              | Purpose                                         |
+| ------------------------ | ----------------------------------------------- |
+| `server.crt`             | API server serving certificate                  |
 | `front-proxy-client.crt` | Client cert for front-proxy (aggregation layer) |
-| `ca.crt` | Root Certificate Authority for the cluster |
-| `kubelet.crt` | Kubelet serving certificate |
-| `etcd/server.crt` | etcd server certificate |
+| `ca.crt`                 | Root Certificate Authority for the cluster      |
+| `kubelet.crt`            | Kubelet serving certificate                     |
+| `etcd/server.crt`        | etcd server certificate                         |
 
 ## Cluster Inspection and Configuration
 
@@ -204,6 +205,7 @@ microk8s inspect
 ```
 
 This command gathers:
+
 - Service status for all MicroK8s daemons
 - Network configuration and iptables rules
 - Kubernetes API server, controller-manager, and scheduler logs
@@ -264,16 +266,16 @@ microk8s kubectl get pods -A -o wide
 
 **Output columns explained:**
 
-| Column | Description |
-|--------|-------------|
-| NAMESPACE | The namespace where the pod runs |
-| NAME | Pod name (includes ReplicaSet hash for deployments) |
-| READY | Containers ready vs total (e.g., 1/1) |
-| STATUS | Current pod phase (Running, Pending, etc.) |
-| RESTARTS | Number of container restarts |
-| AGE | Time since pod creation |
-| IP | Pod's internal cluster IP |
-| NODE | Node where the pod is scheduled |
+| Column    | Description                                         |
+| --------- | --------------------------------------------------- |
+| NAMESPACE | The namespace where the pod runs                    |
+| NAME      | Pod name (includes ReplicaSet hash for deployments) |
+| READY     | Containers ready vs total (e.g., 1/1)               |
+| STATUS    | Current pod phase (Running, Pending, etc.)          |
+| RESTARTS  | Number of container restarts                        |
+| AGE       | Time since pod creation                             |
+| IP        | Pod's internal cluster IP                           |
+| NODE      | Node where the pod is scheduled                     |
 
 Additional useful listing commands:
 
@@ -309,7 +311,6 @@ microk8s kubectl get events -A -w
 microk8s kubectl get events -A --field-selector type=Warning
 ```
 
-
 ## Monitoring
 
 The Metrics Server is a cluster-wide aggregator of resource usage data. It collects metrics from the kubelet's Summary API and exposes them through the Kubernetes Metrics API, which is used by `kubectl top` and Horizontal Pod Autoscaler (HPA).
@@ -340,12 +341,12 @@ microk8s kubectl top nodes
 
 **Understanding the output:**
 
-| Metric | Description |
-|--------|-------------|
-| CPU(cores) | Current CPU usage in millicores (m) or cores |
-| CPU% | Percentage of allocatable CPU being used |
-| MEMORY(bytes) | Current memory usage in bytes (Mi/Gi) |
-| MEMORY% | Percentage of allocatable memory being used |
+| Metric        | Description                                  |
+| ------------- | -------------------------------------------- |
+| CPU(cores)    | Current CPU usage in millicores (m) or cores |
+| CPU%          | Percentage of allocatable CPU being used     |
+| MEMORY(bytes) | Current memory usage in bytes (Mi/Gi)        |
+| MEMORY%       | Percentage of allocatable memory being used  |
 
 ### Check pods usage
 
@@ -384,6 +385,7 @@ microk8s kubectl get --raw "/apis/metrics.k8s.io/v1beta1/namespaces/<namespace>/
 ```
 
 **Example response structure:**
+
 ```json
 {
   "kind": "NodeMetrics",
@@ -399,11 +401,13 @@ microk8s kubectl get --raw "/apis/metrics.k8s.io/v1beta1/namespaces/<namespace>/
 ```
 
 **CPU units explained:**
+
 - `n` (nanocores): 1 core = 1,000,000,000n
 - `m` (millicores): 1 core = 1000m
 - `1` = 1 full CPU core
 
 **Memory units explained:**
+
 - `Ki` (kibibytes): 1024 bytes
 - `Mi` (mebibytes): 1024 Ki
 - `Gi` (gibibytes): 1024 Mi

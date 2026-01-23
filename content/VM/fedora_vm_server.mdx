@@ -1,7 +1,21 @@
 ---
 title: Fedora VM Server. Best alternative to Proxmox and VMware Setup
 description: VM server based on Fedora 42 server edition. No need Proxmox or VMware ESXi.
-tags: ['fedora', 'vm', 'server', 'kvm', 'libvirt', 'virt-manager', 'proxmox', 'vmware', 'podman', 'cockpit', 'virtualization', 'containers']
+tags:
+  [
+    "fedora",
+    "vm",
+    "server",
+    "kvm",
+    "libvirt",
+    "virt-manager",
+    "proxmox",
+    "vmware",
+    "podman",
+    "cockpit",
+    "virtualization",
+    "containers",
+  ]
 ---
 
 ## Introduction
@@ -10,15 +24,15 @@ Fedora Server provides an enterprise-grade virtualization platform using **KVM (
 
 ### Why Choose Fedora as a Virtualization Host?
 
-| Feature | Fedora Server | Proxmox VE | VMware ESXi |
-|---------|---------------|------------|-------------|
-| **Base System** | Full Linux OS | Debian-based | Proprietary |
-| **License Cost** | Free | Free (paid support) | Paid |
-| **Hypervisor** | KVM/QEMU | KVM/QEMU | ESXi |
-| **Container Runtime** | Podman (native) | LXC/Docker | None |
-| **Web Management** | Cockpit | Proxmox UI | vCenter |
-| **CLI Access** | Full Linux shell | Limited | Very limited |
-| **Package Updates** | dnf (latest) | apt (stable) | VMware patches |
+| Feature               | Fedora Server    | Proxmox VE          | VMware ESXi    |
+| --------------------- | ---------------- | ------------------- | -------------- |
+| **Base System**       | Full Linux OS    | Debian-based        | Proprietary    |
+| **License Cost**      | Free             | Free (paid support) | Paid           |
+| **Hypervisor**        | KVM/QEMU         | KVM/QEMU            | ESXi           |
+| **Container Runtime** | Podman (native)  | LXC/Docker          | None           |
+| **Web Management**    | Cockpit          | Proxmox UI          | vCenter        |
+| **CLI Access**        | Full Linux shell | Limited             | Very limited   |
+| **Package Updates**   | dnf (latest)     | apt (stable)        | VMware patches |
 
 ### Architecture Overview
 
@@ -198,16 +212,16 @@ virt-install \
 
 ### Common virt-install Options
 
-| Option | Description | Example |
-|--------|-------------|---------|
-| `--name` | VM name | `--name myvm` |
-| `--memory` | RAM in MB | `--memory 8192` |
-| `--vcpus` | CPU cores | `--vcpus 4` |
-| `--disk` | Storage config | `--disk size=50` |
-| `--cdrom` | ISO installer | `--cdrom /path/to.iso` |
-| `--network` | Network type | `--network bridge=br0` |
+| Option         | Description     | Example                    |
+| -------------- | --------------- | -------------------------- |
+| `--name`       | VM name         | `--name myvm`              |
+| `--memory`     | RAM in MB       | `--memory 8192`            |
+| `--vcpus`      | CPU cores       | `--vcpus 4`                |
+| `--disk`       | Storage config  | `--disk size=50`           |
+| `--cdrom`      | ISO installer   | `--cdrom /path/to.iso`     |
+| `--network`    | Network type    | `--network bridge=br0`     |
 | `--os-variant` | OS optimization | `--os-variant ubuntu24.04` |
-| `--graphics` | Display type | `--graphics spice` |
+| `--graphics`   | Display type    | `--graphics spice`         |
 
 ### virsh Management Commands
 
@@ -447,12 +461,12 @@ virsh dommemstat vm-name
 
 Key log locations for troubleshooting:
 
-| Log | Path | Purpose |
-|-----|------|---------|
-| libvirtd | `/var/log/libvirt/libvirtd.log` | libvirt daemon logs |
-| QEMU | `/var/log/libvirt/qemu/vm-name.log` | Per-VM QEMU logs |
-| Cockpit | `journalctl -u cockpit` | Cockpit service logs |
-| Podman | `podman logs container-name` | Container stdout/stderr |
+| Log      | Path                                | Purpose                 |
+| -------- | ----------------------------------- | ----------------------- |
+| libvirtd | `/var/log/libvirt/libvirtd.log`     | libvirt daemon logs     |
+| QEMU     | `/var/log/libvirt/qemu/vm-name.log` | Per-VM QEMU logs        |
+| Cockpit  | `journalctl -u cockpit`             | Cockpit service logs    |
+| Podman   | `podman logs container-name`        | Container stdout/stderr |
 
 ```bash copy
 # Enable debug logging for libvirt

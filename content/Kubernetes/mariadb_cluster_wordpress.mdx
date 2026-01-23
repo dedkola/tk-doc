@@ -7,7 +7,11 @@ tags: [mariadb, wordpress, microk8s, kubernetes, cluster, replication]
 import { Alert } from "@/components/ui/Alert";
 
 <Alert variant="warning">
-  **Warning**: Don't use this configuration in any production environment. This is for testing purposes only in local and Home LAN environments. For production deployments, consider implementing proper security measures including strong passwords, network policies, TLS encryption, and backup strategies.
+  **Warning**: Don't use this configuration in any production environment. This
+  is for testing purposes only in local and Home LAN environments. For
+  production deployments, consider implementing proper security measures
+  including strong passwords, network policies, TLS encryption, and backup
+  strategies.
 </Alert>
 
 ## Overview
@@ -28,12 +32,12 @@ This topology is ideal for read-heavy workloads where you can distribute SELECT 
 
 Before starting, ensure you have the following components installed and configured:
 
-| Component | Minimum Version | Purpose |
-|-----------|----------------|---------|
-| MicroK8s | 1.28+ | Kubernetes distribution |
-| Helm | 3.12+ | Package manager for Kubernetes |
-| kubectl | 1.28+ | Kubernetes CLI tool |
-| Storage Class | - | For persistent volume provisioning |
+| Component     | Minimum Version | Purpose                            |
+| ------------- | --------------- | ---------------------------------- |
+| MicroK8s      | 1.28+           | Kubernetes distribution            |
+| Helm          | 3.12+           | Package manager for Kubernetes     |
+| kubectl       | 1.28+           | Kubernetes CLI tool                |
+| Storage Class | -               | For persistent volume provisioning |
 
 Enable required MicroK8s addons:
 
@@ -50,6 +54,7 @@ MariaDB replication uses a **binary log (binlog)** based mechanism where:
 3. Each secondary applies the logged events to maintain data consistency
 
 Key replication parameters in the configuration:
+
 - `replicationPassword`: Credentials for the replication user that secondaries use to connect to the primary
 - `replicaCount`: Number of secondary read replicas to deploy
 
@@ -64,6 +69,7 @@ Create the MariaDB Helm values file that defines the replication topology:
 ```bash
 nano mariadb.yaml
 ```
+
 ```yaml
 architecture: "replication"
 auth:
@@ -82,17 +88,18 @@ networkPolicy:
 
 #### Configuration Parameters Breakdown
 
-| Parameter | Value | Description |
-|-----------|-------|-------------|
-| `architecture` | `replication` | Enables primary-secondary replication mode (alternatives: `standalone`) |
-| `auth.rootPassword` | - | Root user password for administrative access |
-| `auth.replicationPassword` | - | Password for the replication user connecting secondaries to primary |
-| `secondary.replicaCount` | `4` | Number of read replicas to create |
-| `tls.enabled` | `true` | Enables TLS encryption for client connections |
-| `networkPolicy.enabled` | `false` | Disables Kubernetes NetworkPolicy (enable in production) |
+| Parameter                  | Value         | Description                                                             |
+| -------------------------- | ------------- | ----------------------------------------------------------------------- |
+| `architecture`             | `replication` | Enables primary-secondary replication mode (alternatives: `standalone`) |
+| `auth.rootPassword`        | -             | Root user password for administrative access                            |
+| `auth.replicationPassword` | -             | Password for the replication user connecting secondaries to primary     |
+| `secondary.replicaCount`   | `4`           | Number of read replicas to create                                       |
+| `tls.enabled`              | `true`        | Enables TLS encryption for client connections                           |
+| `networkPolicy.enabled`    | `false`       | Disables Kubernetes NetworkPolicy (enable in production)                |
 
 <Alert variant="info">
-  **Tip**: For production environments, use strong randomly-generated passwords. You can generate secure passwords using: `openssl rand -base64 32`
+  **Tip**: For production environments, use strong randomly-generated passwords.
+  You can generate secure passwords using: `openssl rand -base64 32`
 </Alert>
 
 ---
@@ -102,9 +109,11 @@ networkPolicy:
 ### Values for WordPress
 
 The WordPress deployment uses a Kubernetes manifest that defines the Service, PersistentVolumeClaim, and Deployment resources:
+
 ```bash
 nano wordpress.yaml
 ```
+
 ```yaml
 apiVersion: v1
 kind: Service
@@ -153,28 +162,28 @@ spec:
         tier: frontend
     spec:
       containers:
-      - image: wordpress:6.2.1-apache
-        name: wordpress
-        env:
-        - name: WORDPRESS_DB_HOST
-          value: wordpress-mariadb
-        - name: WORDPRESS_DB_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: mysql-pass
-              key: password
-        - name: WORDPRESS_DB_USER
-          value: wordpress
-        ports:
-        - containerPort: 80
+        - image: wordpress:6.2.1-apache
           name: wordpress
-        volumeMounts:
-        - name: wordpress-persistent-storage
-          mountPath: /var/www/html
+          env:
+            - name: WORDPRESS_DB_HOST
+              value: wordpress-mariadb
+            - name: WORDPRESS_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-pass
+                  key: password
+            - name: WORDPRESS_DB_USER
+              value: wordpress
+          ports:
+            - containerPort: 80
+              name: wordpress
+          volumeMounts:
+            - name: wordpress-persistent-storage
+              mountPath: /var/www/html
       volumes:
-      - name: wordpress-persistent-storage
-        persistentVolumeClaim:
-          claimName: wp-pv-claim
+        - name: wordpress-persistent-storage
+          persistentVolumeClaim:
+            claimName: wp-pv-claim
 ```
 
 #### WordPress Manifest Components
@@ -186,6 +195,7 @@ spec:
 **Deployment Strategy**: Uses `Recreate` strategy which terminates the old pod before creating a new one during updates. This prevents multiple pods accessing the same PersistentVolume simultaneously.
 
 **Environment Variables**:
+
 - `WORDPRESS_DB_HOST`: Points to the MariaDB primary service
 - `WORDPRESS_DB_PASSWORD`: Securely retrieved from a Kubernetes Secret
 - `WORDPRESS_DB_USER`: Database username for WordPress
@@ -320,12 +330,12 @@ kubectl top pods -l app.kubernetes.io/name=mariadb
 
 ### Common Issues
 
-| Issue | Possible Cause | Solution |
-|-------|---------------|----------|
-| Secondary pods in CrashLoopBackOff | Incorrect replication password | Verify `replicationPassword` matches primary configuration |
-| WordPress can't connect to DB | Wrong `WORDPRESS_DB_HOST` value | Ensure it matches the MariaDB service name |
-| PVC stuck in Pending | No StorageClass available | Enable storage addon: `microk8s enable storage` |
-| Replication lag increasing | High write load or network issues | Check pod resources and network latency |
+| Issue                              | Possible Cause                    | Solution                                                   |
+| ---------------------------------- | --------------------------------- | ---------------------------------------------------------- |
+| Secondary pods in CrashLoopBackOff | Incorrect replication password    | Verify `replicationPassword` matches primary configuration |
+| WordPress can't connect to DB      | Wrong `WORDPRESS_DB_HOST` value   | Ensure it matches the MariaDB service name                 |
+| PVC stuck in Pending               | No StorageClass available         | Enable storage addon: `microk8s enable storage`            |
+| Replication lag increasing         | High write load or network issues | Check pod resources and network latency                    |
 
 ### View MariaDB Logs
 
@@ -490,7 +500,7 @@ initdbScripts:
     CREATE USER IF NOT EXISTS 'wordpress'@'%' IDENTIFIED BY 'your_secure_password';
     GRANT ALL PRIVILEGES ON wordpress.* TO 'wordpress'@'%';
     FLUSH PRIVILEGES;
-    
+
   health-check-script.sh: |
     #!/bin/sh
     if [[ $(hostname) == *primary* ]]; then
@@ -515,13 +525,13 @@ For production deployments, implement the following security measures:
 
 ### High Availability Considerations
 
-| Consideration | Recommendation |
-|--------------|----------------|
-| **Pod Anti-Affinity** | Distribute replicas across different nodes |
-| **Pod Disruption Budget** | Ensure minimum available replicas during maintenance |
-| **Backup Strategy** | Implement regular automated backups using Velero or mysqldump |
+| Consideration             | Recommendation                                                  |
+| ------------------------- | --------------------------------------------------------------- |
+| **Pod Anti-Affinity**     | Distribute replicas across different nodes                      |
+| **Pod Disruption Budget** | Ensure minimum available replicas during maintenance            |
+| **Backup Strategy**       | Implement regular automated backups using Velero or mysqldump   |
 | **Monitoring & Alerting** | Set up Prometheus alerts for replication lag and resource usage |
-| **Failover Testing** | Regularly test failover procedures |
+| **Failover Testing**      | Regularly test failover procedures                              |
 
 ### Backup Configuration Example
 
@@ -533,37 +543,37 @@ kind: CronJob
 metadata:
   name: mariadb-backup
 spec:
-  schedule: "0 2 * * *"  # Daily at 2 AM
+  schedule: "0 2 * * *" # Daily at 2 AM
   jobTemplate:
     spec:
       template:
         spec:
           containers:
-          - name: backup
-            image: bitnami/mariadb:latest
-            command:
-            - /bin/sh
-            - -c
-            - |
-              mysqldump -h maria-mariadb-primary \
-                -u root -p${MARIADB_ROOT_PASSWORD} \
-                --all-databases --single-transaction \
-                --routines --triggers \
-                | gzip > /backup/backup-$(date +%Y%m%d-%H%M%S).sql.gz
-            env:
-            - name: MARIADB_ROOT_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: maria-mariadb
-                  key: mariadb-root-password
-            volumeMounts:
-            - name: backup-volume
-              mountPath: /backup
+            - name: backup
+              image: bitnami/mariadb:latest
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  mysqldump -h maria-mariadb-primary \
+                    -u root -p${MARIADB_ROOT_PASSWORD} \
+                    --all-databases --single-transaction \
+                    --routines --triggers \
+                    | gzip > /backup/backup-$(date +%Y%m%d-%H%M%S).sql.gz
+              env:
+                - name: MARIADB_ROOT_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: maria-mariadb
+                      key: mariadb-root-password
+              volumeMounts:
+                - name: backup-volume
+                  mountPath: /backup
           restartPolicy: OnFailure
           volumes:
-          - name: backup-volume
-            persistentVolumeClaim:
-              claimName: mariadb-backup-pvc
+            - name: backup-volume
+              persistentVolumeClaim:
+                claimName: mariadb-backup-pvc
 ```
 
 ---
@@ -572,16 +582,16 @@ spec:
 
 Understanding when to use each architecture:
 
-| Feature | Primary-Secondary Replication | Galera Cluster |
-|---------|------------------------------|----------------|
-| **Write Nodes** | Single (primary only) | Multi-master (all nodes) |
-| **Read Scaling** | Excellent | Good |
-| **Write Scaling** | Limited | Better distribution |
-| **Consistency** | Eventual (asynchronous) | Synchronous (strong) |
-| **Failover** | Manual or requires automation | Automatic |
-| **Network Sensitivity** | Tolerant | Requires low latency |
-| **Complexity** | Lower | Higher |
-| **Use Case** | Read-heavy workloads | Write-heavy, HA requirements |
+| Feature                 | Primary-Secondary Replication | Galera Cluster               |
+| ----------------------- | ----------------------------- | ---------------------------- |
+| **Write Nodes**         | Single (primary only)         | Multi-master (all nodes)     |
+| **Read Scaling**        | Excellent                     | Good                         |
+| **Write Scaling**       | Limited                       | Better distribution          |
+| **Consistency**         | Eventual (asynchronous)       | Synchronous (strong)         |
+| **Failover**            | Manual or requires automation | Automatic                    |
+| **Network Sensitivity** | Tolerant                      | Requires low latency         |
+| **Complexity**          | Lower                         | Higher                       |
+| **Use Case**            | Read-heavy workloads          | Write-heavy, HA requirements |
 
 For WordPress specifically, primary-secondary replication is often preferred due to the read-heavy nature of most WordPress sites (displaying content) versus the relatively low write activity (publishing posts, comments).
 

@@ -26,20 +26,23 @@ spec:
         app: mysql
     spec:
       containers:
-      - name: mysql
-        image: mysql:latest
-        env:
-        - name: MYSQL_ROOT_PASSWORD
-          value: "123"
-        ports:
-        - containerPort: 3306
+        - name: mysql
+          image: mysql:latest
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              value: "123"
+          ports:
+            - containerPort: 3306
 ```
 
 ### Expose Mysql to LAN
+
 ```bash
 kubectl expose deploy mysql --port 3306 --target-port 3306 --type LoadBalancer
 ```
+
 ### Or get all in one
+
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -56,13 +59,13 @@ spec:
         app: mysql
     spec:
       containers:
-      - name: mysql
-        image: mysql:latest
-        env:
-        - name: MYSQL_ROOT_PASSWORD
-          value: "123"
-        ports:
-        - containerPort: 3306
+        - name: mysql
+          image: mysql:latest
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              value: "123"
+          ports:
+            - containerPort: 3306
 ---
 apiVersion: v1
 kind: Service
@@ -73,6 +76,6 @@ spec:
   selector:
     app: mysql
   ports:
-  - port: 3306
-    targetPort: 3306
+    - port: 3306
+      targetPort: 3306
 ```

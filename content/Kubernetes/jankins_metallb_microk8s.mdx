@@ -10,16 +10,17 @@ This guide walks through deploying **Jenkins CI/CD** on **MicroK8s** using **Hel
 
 ### Architecture Components
 
-| Component | Purpose | Version Info |
-|-----------|---------|--------------|
-| **MicroK8s** | Lightweight Kubernetes distribution | Single-node or multi-node cluster |
-| **MetalLB** | Bare-metal load balancer implementation | Layer 2 or BGP mode |
-| **Helm** | Kubernetes package manager | v3.x recommended |
-| **Jenkins** | CI/CD automation server | Latest LTS via Helm chart |
+| Component    | Purpose                                 | Version Info                      |
+| ------------ | --------------------------------------- | --------------------------------- |
+| **MicroK8s** | Lightweight Kubernetes distribution     | Single-node or multi-node cluster |
+| **MetalLB**  | Bare-metal load balancer implementation | Layer 2 or BGP mode               |
+| **Helm**     | Kubernetes package manager              | v3.x recommended                  |
+| **Jenkins**  | CI/CD automation server                 | Latest LTS via Helm chart         |
 
 ### Prerequisites
 
 Before proceeding, ensure you have:
+
 - MicroK8s installed and running (`microk8s status --wait-ready`)
 - User added to `microk8s` group for non-root access
 - Sufficient resources: minimum 2 CPU cores, 4GB RAM recommended
@@ -44,12 +45,14 @@ Full installation with modules go here -> [MicroK8s install with Helm and OneDev
 MetalLB supports two announcement modes:
 
 **Layer 2 Mode (Default for MicroK8s)**
+
 - Uses ARP/NDP to announce IPs on the local network
 - Simpler setup, no router configuration required
 - Single node handles all traffic for a given IP (failover available)
 - Best for home labs and small deployments
 
 **BGP Mode**
+
 - Announces IPs via BGP to network routers
 - True load distribution across nodes
 - Requires BGP-capable router configuration
@@ -68,9 +71,9 @@ metadata:
   namespace: metallb-system
 spec:
   addresses:
-    - 192.168.1.200-192.168.1.220  # Adjust to your network
+    - 192.168.1.200-192.168.1.220 # Adjust to your network
   autoAssign: true
-  avoidBuggyIPs: true  # Avoid .0 and .255 addresses
+  avoidBuggyIPs: true # Avoid .0 and .255 addresses
 ```
 
 ```yaml copy
@@ -140,13 +143,13 @@ helm install jenkins jenkins/jenkins --namespace jenkins --create-namespace --se
 
 ### Understanding Deployment Parameters
 
-| Parameter | Value | Description |
-|-----------|-------|-------------|
-| `jenkins` (1st) | Release name | Helm release identifier |
-| `jenkins/jenkins` | Chart reference | Repository/chart name |
-| `--namespace jenkins` | Namespace | Kubernetes namespace for isolation |
-| `--create-namespace` | Flag | Creates namespace if not exists |
-| `--set controller.serviceType=LoadBalancer` | Override | Exposes Jenkins via MetalLB |
+| Parameter                                   | Value           | Description                        |
+| ------------------------------------------- | --------------- | ---------------------------------- |
+| `jenkins` (1st)                             | Release name    | Helm release identifier            |
+| `jenkins/jenkins`                           | Chart reference | Repository/chart name              |
+| `--namespace jenkins`                       | Namespace       | Kubernetes namespace for isolation |
+| `--create-namespace`                        | Flag            | Creates namespace if not exists    |
+| `--set controller.serviceType=LoadBalancer` | Override        | Exposes Jenkins via MetalLB        |
 
 ### Advanced Deployment with Custom Values
 
@@ -157,8 +160,8 @@ For production deployments, create a `values.yaml` file for customization:
 controller:
   # Image configuration
   image:
-    tag: "lts-jdk17"  # Use LTS with JDK 17
-  
+    tag: "lts-jdk17" # Use LTS with JDK 17
+
   # Resource allocation
   resources:
     requests:
@@ -167,16 +170,16 @@ controller:
     limits:
       cpu: "2000m"
       memory: "4Gi"
-  
+
   # Service configuration for MetalLB
   serviceType: LoadBalancer
   servicePort: 8080
-  
+
   # Admin configuration
   admin:
     username: admin
     # Password will be auto-generated if not specified
-  
+
   # Install essential plugins
   installPlugins:
     - kubernetes:latest
@@ -185,7 +188,7 @@ controller:
     - configuration-as-code:latest
     - job-dsl:latest
     - blueocean:latest
-  
+
   # JCasC - Jenkins Configuration as Code
   JCasC:
     defaultConfig: true
@@ -198,7 +201,7 @@ controller:
 persistence:
   enabled: true
   size: 10Gi
-  storageClass: "microk8s-hostpath"  # Use MicroK8s storage
+  storageClass: "microk8s-hostpath" # Use MicroK8s storage
 
 # Agent configuration for Kubernetes
 agent:

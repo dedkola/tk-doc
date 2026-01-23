@@ -11,6 +11,7 @@ This guide covers the complete installation of MicroK8s — a lightweight, singl
 ### What is MicroK8s?
 
 MicroK8s is a minimal, CNCF-certified Kubernetes distribution designed for:
+
 - **Developer workstations** — Quick local Kubernetes environment
 - **Edge computing** — Low resource footprint ideal for IoT devices
 - **CI/CD pipelines** — Fast cluster bootstrapping for testing
@@ -32,6 +33,7 @@ Helm is the package manager for Kubernetes that helps you define, install, and u
 ### What is OneDev?
 
 OneDev is an all-in-one DevOps platform featuring:
+
 - Git repository management
 - Issue tracking with custom workflows
 - Built-in CI/CD engine
@@ -46,7 +48,8 @@ The `--classic` flag grants the snap full system access, which is required for M
 
 ```bash copy
 sudo snap install microk8s --classic
-````
+```
+
 ### Add user to microk8s group
 
 After installation, add your user to the `microk8s` group to avoid using `sudo` for every command. Replace `ded` with your actual username.
@@ -56,7 +59,7 @@ The `-a` flag appends the user to the group without removing them from other gro
 ```bash copy
 sudo usermod -a -G microk8s ded
 sudo chown -R ded ~/.kube
-````
+```
 
 > **Important:** After adding yourself to the group, either log out and log back in, or run `newgrp microk8s` to apply the group membership immediately.
 
@@ -73,6 +76,7 @@ microk8s status --wait-ready
 ```
 
 **Expected output:**
+
 ```
 microk8s is running
 high-availability: no
@@ -85,18 +89,19 @@ high-availability: no
 ## Enable Services (Addons)
 
 MicroK8s uses an addon system to enable additional functionality. Each addon installs and configures specific Kubernetes components.
+
 ### Addon Reference Table
 
-| Addon | Purpose | Resource Usage |
-|-------|---------|----------------|
-| `dashboard` | Web-based Kubernetes UI for cluster management | Low |
-| `metallb` | Bare-metal load balancer for external IP allocation | Low |
-| `ingress` | NGINX-based ingress controller for HTTP/HTTPS routing | Medium |
-| `storage` | Hostpath storage provisioner for PersistentVolumeClaims | Low |
-| `dns` | CoreDNS for internal cluster DNS resolution | Low |
-| `registry` | Private container registry (localhost:32000) | Medium |
-| `community` | Access to community-maintained addons | None |
-| `istio` | Service mesh for traffic management and security | High |
+| Addon       | Purpose                                                 | Resource Usage |
+| ----------- | ------------------------------------------------------- | -------------- |
+| `dashboard` | Web-based Kubernetes UI for cluster management          | Low            |
+| `metallb`   | Bare-metal load balancer for external IP allocation     | Low            |
+| `ingress`   | NGINX-based ingress controller for HTTP/HTTPS routing   | Medium         |
+| `storage`   | Hostpath storage provisioner for PersistentVolumeClaims | Low            |
+| `dns`       | CoreDNS for internal cluster DNS resolution             | Low            |
+| `registry`  | Private container registry (localhost:32000)            | Medium         |
+| `community` | Access to community-maintained addons                   | None           |
+| `istio`     | Service mesh for traffic management and security        | High           |
 
 ### Enable Core Addons
 
@@ -130,6 +135,7 @@ microk8s enable istio
 **Registry** — Local container registry accessible at `localhost:32000`. Useful for development workflows without pushing to external registries.
 
 **Istio** — Service mesh providing:
+
 - Traffic management (load balancing, canary deployments)
 - Security (mTLS, authorization policies)
 - Observability (metrics, tracing, logging)
@@ -155,14 +161,14 @@ microk8s kubectl describe node
 
 ### Command Reference
 
-| Command | Description |
-|---------|-------------|
-| `get all --all-namespaces` | Lists all resources (pods, services, deployments, etc.) across all namespaces |
-| `get svc` | Lists services in the default namespace |
-| `get pods -n <namespace>` | Lists pods in a specific namespace |
-| `get events -n <namespace>` | Shows recent events (useful for debugging failed deployments) |
-| `describe node` | Detailed node information including capacity, conditions, and allocated resources |
-| `helm list -n <namespace>` | Lists Helm releases in a namespace |
+| Command                     | Description                                                                       |
+| --------------------------- | --------------------------------------------------------------------------------- |
+| `get all --all-namespaces`  | Lists all resources (pods, services, deployments, etc.) across all namespaces     |
+| `get svc`                   | Lists services in the default namespace                                           |
+| `get pods -n <namespace>`   | Lists pods in a specific namespace                                                |
+| `get events -n <namespace>` | Shows recent events (useful for debugging failed deployments)                     |
+| `describe node`             | Detailed node information including capacity, conditions, and allocated resources |
+| `helm list -n <namespace>`  | Lists Helm releases in a namespace                                                |
 
 ### Additional Diagnostic Commands
 
@@ -197,6 +203,7 @@ Helm is installed separately from MicroK8s. While MicroK8s provides a built-in `
 ### Helm Architecture
 
 Helm 3 uses a client-only architecture:
+
 - **Helm CLI** — Command-line tool that communicates directly with the Kubernetes API
 - **Charts** — Packages containing templated Kubernetes manifests
 - **Releases** — Instances of charts deployed to a cluster
@@ -236,6 +243,7 @@ By default, MicroK8s uses its own `microk8s kubectl` wrapper. To use the standar
 ### What is kubeconfig?
 
 The kubeconfig file (`~/.kube/config`) contains:
+
 - **Clusters** — Kubernetes API server endpoints and CA certificates
 - **Users** — Authentication credentials (certificates, tokens)
 - **Contexts** — Mappings between clusters and users
@@ -331,6 +339,7 @@ OneDev is deployed using Helm with automatic namespace creation. The `-n onedev`
 ### Pre-installation Checklist
 
 Before installing OneDev, ensure:
+
 - [ ] Storage addon is enabled (`microk8s enable storage`)
 - [ ] DNS addon is enabled (`microk8s enable dns`)
 - [ ] Sufficient disk space for Git repositories
@@ -342,13 +351,13 @@ helm install onedev onedev/onedev -n onedev --create-namespace
 
 ### Understanding Helm Install Command
 
-| Component | Description |
-|-----------|-------------|
-| `helm install` | Command to deploy a new release |
-| `onedev` (first) | Release name — identifier for this deployment |
-| `onedev/onedev` | Chart reference — `<repo>/<chart>` format |
-| `-n onedev` | Target namespace |
-| `--create-namespace` | Create namespace if it doesn't exist |
+| Component            | Description                                   |
+| -------------------- | --------------------------------------------- |
+| `helm install`       | Command to deploy a new release               |
+| `onedev` (first)     | Release name — identifier for this deployment |
+| `onedev/onedev`      | Chart reference — `<repo>/<chart>` format     |
+| `-n onedev`          | Target namespace                              |
+| `--create-namespace` | Create namespace if it doesn't exist          |
 
 ### Customizing Installation with Values
 
@@ -411,11 +420,11 @@ By default, OneDev uses a ClusterIP service, accessible only within the cluster.
 
 ### Service Types Explained
 
-| Type | Accessibility | Use Case |
-|------|---------------|----------|
-| `ClusterIP` | Internal only | Inter-pod communication |
-| `NodePort` | Node IP:Port | Direct access via node |
-| `LoadBalancer` | External IP | Production-grade external access |
+| Type           | Accessibility | Use Case                         |
+| -------------- | ------------- | -------------------------------- |
+| `ClusterIP`    | Internal only | Inter-pod communication          |
+| `NodePort`     | Node IP:Port  | Direct access via node           |
+| `LoadBalancer` | External IP   | Production-grade external access |
 
 ```bash copy
 helm upgrade onedev onedev/onedev -n onedev --set service.type=LoadBalancer --reuse-values
@@ -423,10 +432,10 @@ helm upgrade onedev onedev/onedev -n onedev --set service.type=LoadBalancer --re
 
 ### Understanding the Upgrade Command
 
-| Flag | Description |
-|------|-------------|
-| `--set service.type=LoadBalancer` | Override specific value |
-| `--reuse-values` | Keep all previously set values |
+| Flag                              | Description                    |
+| --------------------------------- | ------------------------------ |
+| `--set service.type=LoadBalancer` | Override specific value        |
+| `--reuse-values`                  | Keep all previously set values |
 
 ### Verify External IP Assignment
 
@@ -483,6 +492,7 @@ spec:
 ## Namespace Management
 
 Namespaces provide logical isolation for Kubernetes resources. They're essential for:
+
 - **Multi-tenancy** — Separate teams or projects
 - **Resource quotas** — Limit CPU/memory per namespace
 - **Network policies** — Control traffic between namespaces
@@ -497,12 +507,12 @@ kubectl get pods --all-namespaces
 
 ### Default Namespaces
 
-| Namespace | Purpose |
-|-----------|---------|
-| `default` | Default namespace for resources without explicit namespace |
-| `kube-system` | Kubernetes system components (API server, scheduler, etc.) |
-| `kube-public` | Publicly accessible resources |
-| `kube-node-lease` | Node heartbeat data for health monitoring |
+| Namespace         | Purpose                                                    |
+| ----------------- | ---------------------------------------------------------- |
+| `default`         | Default namespace for resources without explicit namespace |
+| `kube-system`     | Kubernetes system components (API server, scheduler, etc.) |
+| `kube-public`     | Publicly accessible resources                              |
+| `kube-node-lease` | Node heartbeat data for health monitoring                  |
 
 ### Working with Namespaces
 
@@ -552,6 +562,7 @@ spec:
 ## Export and Backup Configurations
 
 Exporting Kubernetes resources to YAML files is essential for:
+
 - **Backup and disaster recovery**
 - **Version control** — Store configurations in Git
 - **Migration** — Move resources between clusters
@@ -655,13 +666,13 @@ kubectl delete pvc <pvc-name> -n <namespace>
 
 ### Common Issues and Solutions
 
-| Issue | Possible Cause | Solution |
-|-------|---------------|----------|
-| Pod stuck in `Pending` | Insufficient resources | Check node capacity: `kubectl describe node` |
-| Pod in `CrashLoopBackOff` | Application error | Check logs: `kubectl logs <pod>` |
-| PVC stuck in `Pending` | Storage not available | Enable storage addon: `microk8s enable storage` |
-| No external IP | MetalLB not configured | Configure MetalLB with IP range |
-| DNS resolution fails | CoreDNS not running | Check: `kubectl get pods -n kube-system -l k8s-app=kube-dns` |
+| Issue                     | Possible Cause         | Solution                                                     |
+| ------------------------- | ---------------------- | ------------------------------------------------------------ |
+| Pod stuck in `Pending`    | Insufficient resources | Check node capacity: `kubectl describe node`                 |
+| Pod in `CrashLoopBackOff` | Application error      | Check logs: `kubectl logs <pod>`                             |
+| PVC stuck in `Pending`    | Storage not available  | Enable storage addon: `microk8s enable storage`              |
+| No external IP            | MetalLB not configured | Configure MetalLB with IP range                              |
+| DNS resolution fails      | CoreDNS not running    | Check: `kubectl get pods -n kube-system -l k8s-app=kube-dns` |
 
 ### Debug a Running Pod
 
@@ -705,6 +716,7 @@ microk8s add-node
 ```
 
 This outputs a command like:
+
 ```
 microk8s join 192.168.1.100:25000/abc123xyz...
 ```
@@ -732,10 +744,10 @@ kubectl get nodes --show-labels
 ### HA Considerations
 
 | Configuration | Nodes Required | Fault Tolerance |
-|---------------|----------------|-----------------|
-| Single node | 1 | None |
-| 3-node HA | 3 | 1 node failure |
-| 5-node HA | 5 | 2 node failures |
+| ------------- | -------------- | --------------- |
+| Single node   | 1              | None            |
+| 3-node HA     | 3              | 1 node failure  |
+| 5-node HA     | 5              | 2 node failures |
 
 > **Note:** For HA datastore, MicroK8s uses Dqlite (distributed SQLite). At least 3 nodes are recommended for production HA.
 
@@ -829,4 +841,3 @@ spec:
 - [Helm Official Documentation](https://helm.sh/docs/)
 - [OneDev Documentation](https://docs.onedev.io/)
 - [Kubernetes Documentation](https://kubernetes.io/docs/)
-

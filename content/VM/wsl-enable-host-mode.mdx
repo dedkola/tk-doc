@@ -4,7 +4,45 @@ description: Windows WSL enables host mode networking in Windows WSL config
 tags: [wsl, windows, linux, networking]
 ---
 
-Windows WSL enables host mode networking in Windows WSL config
+# WSL Mirrored Networking Mode (Host Mode)
+
+Mirrored networking mode is an advanced WSL 2 networking architecture that mirrors Windows network interfaces into Linux, providing enhanced compatibility and features compared to the default NAT (Network Address Translation) mode.
+
+## Overview
+
+**System Requirements:**
+
+- Windows 11 22H2 or higher
+- WSL 2 (Windows Build 19041+)
+- WSL version 2.0.0 or higher
+
+**Key Benefits:**
+
+- **IPv6 Support**: Full IPv6 protocol support in WSL distributions
+- **VPN Compatibility**: Improved connectivity when using VPN solutions
+- **Multicast Support**: Enables mDNS and other multicast protocols
+- **Direct LAN Access**: WSL instances can be accessed directly from local area network
+- **Reduced NAT Overhead**: Eliminates double NAT scenarios in complex network environments
+
+## Architecture Comparison
+
+### Default NAT Mode
+
+In NAT mode, WSL creates a virtual network adapter with a separate subnet (typically `172.x.x.x`). Windows acts as a NAT gateway, translating network addresses between WSL and the external network. This introduces:
+
+- Port forwarding requirements for inbound connections
+- IPv4-only communication
+- VPN compatibility issues
+- Additional network latency
+
+### Mirrored Mode
+
+Mirrored mode creates a bridge between Windows and WSL network interfaces, allowing:
+
+- Direct network interface access from Linux
+- Automatic synchronization of network configuration
+- Transparent routing between Windows and WSL
+- Support for advanced networking protocols
 
 ### Config file location
 
@@ -26,3 +64,224 @@ C:\Users\<user>\.wslconfig
 [wsl2]
 networkingMode=mirrored
 ```
+
+## Advanced Configuration Options
+
+### Complete .wslconfig Example
+
+```bash
+[wsl2]
+# Enable mirrored networking mode
+networkingMode=mirrored
+
+# DNS tunneling for improved DNS resolution
+dnsTunneling=true
+
+# Firewall integration with Windows Defender
+firewall=true
+
+# Automatic memory reclaim (requires Windows 11)
+autoMemoryReclaim=gradual
+
+# Memory allocation (in GB)
+memory=8GB
+
+# Processor count
+processors=4
+
+# Swap size
+swap=8GB
+
+# Virtual hard disk limit
+vmIdleTimeout=60000
+```
+
+### Automatic Network Configuration
+
+WSL automatically configures the following Linux kernel network settings in mirrored mode:
+
+| Setting                   | Value        | Purpose                            |
+| ------------------------- | ------------ | ---------------------------------- |
+| `net.ipv4.accept_local`   | 1 (Enabled)  | Accept locally-destined packets    |
+| `net.ipv4.route_localnet` | 1 (Enabled)  | Enable routing of local addresses  |
+| `net.ipv4.rp_filter`      | 0 (Disabled) | Disable reverse path filtering     |
+| `net.ipv6.accept_ra`      | 0 (Disabled) | Disable router advertisements      |
+| `net.ipv6.autoconf`       | 0 (Disabled) | Disable IPv6 autoconfiguration     |
+| `net.ipv4.arp_filter`     | 1 (Enabled)  | Enable ARP filtering per interface |
+
+> **Warning**: Manual modification of these settings while using mirrored mode is not supported and may cause network instability.
+
+## Port Exclusion Configuration
+
+Some Windows services use specific ports that should not be forwarded to WSL. You can exclude ports using the `ignoredPorts` setting:
+
+```bash
+[wsl2]
+networkingMode=mirrored
+
+# Exclude ports from being forwarded to WSL
+ignoredPorts=135,445,1900,2869,3702,5004,5357,5358
+```
+
+**Default Excluded Ports:**
+
+- **68** (UDP): DHCP client
+- **135** (TCP): DCE endpoint resolution
+- **1900** (TCP): UPnP (Universal Plug and Play)
+- **2869** (TCP): SSDP events
+- **3702** (TCP): WS-Discovery
+- **5004** (TCP): RTP (Real-time Transport Protocol)
+- **5357-5358** (TCP): WSD (Web Services for Devices)
+
+## Applying Configuration Changes
+
+After modifying `.wslconfig`, restart WSL to apply changes:
+
+```bash
+# Shutdown WSL completely
+wsl --shutdown
+
+# Verify WSL is stopped
+wsl --list --verbose
+
+# Start your distribution
+wsl -d Ubuntu
+```
+
+## Verification and Troubleshooting
+
+### Check WSL Version
+
+```bash
+# Check WSL version and build
+wsl --version
+
+# Expected output:
+# WSL version: 2.0.0.0 or higher
+# Kernel version: 5.15.x or higher
+```
+
+### Verify Network Interfaces
+
+```bash
+# List network interfaces in WSL
+ip addr show
+
+# Check routing table
+ip route show
+
+# Test IPv6 connectivity
+ping6 google.com
+```
+
+### View Network Configuration
+
+```bash
+# Display current WSL network settings
+cat /etc/resolv.conf
+
+# Check DNS resolution
+nslookup microsoft.com
+
+# Test multicast DNS (if mDNS is configured)
+avahi-browse -a -t
+```
+
+### Common Issues and Solutions
+
+**Issue: Docker containers fail with published ports**
+
+```bash
+# Workaround 1: Use host networking
+docker run --network host <image>
+
+# Workaround 2: Add ports to ignoredPorts in .wslconfig
+[wsl2]
+networkingMode=mirrored
+ignoredPorts=8080,3000,5000
+```
+
+**Issue: VPN incompatibility**
+Some VPNs are known to be incompatible with mirrored mode:
+
+- Bitdefender VPN
+- OpenVPN (specific versions)
+- McAfee Safe Connect
+
+Consider using NAT mode with these VPNs or consult vendor documentation for WSL compatibility.
+
+## Multicast DNS (mDNS) Configuration
+
+Mirrored mode supports mDNS for resolving `.local` domains. Configure Avahi for mDNS support:
+
+```bash
+# Install Avahi daemon (Ubuntu/Debian)
+sudo apt update
+sudo apt install avahi-daemon libnss-mdns
+
+# Enable and start the service
+sudo systemctl enable avahi-daemon
+sudo systemctl start avahi-daemon
+
+# Verify mDNS resolution
+ping mydevice.local
+```
+
+### Configure NSSwitch for mDNS
+
+```bash
+# Edit /etc/nsswitch.conf
+sudo nano /etc/nsswitch.conf
+
+# Ensure this line includes 'mdns4_minimal' or 'mdns':
+# hosts: files mdns4_minimal [NOTFOUND=return] dns mdns4
+```
+
+## Performance Considerations
+
+### Network Latency
+
+Mirrored mode typically reduces network latency by 10-20% compared to NAT mode due to elimination of address translation overhead.
+
+### Memory Usage
+
+Mirrored networking may use slightly more memory (~50-100MB) for maintaining network interface mirrors.
+
+### CPU Impact
+
+Minimal CPU overhead; network operations are handled directly by the kernel without additional translation layers.
+
+## Security Implications
+
+**Firewall Integration**: When `firewall=true` is enabled in `.wslconfig`, WSL integrates with Windows Defender Firewall, applying Windows firewall rules to WSL traffic.
+
+**Direct Network Exposure**: Unlike NAT mode, mirrored mode exposes WSL services directly to the local network. Ensure proper firewall rules and service hardening.
+
+**Recommended Security Practices**:
+
+```bash
+# Check open ports in WSL
+sudo ss -tulpn
+
+# Configure UFW (Uncomplicated Firewall)
+sudo apt install ufw
+sudo ufw enable
+sudo ufw allow 22/tcp  # SSH
+sudo ufw allow 80/tcp  # HTTP
+sudo ufw allow 443/tcp # HTTPS
+sudo ufw status verbose
+```
+
+## Best Practices
+
+1. **Always test after enabling**: Verify network connectivity and application functionality
+2. **Document port requirements**: Keep track of ports used by your services
+3. **Monitor system logs**: Check for network-related errors
+4. **Use DNS tunneling**: Enable `dnsTunneling=true` for improved DNS resolution
+5. **Regular updates**: Keep WSL updated with `wsl --update`
+
+## Additional Resources
+
+- [Official WSL Networking Documentation](https://learn.microsoft.com/en-us/windows/wsl/networking)
+- [WSL Configuration Files Reference](https://learn.microsoft.com/en-us/windows/wsl/manage)
+- [WSL GitHub Issues](https://github.com/microsoft/WSL/issues)
