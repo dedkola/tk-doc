@@ -11,6 +11,7 @@ services:
   server:
     build:
       context: .
+    container_name: tk-doc-app
     environment:
       NODE_ENV: production
     ports:

@@ -1,27 +1,105 @@
 ---
-title: Home Assisstant Youtube app run on Tizen OS
-description: Home Assisstant Youtube app run on Tizen OS. Trick to find right app code for Samsung Smart TV then jsut add to HA config yaml file.
-tags: [homeassistant, samsung, tizen, youtube]
+title: Home Assistant YouTube App Control on Samsung Tizen OS
+description: Comprehensive guide for integrating Samsung Smart TV with Home Assistant using the Samsung TV Smart component. Learn how to control YouTube and other Tizen apps, configure app IDs, and automate media playback on Samsung Tizen OS devices.
+tags:
+  [homeassistant, samsung, tizen, youtube, smart-tv, media-player, automation]
 ---
 
-## Install HACS
+## Overview
 
-## Install Samsung Samrt tv component
+This guide explains how to integrate Samsung Smart TVs running Tizen OS with Home Assistant, enabling full control over app launching, media playback, and source selection. Samsung Tizen TVs use unique application identifiers that can vary between firmware versions and TV models. This documentation will help you identify and configure the correct app IDs for seamless automation.
 
-Get it here https://github.com/ollo69/ha-samsungtv-smart
+## Prerequisites
 
-## Set integration
+### System Requirements
 
-Settings -> Devices -> Add Device from Smart Hub
+- **Home Assistant Core**: Version 2023.1 or later
+- **Samsung Smart TV**: Tizen OS 4.0 or later (2018+ models recommended)
+- **Network**: TV and Home Assistant must be on the same local network
+- **Permissions**: TV should be in "Developer Mode" or have remote control enabled
 
-### If default app code not work
+### Required Integrations
 
-Base line code for app using like this 
+1. **HACS (Home Assistant Community Store)** - For installing custom components
+2. **Samsung TV Smart Component** - Enhanced Samsung TV integration with app control
+3. **Optional**: SmartThings integration for additional device management
+
+## Installation Steps
+
+### Install HACS
+
+If you haven't installed HACS yet, follow the official installation guide at [hacs.xyz](https://hacs.xyz/docs/setup/download). HACS allows you to easily manage custom integrations and frontend components.
+
+## Install Samsung Smart TV Component
+
+The Samsung TV Smart component provides advanced control over Samsung Tizen TVs, including app management, source selection, and improved state tracking compared to the built-in Home Assistant integration.
+
+### Installation via HACS
+
+1. Open Home Assistant and navigate to **HACS** → **Integrations**
+2. Click the **"+"** button in the bottom right corner
+3. Search for **"SamsungTV Smart"**
+4. Click **"Download"** and restart Home Assistant
+5. Repository: https://github.com/ollo69/ha-samsungtv-smart
+
+### Manual Installation (Alternative)
+
+```bash
+# Navigate to your Home Assistant custom_components directory
+cd /config/custom_components
+
+# Clone the repository
+git clone https://github.com/ollo69/ha-samsungtv-smart.git samsungtv_smart
+
+# Restart Home Assistant
+```
+
+## Configure Integration
+
+### Initial Setup
+
+1. Navigate to **Settings** → **Devices & Services** → **Add Integration**
+2. Search for **"SamsungTV Smart"**
+3. Enter your TV's IP address (you can find this in TV Settings → General → Network → Network Status)
+4. The integration will discover your TV and create a media player entity
+
+### Alternative: Manual Configuration in configuration.yaml
+
+If you prefer YAML configuration or need more control, add the following to your `configuration.yaml`:
+
+```yaml
+# Basic Samsung TV configuration
+samsungtv_smart:
+  - host: 192.168.1.XXX # Replace with your TV's IP address
+    name: Living Room TV
+    port: 8002 # Default port for Tizen TVs
+    api_key: YOUR_API_KEY # Optional: SmartThings API key
+    device_name: HomeAssistant # Name shown on TV for connection approval
+    device_id: HomeAssistant # Unique device identifier
+```
+
+````
+
+### Understanding Tizen Application IDs
+
+Samsung Tizen OS uses two types of application identifiers:
+
+1. **Legacy Numeric IDs**: Used on older firmware versions (pre-2020)
+   - Format: String of numbers (e.g., "111299001912")
+   - Example: YouTube uses "111299001912" on Tizen 4.0-5.5
+
+2. **Modern Package IDs**: Used on newer firmware versions (2020+)
+   - Format: Package.AppName (e.g., "9Ur5IzDKqV.TizenYouTube")
+   - More reliable and consistent across firmware updates
+
+## Application ID Configuration
+
+### Finding the Correct YouTube App ID
 
 ```yaml copy
 app_list:
   YouTube: "111299001912"
-```
+````
 
 on new TV`s try using this ID
 
@@ -29,17 +107,765 @@ on new TV`s try using this ID
 YouTube: 9Ur5IzDKqV.TizenYouTube
 ```
 
-Then in HA Dev tools try 
+Then in HA Dev tools try
 Developer Tools -> Actions ->
 
 Media player: Select source
 
-Use Source Field like ```YouTube```
-
-
+Use Source Field like `YouTube`
 
 ### Misc
 
 Get Token From Samsung Smart Things https://account.smartthings.com/tokens
 
 Get Device ID from Samsung Smart Things https://my.smartthings.com/advanced/devices
+
+---
+
+## Extended Configuration Guide
+
+### Complete Multi-App Configuration
+
+Here's a comprehensive configuration with multiple popular streaming apps:
+
+```yaml
+# Advanced Samsung TV configuration with multiple apps
+samsungtv_smart:
+  - host: 192.168.1.100
+    name: Living Room Samsung TV
+    port: 8002
+    api_key: YOUR_SMARTTHINGS_API_KEY # Optional but recommended
+    device_name: HomeAssistant
+    device_id: ha_livingroom
+
+    # Application list - adjust IDs based on your TV model
+    app_list:
+      # Streaming Services (Modern IDs for 2020+ TVs)
+      YouTube: "9Ur5IzDKqV.TizenYouTube"
+      Netflix: "3201907018807"
+      Disney Plus: "3201901017640"
+      Prime Video: "3201910019365"
+      Hulu: "3201601007625"
+      HBO Max: "3201601007230"
+      Apple TV: "3201807016597"
+      Paramount Plus: "3201908019041"
+      Peacock: "3201910019378"
+
+      # Music Services
+      Spotify: "3201606009684"
+      YouTube Music: "eDYF0FXdGw.YouTubeMusic"
+
+      # Other Apps
+      Plex: "hKfNDgSKZ3.tizenplex"
+      Twitch: "UhHSKyDHuf.Twitch"
+      Browser: "org.tizen.browser"
+
+    # Source list - HDMI inputs and other sources
+    source_list:
+      HDMI1: "HDMI 1"
+      HDMI2: "HDMI 2"
+      HDMI3: "HDMI 3"
+      HDMI4: "HDMI 4"
+      TV: "TV"
+
+    # Advanced options
+    show_channel_number: true
+    sync_turn_off: true
+    update_method: websocket
+    scan_interval: 30
+```
+
+## How to Find Application IDs
+
+### Method 1: Using Samsung Developer Mode
+
+Enable Developer Mode on your TV to access advanced debugging:
+
+1. Open **Apps** screen
+2. Press **1-2-3-4-5** quickly on your remote
+3. Toggle **Developer Mode** ON
+4. Enter your computer's IP address
+5. Restart TV
+
+Then install Tizen Studio and use SDB (Smart Development Bridge):
+
+```bash
+# Connect to TV
+sdb connect YOUR_TV_IP:26101
+
+# List all installed applications with their IDs
+sdb shell 0 applist
+
+# Example output:
+# App ID: 9Ur5IzDKqV.TizenYouTube, Name: YouTube
+# App ID: 3201907018807, Name: Netflix
+# App ID: org.tizen.browser, Name: Internet
+```
+
+### Method 2: Enable Debug Logging in Home Assistant
+
+Add debug logging to capture app IDs automatically:
+
+```yaml
+logger:
+  default: warning
+  logs:
+    custom_components.samsungtv_smart: debug
+    custom_components.samsungtv_smart.media_player: debug
+    custom_components.samsungtv_smart.websocket: debug
+```
+
+After enabling debug mode:
+
+1. Restart Home Assistant
+2. Launch apps on your TV
+3. Check logs at `/config/home-assistant.log`
+4. Look for lines containing "Application launched" or "app_id"
+
+### Method 3: Network Packet Capture
+
+For advanced users, capture WebSocket traffic:
+
+```bash
+# Install tcpdump if not available
+sudo apt-get install tcpdump
+
+# Capture traffic on port 8002 (Tizen WebSocket API)
+sudo tcpdump -i any -A 'host YOUR_TV_IP and port 8002' -w samsung_tv.pcap
+
+# Or view in real-time
+sudo tcpdump -i any -A 'host YOUR_TV_IP and port 8002'
+```
+
+## Automation Examples
+
+### Morning Routine with TV
+
+```yaml
+automation:
+  - alias: "Morning News on TV"
+    description: "Turn on TV and launch YouTube at 7 AM on weekdays"
+    trigger:
+      - platform: time
+        at: "07:00:00"
+    condition:
+      - condition: time
+        weekday:
+          - mon
+          - tue
+          - wed
+          - thu
+          - fri
+      - condition: state
+        entity_id: person.home_owner
+        state: "home"
+    action:
+      # Turn on TV
+      - action: media_player.turn_on
+        target:
+          entity_id: media_player.living_room_tv
+
+      # Wait for TV to fully boot
+      - delay:
+          seconds: 8
+
+      # Launch YouTube
+      - action: media_player.select_source
+        target:
+          entity_id: media_player.living_room_tv
+        data:
+          source: "YouTube"
+
+      # Set volume to comfortable level
+      - action: media_player.volume_set
+        target:
+          entity_id: media_player.living_room_tv
+        data:
+          volume_level: 0.25
+```
+
+### Play Specific YouTube Video
+
+```yaml
+script:
+  play_youtube_video:
+    alias: "Play YouTube Video on TV"
+    description: "Launch YouTube and play a specific video"
+    fields:
+      video_id:
+        description: "YouTube video ID (from URL)"
+        example: "dQw4w9WgXcQ"
+    sequence:
+      # Ensure TV is on
+      - action: media_player.turn_on
+        target:
+          entity_id: media_player.living_room_tv
+
+      - wait_template: "{{ is_state('media_player.living_room_tv', 'on') }}"
+        timeout: "00:00:15"
+        continue_on_timeout: false
+
+      # Launch YouTube app
+      - action: media_player.select_source
+        target:
+          entity_id: media_player.living_room_tv
+        data:
+          source: "YouTube"
+
+      # Wait for app to load
+      - delay:
+          seconds: 3
+
+      # Play video using URL
+      - action: media_player.play_media
+        target:
+          entity_id: media_player.living_room_tv
+        data:
+          media_content_type: "url"
+          media_content_id: "https://www.youtube.com/watch?v={{ video_id }}"
+```
+
+### Movie Night Scene
+
+```yaml
+script:
+  movie_night:
+    alias: "Movie Night Scene"
+    description: "Set up TV, lights, and audio for movie watching"
+    sequence:
+      # Turn on TV
+      - action: media_player.turn_on
+        target:
+          entity_id: media_player.living_room_tv
+
+      - delay:
+          seconds: 5
+
+      # Launch Netflix
+      - action: media_player.select_source
+        target:
+          entity_id: media_player.living_room_tv
+        data:
+          source: "Netflix"
+
+      # Dim lights to 10%
+      - action: light.turn_on
+        target:
+          entity_id: light.living_room_lights
+        data:
+          brightness: 26 # 10% brightness (255 * 0.10)
+          transition: 2
+
+      # Turn on soundbar
+      - action: media_player.turn_on
+        target:
+          entity_id: media_player.soundbar
+
+      # Set soundbar to movie mode
+      - action: media_player.select_sound_mode
+        target:
+          entity_id: media_player.soundbar
+        data:
+          sound_mode: "Movie"
+```
+
+### Channel Surfing Automation
+
+```yaml
+script:
+  channel_up:
+    alias: "Channel Up"
+    sequence:
+      - action: media_player.media_next_track
+        target:
+          entity_id: media_player.living_room_tv
+
+  channel_down:
+    alias: "Channel Down"
+    sequence:
+      - action: media_player.media_previous_track
+        target:
+          entity_id: media_player.living_room_tv
+
+  go_to_channel:
+    alias: "Go to Specific Channel"
+    fields:
+      channel_number:
+        description: "Channel number to tune to"
+        example: "102"
+    sequence:
+      - action: media_player.play_media
+        target:
+          entity_id: media_player.living_room_tv
+        data:
+          media_content_type: "channel"
+          media_content_id: "{{ channel_number }}"
+```
+
+### Voice Assistant Integration
+
+```yaml
+# Example for Google Assistant / Alexa integration
+intent_script:
+  LaunchTVApp:
+    speech:
+      text: "Launching {{ app_name }} on the TV"
+    action:
+      - action: media_player.turn_on
+        target:
+          entity_id: media_player.living_room_tv
+      - delay:
+          seconds: 5
+      - action: media_player.select_source
+        target:
+          entity_id: media_player.living_room_tv
+        data:
+          source: "{{ app_name }}"
+
+# Usage example with Alexa:
+# "Alexa, ask Home Assistant to launch YouTube on TV"
+# "Alexa, ask Home Assistant to launch Netflix on TV"
+```
+
+## Troubleshooting Guide
+
+### Common Issues and Solutions
+
+#### Issue 1: TV Not Discovered
+
+**Symptoms:**
+
+- Integration shows "Device not found"
+- Cannot connect to TV
+- Connection timeout errors
+
+**Solutions:**
+
+1. **Check Network Configuration:**
+
+```bash
+# Verify TV is reachable
+ping YOUR_TV_IP
+
+# Check if port 8002 is open
+telnet YOUR_TV_IP 8002
+# or
+nc -zv YOUR_TV_IP 8002
+```
+
+2. **Enable TV Network Features:**
+   - Settings → General → Network → Expert Settings
+   - Enable "Power On with Mobile"
+   - Settings → General → External Device Manager
+   - Enable "Device Connect Manager"
+   - Enable "Access Notification"
+
+3. **Disable Router AP Isolation:**
+   - Log into your router
+   - Look for "AP Isolation" or "Client Isolation"
+   - Ensure it's DISABLED
+
+4. **Firewall Check:**
+
+```bash
+# On Home Assistant host, check if outbound connection works
+nc -zv YOUR_TV_IP 8002
+```
+
+#### Issue 2: App Launch Fails
+
+**Symptoms:**
+
+- `select_source` service doesn't launch app
+- TV shows "App not available" error
+- App launches but immediately closes
+
+**Solutions:**
+
+1. **Verify App Installation:**
+   - Manually launch the app on TV to confirm it's installed
+   - Update the app to the latest version from Samsung App Store
+
+2. **Try Alternative App ID Formats:**
+
+```yaml
+# If modern ID doesn't work
+YouTube: "9Ur5IzDKqV.TizenYouTube"
+
+# Try legacy ID
+YouTube: "111299001912"
+
+# Or try without package prefix
+YouTube: "TizenYouTube"
+```
+
+3. **Check App ID in Logs:**
+   - Enable debug logging
+   - Launch app manually on TV
+   - Check logs for actual app ID being used
+
+4. **Regional Differences:**
+   - App IDs may vary by region (US, EU, Asia)
+   - Use the discovery method to find your region's ID
+
+#### Issue 3: TV State Not Updating
+
+**Symptoms:**
+
+- Entity shows "unavailable"
+- State doesn't change when TV is turned on/off
+- Delayed state updates
+
+**Solutions:**
+
+1. **Enable SmartThings Integration:**
+
+```yaml
+samsungtv_smart:
+  - host: 192.168.1.100
+    api_key: YOUR_SMARTTHINGS_TOKEN
+    device_id: YOUR_DEVICE_ID
+    update_method: smartthings # More reliable than websocket
+```
+
+2. **Adjust Scan Interval:**
+
+```yaml
+samsungtv_smart:
+  - host: 192.168.1.100
+    scan_interval: 15 # Update every 15 seconds (default: 30)
+```
+
+3. **Check Network Latency:**
+
+```bash
+# Test latency to TV
+ping -c 10 YOUR_TV_IP
+
+# Should be < 10ms for good performance
+```
+
+#### Issue 4: Authentication/Pairing Issues
+
+**Symptoms:**
+
+- "Authentication failed" error
+- TV doesn't show pairing prompt
+- Connection rejected
+
+**Solutions:**
+
+1. **Reset TV Connection:**
+   - TV Settings → General → External Device Manager
+   - Device Connection Manager → Remove Home Assistant
+   - Restart TV
+   - Restart Home Assistant
+   - Re-add integration
+
+2. **Clear Integration Cache:**
+
+```bash
+# Stop Home Assistant
+systemctl stop home-assistant
+
+# Remove cached tokens
+rm /config/.storage/samsungtv_smart.*
+
+# Restart Home Assistant
+systemctl start home-assistant
+```
+
+3. **Manual Token Reset:**
+
+```yaml
+# Add to configuration.yaml temporarily
+samsungtv_smart:
+  - host: 192.168.1.100
+    token: "" # Force new pairing
+```
+
+#### Issue 5: Volume Control Not Working
+
+**Symptoms:**
+
+- Volume commands don't respond
+- Mute doesn't work
+- Volume slider in UI doesn't update
+
+**Solutions:**
+
+1. **Check TV Audio Output Settings:**
+   - Settings → Sound → Sound Output
+   - Ensure "TV Speaker" is selected
+   - If using external audio, control volume on that device instead
+
+2. **Use Correct Volume Service:**
+
+```yaml
+# For TV speakers
+- action: media_player.volume_set
+  target:
+    entity_id: media_player.living_room_tv
+  data:
+    volume_level: 0.5 # Range: 0.0 to 1.0
+
+# For mute toggle
+- action: media_player.volume_mute
+  target:
+    entity_id: media_player.living_room_tv
+  data:
+    is_volume_muted: true
+```
+
+### Debug Logging Configuration
+
+Enable comprehensive logging for troubleshooting:
+
+```yaml
+logger:
+  default: warning
+  logs:
+    # Samsung TV Smart component
+    custom_components.samsungtv_smart: debug
+    custom_components.samsungtv_smart.media_player: debug
+    custom_components.samsungtv_smart.websocket: debug
+
+    # SmartThings API (if used)
+    custom_components.samsungtv_smart.smartthings: debug
+
+    # WebSocket client
+    websocket: debug
+```
+
+After enabling, check logs:
+
+```bash
+# View live logs
+tail -f /config/home-assistant.log | grep -i samsung
+
+# Or filter for specific issues
+tail -f /config/home-assistant.log | grep -E "samsungtv|error|warning"
+```
+
+## Advanced Configuration
+
+### Custom HDMI Source Mapping
+
+Create user-friendly names for HDMI inputs:
+
+```yaml
+samsungtv_smart:
+  - host: 192.168.1.100
+    source_list:
+      "PlayStation 5": "HDMI1"
+      "Nintendo Switch": "HDMI2"
+      "Blu-ray Player": "HDMI3"
+      "PC": "HDMI4"
+      "Cable Box": "TV"
+      "Chromecast": "HDMI"
+```
+
+Then use in automations:
+
+```yaml
+# Switch to gaming console
+- action: media_player.select_source
+  target:
+    entity_id: media_player.living_room_tv
+  data:
+    source: "PlayStation 5"
+```
+
+### Wake-on-LAN Configuration
+
+For older TVs that don't support network standby:
+
+```yaml
+# Enable wake_on_lan integration
+wake_on_lan:
+
+samsungtv_smart:
+  - host: 192.168.1.100
+    mac: AA:BB:CC:DD:EE:FF # Your TV's MAC address
+    broadcast_address: 192.168.1.255 # Your network broadcast address
+
+automation:
+  - alias: "Turn On TV with WOL"
+    trigger:
+      - trigger: samsungtv.turn_on
+        entity_id: media_player.living_room_tv
+    action:
+      - action: wake_on_lan.send_magic_packet
+        data:
+          mac: AA:BB:CC:DD:EE:FF
+          broadcast_address: 192.168.1.255
+```
+
+### Multi-Room TV Synchronization
+
+Control multiple TVs simultaneously:
+
+```yaml
+script:
+  all_tvs_off:
+    alias: "Turn Off All TVs"
+    sequence:
+      - action: media_player.turn_off
+        target:
+          entity_id:
+            - media_player.living_room_tv
+            - media_player.bedroom_tv
+            - media_player.kitchen_tv
+
+  all_tvs_netflix:
+    alias: "Launch Netflix on All TVs"
+    sequence:
+      - action: media_player.turn_on
+        target:
+          entity_id:
+            - media_player.living_room_tv
+            - media_player.bedroom_tv
+
+      - delay:
+          seconds: 5
+
+      - action: media_player.select_source
+        target:
+          entity_id:
+            - media_player.living_room_tv
+            - media_player.bedroom_tv
+        data:
+          source: "Netflix"
+```
+
+## Security Best Practices
+
+### Network Segmentation
+
+Place smart TVs on a separate VLAN for security:
+
+```yaml
+# Example VLAN configuration (router-dependent)
+# VLAN 10: Main network (computers, phones)
+# VLAN 20: IoT devices (TVs, smart home)
+# VLAN 30: Home Assistant (can access both)
+
+# Firewall rules:
+# Allow: VLAN 30 → VLAN 20 (HA to TVs)
+# Allow: VLAN 10 → VLAN 20 (phones to TVs)
+# Block: VLAN 20 → Internet (optional, blocks ads/telemetry)
+```
+
+### API Token Management
+
+Store SmartThings tokens securely:
+
+```yaml
+# Use secrets.yaml instead of configuration.yaml
+# secrets.yaml
+smartthings_token: "your-secret-token-here"
+tv_device_id: "your-device-id-here"
+
+# configuration.yaml
+samsungtv_smart:
+  - host: 192.168.1.100
+    api_key: !secret smartthings_token
+    device_id: !secret tv_device_id
+```
+
+Never commit secrets to version control:
+
+```bash
+# .gitignore
+secrets.yaml
+.storage/
+*.log
+```
+
+### Privacy Settings on Samsung TV
+
+Minimize data collection:
+
+1. **Settings → Support → Terms & Privacy:**
+   - Disable "Viewing Information Services"
+   - Disable "Interest-Based Advertisement"
+   - Review "Privacy Choices"
+
+2. **Settings → General → Smart Features:**
+   - Disable "Autorun Smart Hub"
+   - Disable "Autorun Last App"
+
+3. **Settings → Support → Device Care:**
+   - Disable "Auto Diagnostic"
+
+## Reference: Common Tizen App IDs
+
+### Streaming Services
+
+| Service     | Legacy ID     | Modern ID (2020+)       | Notes                   |
+| ----------- | ------------- | ----------------------- | ----------------------- |
+| YouTube     | 111299001912  | 9Ur5IzDKqV.TizenYouTube | Most common app         |
+| Netflix     | 11101200001   | 3201907018807           | May vary by region      |
+| Disney+     | -             | 3201901017640           | 2020+ only              |
+| Prime Video | 3201910019354 | 3201910019365           | Multiple IDs exist      |
+| Hulu        | -             | 3201601007625           | US only                 |
+| HBO Max     | -             | 3201601007230           | Becoming Max            |
+| Paramount+  | -             | 3201908019041           | Formerly CBS All Access |
+| Peacock     | -             | 3201910019378           | US only                 |
+| Apple TV+   | -             | 3201807016597           | 2019+ models            |
+| Plex        | -             | hKfNDgSKZ3.tizenplex    | Third-party app         |
+
+### Music Services
+
+| Service       | Legacy ID     | Modern ID               | Notes                   |
+| ------------- | ------------- | ----------------------- | ----------------------- |
+| Spotify       | 3201606009684 | 3201606009684           | Same ID across versions |
+| YouTube Music | -             | eDYF0FXdGw.YouTubeMusic | Separate from YouTube   |
+| Pandora       | -             | 3201606009684           | US only                 |
+| Tidal         | -             | lbusDFJn4K.Tidal        | High-res audio          |
+
+### Other Apps
+
+| Service    | Legacy ID | Modern ID            | Notes          |
+| ---------- | --------- | -------------------- | -------------- |
+| Browser    | -         | org.tizen.browser    | Built-in       |
+| Twitch     | -         | UhHSKyDHuf.Twitch    | Gaming streams |
+| Steam Link | -         | zHBvQ6qEu8.steamlink | PC gaming      |
+
+## Additional Resources
+
+### Official Documentation
+
+- **Samsung TV Smart Integration:** https://github.com/ollo69/ha-samsungtv-smart
+- **Home Assistant Samsung TV:** https://www.home-assistant.io/integrations/samsungtv/
+- **SmartThings API:** https://smartthings.developer.samsung.com/docs
+- **Tizen Developer Guide:** https://developer.samsung.com/smarttv/develop
+
+### Community Resources
+
+- **Home Assistant Community Forum:** https://community.home-assistant.io/c/integrations/samsung-tv/
+- **Reddit r/homeassistant:** https://reddit.com/r/homeassistant
+- **Home Assistant Discord:** https://discord.gg/home-assistant
+
+### Development Tools
+
+- **Tizen Studio:** https://developer.tizen.org/development/tizen-studio
+- **SmartThings CLI:** https://github.com/SmartThingsCommunity/smartthings-cli
+- **Samsung Remote SDK:** https://developer.samsung.com/smarttv/develop/guides/smart-view
+
+---
+
+## Summary
+
+This guide covered comprehensive integration of Samsung Tizen OS TVs with Home Assistant, including:
+
+- ✅ Installation and configuration of Samsung TV Smart component
+- ✅ Understanding and finding Tizen application IDs
+- ✅ SmartThings integration for enhanced reliability
+- ✅ Practical automation examples for common use cases
+- ✅ Troubleshooting common issues
+- ✅ Advanced configuration options
+- ✅ Security and privacy considerations
+- ✅ Complete reference of popular app IDs
+
+With this setup, you can fully automate your Samsung Smart TV through Home Assistant, enabling voice control, scheduled app launches, integration with other smart home devices, and sophisticated automation scenarios.

@@ -4,7 +4,7 @@ description: A quick guide to fix permissions issues on Mac when installing Midn
 tags: [Mac, Homebrew, Midnight Commander, Permissions]
 ---
 
-### Install Midnight Commander via Homebrew 
+### Install Midnight Commander via Homebrew
 
 ```bash copy
 brew install midnight-commander
@@ -20,3 +20,51 @@ sudo chown -R $(whoami) /Users/$(whoami)/.config
 
 ```
 
+### Why this happens
+
+Homebrew installs Midnight Commander into `/opt/homebrew` (Apple Silicon) or `/usr/local` (Intel) and expects your user to own the config and cache paths that `mc` writes to. If these directories were created by another UID (migration, sudo, Time Machine restore), `mc` cannot write its history or panels state, so it exits with permission errors. The `chown` commands above restore ownership so `mc` can persist its runtime files.
+
+### Check current ownership and ACLs
+
+Run a quick inspection before and after the fix to confirm ownership and to spot unexpected ACL entries that may override POSIX permissions:
+
+```bash copy
+ls -le ~/.local ~/.cache ~/.config
+stat -f "%N uid=%u gid=%g mode=%Sp" ~/.local ~/.cache ~/.config
+```
+
+If you see `unknown` ACL entries, you can drop them (use cautiously):
+
+```bash copy
+chmod -RN ~/.local ~/.cache ~/.config
+```
+
+### Homebrew health check
+
+Ensure your Homebrew prefix and environment are consistent, and that `mc` is installed where you expect:
+
+```bash copy
+brew doctor
+brew --prefix midnight-commander
+brew list --versions midnight-commander
+```
+
+### Last-resort: reset user permissions on the volume
+
+When multiple apps show similar home-directory permission issues, reset your account permissions on the system volume (macOS 10.13+):
+
+```bash copy
+sudo diskutil resetUserPermissions / $(id -u)
+```
+
+Run it from Recovery if SIP blocks the command. Afterward, re-run the `chown` steps above for your dot-directories.
+
+### Optional: isolate Midnight Commander config
+
+If you prefer to keep `mc` config in a dedicated path (e.g., inside a synced dotfiles repo), point `MC_CONFIG_DIR` and `MC_DATA_DIR` before launching:
+
+```bash copy
+export MC_CONFIG_DIR="$HOME/.config/mc"
+export MC_DATA_DIR="$HOME/.local/share/mc"
+mc
+```

@@ -16,7 +16,7 @@
 playwright-report/
 test-results/
 tests/
-
+.pnpm-store/*
 # testing
 /coverage
 

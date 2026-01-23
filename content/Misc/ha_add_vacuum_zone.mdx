@@ -4,10 +4,43 @@ description: Add specific rooms or areas to Home Assistant for your vacuum clean
 tags: [homeassistant, vacuum, deebot, ecovacs]
 ---
 
-### Add Script to Home Assistant
+## Understanding Vacuum Service Commands
 
-HA UI -> Settings -> Automation & Scenes -> Scripts -> Create New Script ->
-Add action -> Perform action -> Action = Vacuum:send_command -> Targets = Entity: vaccum:deebot -> Command = clean -> Parameters =
+Home Assistant's vacuum integration provides standardized service calls for controlling vacuum cleaners. The `vacuum.send_command` service allows you to send custom commands specific to your vacuum model (in this case, Deebot/Ecovacs devices). Each manufacturer implements different command structures and parameters.
+
+### Service Call Architecture
+
+The `vacuum.send_command` service operates using the following REST API endpoint:
+
+```
+POST /api/services/vacuum/send_command
+```
+
+When called, Home Assistant forwards the service data to the vacuum integration, which then communicates with your specific device. For Deebot devices connected via Ecovacs integration, commands are translated and sent to the device's API.
+
+### Command Structure
+
+Deebot vacuums support various command types through the spotArea (zone cleaning) feature:
+
+- **act**: Action to perform (e.g., "start" for beginning the clean)
+- **type**: Command type specifying what kind of cleaning (e.g., "spotArea" for zone/room-based cleaning)
+- **content**: The target identifier (room ID, zone ID, etc.)
+
+## Setup Instructions
+
+### Creating the Script in Home Assistant UI
+
+Navigate through: **Settings** → **Automations & Scenes** → **Scripts** → **Create New Script**
+
+Then configure the action as follows:
+
+1. Add action → **Perform action**
+2. Select **Action**: `Vacuum: Send command`
+3. Set **Target**: Entity `vacuum.deebot`
+4. Set **Command**: `clean`
+5. Configure **Parameters** with the YAML structure below
+
+### Script Configuration
 
 ```yaml copy
 act: start
@@ -15,4 +48,116 @@ content: "4"
 type: spotArea
 ```
 
-content "var" - based on Deebot attributes = room IDs.
+**Parameter Explanation:**
+
+- `act: start` - Initiates the cleaning action immediately
+- `type: spotArea` - Specifies zone/room-based cleaning mode (vs full home cleaning)
+- `content: "4"` - Room identifier variable based on your Deebot's room mapping
+
+### Finding Your Room IDs
+
+Room IDs are stored in your Deebot device attributes within Home Assistant. To find them:
+
+1. **Via Developer Tools**: Go to **Developer Tools** → **States** → Search for your vacuum entity (e.g., `vacuum.deebot`)
+2. **In Attributes section**, look for values like:
+   - `rooms` (list of available rooms)
+   - `room_mapping` (ID to name mapping)
+   - `lastCleanMap` (last cleaning zones)
+
+Room IDs are typically numeric strings (e.g., "1", "4", "12") that correspond to physically defined areas in your home as mapped through the Deebot app.
+
+## Extended Implementation Examples
+
+### Multi-Room Cleaning Script
+
+For cleaning multiple rooms sequentially, create a script that calls the vacuum service multiple times:
+
+```yaml
+sequence:
+  - action: vacuum.send_command
+    target:
+      entity_id: vacuum.deebot
+    data:
+      command: clean
+      params:
+        act: start
+        content: "1"
+        type: spotArea
+  - delay:
+      seconds: 120
+  - action: vacuum.send_command
+    target:
+      entity_id: vacuum.deebot
+    data:
+      command: clean
+      params:
+        act: start
+        content: "3"
+        type: spotArea
+```
+
+### Automation Trigger Example
+
+Create an automation that triggers room-specific cleaning based on sensor data:
+
+```yaml
+alias: Clean Kitchen When Motion Detected
+triggers:
+  - trigger: state
+    entity_id: binary_sensor.kitchen_motion
+    to: "off"
+    for:
+      minutes: 30
+actions:
+  - action: vacuum.send_command
+    target:
+      entity_id: vacuum.deebot
+    data:
+      command: clean
+      params:
+        act: start
+        content: "2"
+        type: spotArea
+```
+
+### Template Service Call
+
+For dynamic room selection using Home Assistant templates:
+
+```yaml
+action: vacuum.send_command
+target:
+  entity_id: vacuum.deebot
+data:
+  command: clean
+  params:
+    act: start
+    content: "{{ states('input_select.target_room') }}"
+    type: spotArea
+```
+
+## Debugging and Validation
+
+### Checking Service Response
+
+When testing commands via **Developer Tools** → **Services**, you can verify the service call succeeded by checking:
+
+- The vacuum's entity state changes
+- Device logs show the command was received
+- The Deebot app reflects the action
+
+### Common Parameter Issues
+
+- **content not recognized**: Room ID doesn't exist in your mapping. Verify via device states.
+- **act parameter**: Must be lowercase "start" for Deebot devices
+- **type parameter**: Case-sensitive; use "spotArea" exactly as specified
+
+## Integration Details
+
+The Ecovacs/Deebot integration in Home Assistant communicates with your vacuum through:
+
+1. Local network connection (for supported models)
+2. Ecovacs cloud API (for cloud-dependent models)
+3. MQTT relay (if using MQTT-based communication)
+
+Service parameters are validated against the integration's schema before transmission to prevent invalid commands from being sent to your device.
