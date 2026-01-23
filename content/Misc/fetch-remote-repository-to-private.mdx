@@ -3,28 +3,39 @@ title: Fetch remote repository template to private repository
 description: A guide to fetching a remote repository template into your private repository using Git commands.
 tags: [git, repository, template, private, fetch]
 ---
+
 ### Check remotes
+
 ```bash copy
 git remote -v
 ```
+
 ### Add remote template repository
+
 ```bash copy
 git remote add template https://github.com/original-author/template-repo.git
 ```
+
 ### Configure the Template Remote to Be Fetch-Only
+
 ```bash copy
 git remote set-url --push template no-push
 ```
+
 ### Fetch Updates from the Template
+
 ```bash copy
 git fetch template
 ```
+
 ### Push to Your Private Repository
+
 ```bash copy
 git push origin main
 ```
+
 ### Merge template updates
+
 ```bash copy
 git merge template/main
 ```
-
