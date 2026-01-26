@@ -3,6 +3,15 @@ title: MySQL Database Import
 description: Quick large MySQL database import
 tags: [mysql, import, large, database]
 ---
+### Dump a MySQL database to file
+```bash copy
+mysqldump -u username -p database_name > data-dump.sql
+```
+
+### Import a MySQL database from file
+```bash copy
+mysql -u username -p new_database < data-dump.sql
+```
 
 ### For quick large MySQL database import use:
 

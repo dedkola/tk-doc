@@ -1,0 +1,38 @@
+---
+title: MySQL 8.0 on MacOS 26 with Brew
+description: A guide to installing MySQL 8.0 on MacOS 26 using Homebrew.
+tags: [macos, mysql, brew, database]
+---
+
+
+## Install mysql
+```bash copy
+brew install mysql@8.0
+```
+## Link mysql
+```
+brew link mysql@8.0 --force
+```
+
+## Start mysql service
+```bash copy
+brew services start mysql@8.0
+```
+## Prevent upgrade from Brew
+```bash copy
+brew pin mysql@8.0
+```
+## Check logs
+```bash copy
+tail -30 /opt/homebrew/var/mysql/*.err
+```
+is MySQL running?
+```bash copy
+ps aux | grep mysqld | grep -v grep
+```
+if downfraded from 9 clear mysql database folder
+```bash copy
+rm -rf /opt/homebrew/var/mysql
+```
+
+
