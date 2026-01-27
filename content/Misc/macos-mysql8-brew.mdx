@@ -39,4 +39,9 @@ rm -rf /opt/homebrew/var/mysql
 ```bash copy
 nano /opt/homebrew/etc/my.cnf
 ```
-
+### Create user for remote access
+```sql copy
+CREATE USER 'admin'@'%' IDENTIFIED BY 'strong_password';
+GRANT ALL PRIVILEGES ON *.* TO 'admin'@'%' WITH GRANT OPTION;
+FLUSH PRIVILEGES;
+```
