@@ -45,3 +45,7 @@ CREATE USER 'admin'@'%' IDENTIFIED BY 'strong_password';
 GRANT ALL PRIVILEGES ON *.* TO 'admin'@'%' WITH GRANT OPTION;
 FLUSH PRIVILEGES;
 ```
+### Mysql logs
+```bash copy
+ls /usr/local/var/mysql/*.err
+```
