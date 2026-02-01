@@ -4,9 +4,32 @@ description: Docker containers can be configured to automatically restart on sys
 tags: [docker, container, autostart, restart]
 ---
 
+## Understanding Docker Restart Policies
+
+Docker provides a robust restart policy mechanism that controls whether and how containers should be automatically restarted when they exit or when the Docker daemon starts. This is a container-level configuration that operates independently of the exit code and can be crucial for maintaining service availability in production environments.
+
 ### By default, it's not enabled.
 
 Docker containers do not automatically restart when the system reboots or the Docker service restarts. To ensure important containers (such as Home Assistant) are always running, you can set a restart policy. The `--restart=always` flag tells Docker to always restart the container unless it is explicitly stopped. This is useful for services that should be highly available or run continuously.
+
+### Available Restart Policies
+
+Docker supports several restart policy options, each with specific behavior:
+
+| Policy                     | Description                                            | Use Case                                                                                     |
+| -------------------------- | ------------------------------------------------------ | -------------------------------------------------------------------------------------------- |
+| `no`                       | Do not automatically restart the container (default)   | Development environments, one-off tasks                                                      |
+| `on-failure[:max-retries]` | Restart only if container exits with non-zero status   | Applications that may fail temporarily but shouldn't run indefinitely on persistent failures |
+| `always`                   | Always restart the container regardless of exit status | Critical services that must remain running                                                   |
+| `unless-stopped`           | Always restart unless explicitly stopped by user       | Production services where manual control is needed                                           |
+
+#### Technical Differences Between Policies
+
+**`always` vs `unless-stopped`:** The key distinction appears when Docker daemon restarts. With `always`, Docker will restart the container even if it was manually stopped before daemon shutdown. With `unless-stopped`, a manually stopped container remains stopped after daemon restart.
+
+**Exit Code Behavior:** The `on-failure` policy monitors the container's exit code (accessed via `$?` in shell or the return value of the main process). Exit code `0` indicates success and won't trigger a restart, while any non-zero exit code (1-255) will trigger the restart mechanism.
+
+**Restart Delay Algorithm:** Docker implements an exponential backoff delay for restart attempts, starting at 100ms and doubling with each consecutive failure, capping at a maximum interval to prevent excessive resource consumption during persistent failures.
 
 #### Compose and stacks
 
@@ -23,7 +46,11 @@ If you use `docker-compose` or Compose V2, set the restart behavior in your comp
 
 `--restart=always` will attempt to keep a container running indefinitely, which is useful for critical services but can hide problems if a container repeatedly fails. For unstable services, consider `on-failure` with a maximum retry count or fix the underlying failure before applying an unconditional restart. When using system-level supervisors or orchestrators, coordinate restart settings to avoid conflicting behavior.
 
-Other restart policies include:
+### Setting Restart Policies
+
+Restart policies can be configured at container creation or updated on running containers. The policy is stored in the container's configuration and persists across Docker daemon restarts.
+
+#### At Container Creation
 
 You can set the restart policy when creating a container:
 
@@ -37,4 +64,196 @@ Or update an existing container:
 
 ```bash copy
 docker update --restart=always homeassistant
+```
+
+#### Additional Configuration Examples
+
+Here are more examples demonstrating different restart policy scenarios:
+
+```bash
+# Restart only on failure, with maximum 5 retry attempts
+docker run -d --restart=on-failure:5 --name web-app nginx:alpine
+
+# Unless-stopped policy (survives manual stops across daemon restarts)
+docker run -d --restart=unless-stopped --name database postgres:15
+
+# No restart policy (default)
+docker run -d --restart=no --name temporary-worker worker:latest
+```
+
+### Verifying Restart Policy
+
+You can inspect a container's current restart policy using Docker inspect:
+
+```bash
+# View restart policy details
+docker inspect --format='{{.HostConfig.RestartPolicy}}' homeassistant
+
+# Output example: {always 0}
+# Format: {PolicyName MaximumRetryCount}
+```
+
+### Restart Policy in Practice
+
+#### Monitoring Restart Behavior
+
+Docker tracks restart attempts and timing information that can be inspected:
+
+```bash
+# View container restart count
+docker inspect --format='{{.RestartCount}}' homeassistant
+
+# View last start time
+docker inspect --format='{{.State.StartedAt}}' homeassistant
+
+# Check if container was restarted by policy
+docker inspect --format='{{.State.Status}} (Restarting: {{.State.Restarting}})' homeassistant
+```
+
+#### Testing Restart Policies
+
+You can test restart behavior by simulating failures:
+
+```bash
+# Force container to exit with error code
+docker exec homeassistant /bin/sh -c "exit 1"
+
+# Watch restart behavior in real-time
+watch -n 1 'docker ps -a --filter name=homeassistant --format "table {{.Names}}\t{{.Status}}\t{{.State}}"'
+
+# View restart attempts in logs
+docker logs --tail 50 homeassistant
+```
+
+### System-Level Integration
+
+#### Windows Docker Desktop Autostart
+
+On Windows, ensure Docker Desktop itself starts at login:
+
+```powershell
+# Check Docker Desktop startup configuration (PowerShell)
+Get-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" -Name "Docker Desktop"
+
+# Docker Desktop should have a registry entry pointing to:
+# C:\Program Files\Docker\Docker\Docker Desktop.exe
+```
+
+To configure Docker Desktop to start at login:
+
+1. Open Docker Desktop Settings
+2. Navigate to **General** tab
+3. Enable **"Start Docker Desktop when you log in"**
+4. Click **"Apply & Restart"**
+
+#### Windows Service Management
+
+For Docker Engine on Windows Server (not Desktop), manage the service:
+
+```powershell
+# Check Docker service status
+Get-Service docker
+
+# Set Docker service to start automatically
+Set-Service -Name docker -StartupType Automatic
+
+# Start Docker service
+Start-Service docker
+
+# Verify service configuration
+Get-Service docker | Select-Object Name, Status, StartType
+```
+
+### Advanced Restart Policy Patterns
+
+#### Health Check Integration
+
+Combine restart policies with health checks for more intelligent restart behavior:
+
+```bash
+docker run -d \
+  --name smart-web-app \
+  --restart=unless-stopped \
+  --health-cmd="curl -f http://localhost:8080/health || exit 1" \
+  --health-interval=30s \
+  --health-timeout=10s \
+  --health-retries=3 \
+  web-app:latest
+```
+
+This configuration ensures:
+
+- Container restarts automatically unless manually stopped
+- Health checks run every 30 seconds
+- Container marked unhealthy after 3 consecutive failures
+- Monitoring systems can detect unhealthy state even if container is running
+
+#### Dependency Management
+
+When containers depend on each other, consider startup order:
+
+```bash
+# Start database first with unless-stopped
+docker run -d \
+  --name app-database \
+  --restart=unless-stopped \
+  postgres:15
+
+# Start application with dependency awareness
+docker run -d \
+  --name app-backend \
+  --restart=unless-stopped \
+  --link app-database:database \
+  --health-cmd="pg_isready -h database" \
+  --health-interval=10s \
+  backend:latest
+```
+
+### Performance Considerations
+
+#### Resource Limits and Restart Policies
+
+When using restart policies, especially `always` or `unless-stopped`, consider setting resource limits to prevent runaway containers from consuming all system resources:
+
+```bash
+docker run -d \
+  --name resource-limited-service \
+  --restart=unless-stopped \
+  --memory="512m" \
+  --memory-swap="1g" \
+  --cpus="1.5" \
+  --pids-limit=200 \
+  service:latest
+```
+
+**Memory Limits:**
+
+- `--memory`: Hard limit on memory usage
+- `--memory-swap`: Total memory (memory + swap) limit
+- Container will be killed if it exceeds memory limit, triggering restart policy
+
+**CPU Limits:**
+
+- `--cpus`: Number of CPU cores available (can be fractional)
+- `--cpu-shares`: Relative CPU weight (default 1024)
+
+**Process Limits:**
+
+- `--pids-limit`: Maximum number of processes/threads in container
+- Prevents fork bombs from affecting host system
+
+#### Restart Timing and System Load
+
+Understanding Docker's restart timing helps prevent system overload:
+
+```bash
+# Restart backoff formula (approximate):
+# delay = min(max_delay, initial_delay * 2^(attempt_number))
+#
+# Attempt 1: 100ms
+# Attempt 2: 200ms
+# Attempt 3: 400ms
+# Attempt 4: 800ms
+# Attempt 5: 1600ms
+# And so on, up to a maximum interval
 ```

@@ -4,6 +4,72 @@ description: Limit posts in WordPress in admin area
 tags: [wordpress, admin, posts]
 ---
 
+## Overview
+
+Limiting the number of posts displayed in the WordPress admin area is a critical performance optimization technique for large-scale WordPress installations. This approach reduces database queries, improves page load times, and enhances administrative usability by preventing the admin dashboard from becoming sluggish when dealing with thousands of posts.
+
+## Technical Context
+
+### Why Limit Posts in Admin?
+
+- **Performance Impact**: Large post lists require significant database resources. Loading 1000+ posts in the admin interface can cause timeouts and memory exhaustion.
+- **UX Improvement**: Pagination prevents administrators from accidentally loading massive datasets, making the dashboard more responsive.
+- **Database Optimization**: Reduces unnecessary `wp_postmeta` and `wp_posts` table queries, lowering server load.
+- **Server Load**: Reduces unnecessary queries on table joins and metadata lookups.
+
+### The `pre_get_posts` Hook - Official WordPress Documentation
+
+According to [WordPress Developer Reference](https://developer.wordpress.org/reference/hooks/pre_get_posts), `pre_get_posts` fires **after** the `WP_Query` object is created but **before** the actual query is executed. This is the optimal point to modify query parameters.
+
+**Official Hook Specifications:**
+- **Source**: `wp-includes/class-wp-query.php`
+- **When it runs**: After `parse_query()` but before database query execution
+- **Parameters**: `WP_Query $query` (passed by reference - modifications affect the query)
+- **Since**: WordPress 2.0.0
+
+From official WordPress core:
+```php
+/**
+ * Fires after the query variable object is created, but before the actual query is run.
+ *
+ * Note: If using conditional tags, use the method versions within the passed instance
+ * (e.g. $this->is_main_query() instead of is_main_query()). This is because the functions
+ * like is_main_query() test against the global $wp_query instance, not the passed one.
+ *
+ * @since 2.0.0
+ * @param WP_Query $query The WP_Query instance (passed by reference).
+ */
+do_action_ref_array( 'pre_get_posts', array( &$this ) );
+```
+
+### Critical Warning: Conditional Functions in `pre_get_posts`
+
+⚠️ **Important**: According to WordPress documentation, some template tags and conditional functions **will NOT work** in `pre_get_posts` because they rely on `WP_Query` being fully initialized:
+
+**Functions that do NOT work:**
+- ❌ `is_front_page()`
+- ❌ `is_single()`
+- ❌ `is_archive()`
+- ❌ `is_page()`
+
+**Functions that DO work:**
+- ✅ `is_home()`
+- ✅ `is_admin()`
+- ✅ `wp_get_current_user()`
+
+**Solution**: Use instance methods from the `$query` object instead:
+```php
+// ❌ Don't use global functions in pre_get_posts
+if ( is_main_query() ) { }
+
+// ✅ Use instance methods
+if ( $query->is_main_query() ) { }
+```
+
+## Implementation
+
+### Basic Example
+
 ```php copy
 function my_post_queries( $query ) {
 
@@ -22,3 +88,218 @@ function my_post_queries( $query ) {
 }
 add_action( 'pre_get_posts', 'my_post_queries' );
 ```
+
+### How It Works
+
+1. **`is_admin()`**: Global WordPress function that checks if the current request is from the WordPress admin area (not the front-end). This works in `pre_get_posts`.
+2. **`$query->is_main_query()`**: Instance method to ensure we only modify the main query, not secondary queries like sidebars, related posts, or custom loops. This is crucial to prevent unintended side effects.
+3. **`$query->set('max_num_pages', 3)`**: Sets the maximum number of pages to 3, limiting initial post display.
+4. **`is_category()`**: Additional conditional to apply limits to specific query types.
+
+## Advanced Examples
+
+### Limit by Post Type
+
+```php
+function limit_posts_by_type( $query ) {
+  if ( is_admin() && $query->is_main_query() ) {
+    $post_type = get_current_screen()->post_type ?? 'post';
+
+    switch ( $post_type ) {
+      case 'post':
+        $query->set( 'posts_per_page', 10 );
+        break;
+      case 'page':
+        $query->set( 'posts_per_page', 20 );
+        break;
+      case 'attachment':
+        $query->set( 'posts_per_page', 50 );
+        break;
+    }
+  }
+}
+add_action( 'pre_get_posts', 'limit_posts_by_type' );
+```
+
+### Limit by User Role
+
+```php
+function limit_posts_by_role( $query ) {
+  if ( is_admin() && $query->is_main_query() ) {
+    $user = wp_get_current_user();
+
+    // Editors see more posts than contributors
+    if ( in_array( 'editor', $user->roles ) ) {
+      $query->set( 'posts_per_page', 25 );
+    } elseif ( in_array( 'contributor', $user->roles ) ) {
+      $query->set( 'posts_per_page', 10 );
+    } elseif ( in_array( 'administrator', $user->roles ) ) {
+      $query->set( 'posts_per_page', 50 );
+    }
+  }
+}
+add_action( 'pre_get_posts', 'limit_posts_by_role' );
+```
+
+### Include Custom Post Types in Results
+
+```php
+function include_custom_post_types( $query ) {
+  if ( ! is_admin() && $query->is_main_query() ) {
+    if ( $query->is_search() ) {
+      $query->set( 'post_type', array( 'post', 'page', 'my_custom_type' ) );
+    }
+  }
+}
+add_action( 'pre_get_posts', 'include_custom_post_types' );
+```
+
+### Exclude Drafts from Admin View
+
+```php
+function exclude_drafts_from_admin( $query ) {
+  if ( is_admin() && $query->is_main_query() ) {
+    $query->set( 'posts_per_page', 15 );
+    $query->set( 'post_status', array( 'publish', 'pending' ) );
+  }
+}
+add_action( 'pre_get_posts', 'exclude_drafts_from_admin' );
+```
+
+## Query Parameters Reference
+
+| Parameter | Type | Purpose | Example |
+|-----------|------|---------|---------|
+| `posts_per_page` | Integer | Number of posts per page | `10` |
+| `paged` | Integer | Current page number | `1`, `2`, `3` |
+| `orderby` | String | Sort by: `date`, `ID`, `title`, `modified`, `rand` | `'date'` |
+| `order` | String | `ASC` (ascending) or `DESC` (descending) | `'DESC'` |
+| `post_type` | String/Array | Post type(s) to query | `'post'`, `['post', 'page']` |
+| `post_status` | String/Array | Post status filter | `'publish'`, `['publish', 'pending']` |
+| `s` | String | Search term | `'query text'` |
+| `meta_key` | String | Custom field key | `'_featured'` |
+
+### WP_Query Execution Flow
+
+According to official WordPress documentation, here's the execution sequence when `pre_get_posts` is called:
+
+1. **`parse_query()`** - Parses and initializes query variables
+2. **`pre_get_posts` hook fires** ← Your modifications happen here
+3. **`fill_query_vars()`** - Fills any unset query variables with defaults
+4. **`WP_Meta_Query` initialization** - Prepares meta query parsing
+5. **SQL query execution** - Database call is made
+
+## Performance & Pagination Warnings
+
+### ⚠️ Using Offset Breaks Pagination
+
+**From WordPress Developer Reference Documentation:**
+
+> Using the offset argument in **any** WordPress query can break pagination. If you need to use offset and preserve pagination, you will need to handle pagination manually.
+
+The reason is that offset is applied *after* the LIMIT clause, which confuses WordPress's pagination system.
+
+**Avoid this pattern:**
+```php
+$query->set( 'offset', 10 ); // ❌ Breaks pagination
+```
+
+**Use paging instead:**
+```php
+$query->set( 'paged', get_query_var( 'paged' ) ); // ✅ Proper pagination
+```
+
+### Query Performance Best Practices
+
+1. **Combine multiple `pre_get_posts` hooks** into a single callback to reduce hook overhead
+2. **Use early returns** to exit the function early and avoid unnecessary processing
+3. **Avoid nested WP_Query calls** within the callback - use `get_posts()` instead if needed
+4. **Monitor with Query Monitor plugin** - Identify and optimize slow queries
+5. **Index database columns** - Ensure `post_type`, `post_status`, and `post_date` are indexed
+
+### Targeting the Right Query
+
+According to WordPress documentation:
+
+> Be aware of the queries you are changing when using the `pre_get_posts` action. Make use of conditional tags to target the right query. For example, it's recommended to use the `is_admin()` conditional to **not** change queries in the admin screens. With the `$query->is_main_query()` conditional from the query object you can target the main query of a page request.
+
+## Debugging & Testing
+
+### Log Query Parameters
+
+```php
+function debug_query_parameters( $query ) {
+  if ( is_admin() && $query->is_main_query() ) {
+    error_log( 'Posts per page: ' . $query->get( 'posts_per_page' ) );
+    error_log( 'Paged: ' . $query->get( 'paged' ) );
+    error_log( 'Post type: ' . implode( ',', (array) $query->get( 'post_type' ) ) );
+    error_log( 'SQL Query: ' . $query->request );
+  }
+}
+add_action( 'pre_get_posts', 'debug_query_parameters', 99 );
+```
+
+### Test with Query Monitor
+
+Install the [Query Monitor plugin](https://querymonitor.com/) to:
+- See actual SQL queries generated
+- Identify which hooks are modifying queries
+- Spot performance bottlenecks
+- Monitor database query count and execution time
+
+## Common Issues & Solutions
+
+### Issue: Limits Not Applied
+
+**Cause**: Not checking `$query->is_main_query()`, causing secondary queries to be affected.
+
+**Solution**:
+```php
+if ( is_admin() && $query->is_main_query() ) {
+  // Only modify the main query
+  $query->set( 'posts_per_page', 15 );
+}
+```
+
+### Issue: Admin Search Not Working
+
+**Cause**: Query modifications interfering with admin search functionality.
+
+**Solution**: Skip modification when search is active:
+```php
+if ( is_admin() && $query->is_main_query() && ! isset( $_GET['s'] ) ) {
+  $query->set( 'posts_per_page', 15 );
+}
+```
+
+### Issue: Conditional Tags Return Wrong Values
+
+**Cause**: Using global conditional functions instead of instance methods in `pre_get_posts`.
+
+**Solution**: Use instance methods on the `$query` object:
+```php
+// ❌ Won't work as expected in pre_get_posts
+if ( is_single() ) { /* ... */ }
+
+// ✅ Correct - use instance methods
+if ( $query->is_single() ) { /* ... */ }
+```
+
+### Issue: Filter Applied to Wrong Query
+
+**Cause**: No conditional check for `is_main_query()`.
+
+**Solution**: According to WordPress docs, always target the right query:
+```php
+// Only modify the main query, not secondary/nested queries
+if ( ! is_admin() && $query->is_main_query() ) {
+  $query->set( 'posts_per_page', 15 );
+}
+```
+
+## References
+
+- [WordPress pre_get_posts Hook Documentation](https://developer.wordpress.org/reference/hooks/pre_get_posts) - Official hook reference
+- [WordPress WP_Query Class Reference](https://developer.wordpress.org/reference/classes/wp_query) - Query class documentation
+- [WordPress Hooks & Filters](https://developer.wordpress.org/reference/hooks/posts_selection) - Related hooks
+- [Query Monitor Plugin](https://querymonitor.com/) - Debugging tool for WordPress queries

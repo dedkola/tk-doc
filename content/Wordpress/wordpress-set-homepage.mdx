@@ -1,13 +1,1139 @@
 ---
 title: WordPress config
-description: WordPress config
-tags: [wordpress, config]
+description: WordPress URL configuration, wp-config.php constants, and site URL management for deployments and migrations
+tags: [wordpress, config, wp-config, url, migration, docker]
+---
+
+## Overview
+
+This guide covers WordPress URL configuration—a critical aspect of WordPress administration that affects site accessibility, SEO, asset loading, and deployment workflows. Understanding these concepts is essential for system administrators, DevOps engineers, and developers working with WordPress in production environments.
+
+### URL Resolution Order
+
+WordPress resolves site URLs using the following precedence (highest to lowest):
+
+1. **Constants in wp-config.php** (`WP_HOME`, `WP_SITEURL`)
+2. **Filtered values** via `home_url` and `site_url` filters
+3. **Database options** (`home`, `siteurl` in `wp_options` table)
+4. **Installation defaults** (set during WordPress setup)
+
+Understanding this hierarchy is crucial for debugging URL-related issues and implementing proper multi-environment configurations.
+
 ---
 
 ### Define URL
+
+WordPress uses two core constants to manage site URLs: `WP_HOME` and `WP_SITEURL`. These constants override the values stored in the database and are essential for deployment configurations, migrations, and containerized environments.
+
+**Technical Details:**
+
+- **WP_HOME**: The URL visitors use to access your site (front-end)
+- **WP_SITEURL**: The URL where WordPress core files are located
+- Both constants prevent URL changes via wp-admin (Settings → General)
+- Defined in `wp-config.php` or as environment variables
+- Take precedence over `home` and `siteurl` options in `wp_options` table
+
+**Internal WordPress Functions:**
+
+| Function | Uses | Returns |
+|----------|------|---------|
+| `home_url()` | `WP_HOME` | Front-end URL for visitors |
+| `site_url()` | `WP_SITEURL` | WordPress installation URL |
+| `admin_url()` | `WP_SITEURL` | Admin area URL (`/wp-admin/`) |
+| `content_url()` | `WP_SITEURL` | Content directory URL (`/wp-content/`) |
+| `includes_url()` | `WP_SITEURL` | Includes directory URL (`/wp-includes/`) |
+| `plugins_url()` | `WP_SITEURL` | Plugins directory URL |
+
+**URL Anatomy Example:**
+
+```
+https://example.com/blog/wp-admin/edit.php
+├─────────────────┘    └───────────────────┘
+     WP_HOME            Path after WP_SITEURL
+
+WP_HOME:    https://example.com
+WP_SITEURL: https://example.com/blog
+```
 
 ```php copy
 WORDPRESS_CONFIG_EXTRA:
                define('WP_HOME','http://localhost');
                define('WP_SITEURL','http://localhost');
 ```
+
+### Configuration Methods
+
+#### 1. wp-config.php (Static)
+
+Add directly to `wp-config.php` before the "That's all, stop editing!" comment:
+
+```php
+define('WP_HOME', 'https://example.com');
+define('WP_SITEURL', 'https://example.com');
+```
+
+**File Location Reference:**
+
+```plaintext
+WordPress Root/
+├── wp-config.php          ← Define constants here
+├── wp-settings.php        ← Loaded after wp-config.php
+├── wp-content/
+├── wp-admin/
+└── wp-includes/
+```
+
+**Placement in wp-config.php:**
+
+```php
+<?php
+// Database settings
+define('DB_NAME', 'wordpress');
+define('DB_USER', 'root');
+define('DB_PASSWORD', 'password');
+define('DB_HOST', 'localhost');
+
+// URL Constants - ADD HERE (before authentication keys)
+define('WP_HOME', 'https://example.com');
+define('WP_SITEURL', 'https://example.com');
+
+// Authentication Unique Keys
+define('AUTH_KEY', '...');
+// ...
+
+/* That's all, stop editing! Happy publishing. */
+require_once ABSPATH . 'wp-settings.php';
+```
+
+#### 2. Environment Variables (Docker/12-Factor)
+
+For containerized deployments, use environment variables with fallback:
+
+```php
+define('WP_HOME', getenv('WP_HOME') ?: 'http://localhost');
+define('WP_SITEURL', getenv('WP_SITEURL') ?: 'http://localhost');
+```
+
+Docker Compose example:
+
+```yaml
+environment:
+  WP_HOME: https://production.com
+  WP_SITEURL: https://production.com
+  WORDPRESS_CONFIG_EXTRA: |
+    define('WP_HOME', getenv('WP_HOME'));
+    define('WP_SITEURL', getenv('WP_SITEURL'));
+```
+
+**Complete Docker Compose Stack:**
+
+```yaml
+version: '3.8'
+
+services:
+  wordpress:
+    image: wordpress:6.4-php8.2-apache
+    ports:
+      - "8080:80"
+    environment:
+      WORDPRESS_DB_HOST: db
+      WORDPRESS_DB_USER: wp_user
+      WORDPRESS_DB_PASSWORD: ${DB_PASSWORD}
+      WORDPRESS_DB_NAME: wordpress
+      WP_HOME: ${SITE_URL:-http://localhost:8080}
+      WP_SITEURL: ${SITE_URL:-http://localhost:8080}
+      WORDPRESS_CONFIG_EXTRA: |
+        define('WP_HOME', getenv('WP_HOME'));
+        define('WP_SITEURL', getenv('WP_SITEURL'));
+        define('WP_DEBUG', getenv('WP_DEBUG') === 'true');
+        define('WP_DEBUG_LOG', '/var/log/wordpress/debug.log');
+        define('FORCE_SSL_ADMIN', getenv('FORCE_SSL') === 'true');
+    volumes:
+      - wordpress_data:/var/www/html
+      - ./wp-content:/var/www/html/wp-content
+    depends_on:
+      - db
+
+  db:
+    image: mariadb:10.11
+    environment:
+      MYSQL_DATABASE: wordpress
+      MYSQL_USER: wp_user
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+    volumes:
+      - db_data:/var/lib/mysql
+
+volumes:
+  wordpress_data:
+  db_data:
+```
+
+**Environment File (.env):**
+
+```bash
+# .env file for Docker Compose
+SITE_URL=https://example.com
+DB_PASSWORD=secure_password_here
+DB_ROOT_PASSWORD=root_secure_password
+WP_DEBUG=false
+FORCE_SSL=true
+```
+
+**Kubernetes ConfigMap Example:**
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: wordpress-config
+data:
+  WP_HOME: "https://example.com"
+  WP_SITEURL: "https://example.com"
+  WORDPRESS_CONFIG_EXTRA: |
+    define('WP_HOME', getenv('WP_HOME'));
+    define('WP_SITEURL', getenv('WP_SITEURL'));
+    define('FORCE_SSL_ADMIN', true);
+    define('DISALLOW_FILE_EDIT', true);
+```
+
+#### 3. Subdirectory Installation
+
+When WordPress core is in a subdirectory:
+
+```php
+define('WP_HOME', 'https://example.com');
+define('WP_SITEURL', 'https://example.com/wordpress');
+```
+
+**Directory Structure for Subdirectory Installation:**
+
+```plaintext
+public_html/                        ← Document root (WP_HOME)
+├── index.php                       ← Modified loader
+├── .htaccess                       ← Rewrite rules
+└── wordpress/                      ← WordPress core (WP_SITEURL)
+    ├── wp-admin/
+    ├── wp-content/
+    ├── wp-includes/
+    ├── wp-config.php
+    └── index.php
+```
+
+**Modified Root index.php:**
+
+```php
+<?php
+/**
+ * Front to the WordPress application.
+ * Modified to load WordPress from subdirectory.
+ */
+define('WP_USE_THEMES', true);
+require(__DIR__ . '/wordpress/wp-blog-header.php');
+```
+
+**Root .htaccess Configuration:**
+
+```apache
+# BEGIN WordPress Subdirectory
+<IfModule mod_rewrite.c>
+RewriteEngine On
+RewriteBase /
+RewriteRule ^index\.php$ - [L]
+
+# Don't rewrite requests to actual files or directories
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+
+# Rewrite everything else to index.php
+RewriteRule . /index.php [L]
+</IfModule>
+# END WordPress Subdirectory
+```
+
+**Use Cases for Subdirectory Installation:**
+
+| Scenario | WP_HOME | WP_SITEURL |
+|----------|---------|------------|
+| Clean URLs (core hidden) | `https://example.com` | `https://example.com/wp` |
+| Multiple apps on domain | `https://example.com/blog` | `https://example.com/blog/wordpress` |
+| Development isolation | `http://localhost:8080` | `http://localhost:8080/wordpress` |
+
+### Database Direct Update (Migration/Emergency)
+
+When `wp-config.php` is inaccessible, update URLs via SQL:
+
+```sql
+-- Update site URL
+UPDATE wp_options
+SET option_value = 'https://newdomain.com'
+WHERE option_name IN ('home', 'siteurl');
+
+-- Verify changes
+SELECT option_name, option_value
+FROM wp_options
+WHERE option_name IN ('home', 'siteurl');
+```
+
+**Warning**: This method doesn't update serialized data in post content or postmeta. Use WP-CLI or Search Replace DB for full migrations.
+
+**Database Schema Context:**
+
+The `wp_options` table stores WordPress configuration as key-value pairs:
+
+```sql
+-- wp_options table structure
++-------------+---------------------+------+-----+---------+----------------+
+| Field       | Type                | Null | Key | Default | Extra          |
++-------------+---------------------+------+-----+---------+----------------+
+| option_id   | bigint(20) unsigned | NO   | PRI | NULL    | auto_increment |
+| option_name | varchar(191)        | NO   | UNI |         |                |
+| option_value| longtext            | NO   |     |         |                |
+| autoload    | varchar(20)         | NO   |     | yes     |                |
++-------------+---------------------+------+-----+---------+----------------+
+```
+
+**Complete Migration Query Set:**
+
+```sql
+-- Start transaction for safety
+START TRANSACTION;
+
+-- Update core URL options
+UPDATE wp_options
+SET option_value = REPLACE(option_value, 'http://olddomain.com', 'https://newdomain.com')
+WHERE option_name IN ('home', 'siteurl');
+
+-- Update GUID in posts (permanent URLs)
+UPDATE wp_posts
+SET guid = REPLACE(guid, 'http://olddomain.com', 'https://newdomain.com');
+
+-- Update post content (images, links)
+UPDATE wp_posts
+SET post_content = REPLACE(post_content, 'http://olddomain.com', 'https://newdomain.com');
+
+-- Update post excerpts
+UPDATE wp_posts
+SET post_excerpt = REPLACE(post_excerpt, 'http://olddomain.com', 'https://newdomain.com');
+
+-- Verify changes before committing
+SELECT option_name, option_value FROM wp_options WHERE option_name IN ('home', 'siteurl');
+
+-- Commit if everything looks correct
+COMMIT;
+
+-- Or rollback if issues found
+-- ROLLBACK;
+```
+
+**Serialized Data Warning:**
+
+WordPress stores complex data as PHP serialized strings. Direct SQL replacement breaks serialization:
+
+```php
+// Example serialized data in wp_options
+a:2:{s:4:"home";s:24:"http://olddomain.com";s:7:"version";s:5:"6.4.2";}
+//   ↑                    ↑
+//   String length (24)   Actual string
+
+// After naive replace (BROKEN):
+a:2:{s:4:"home";s:25:"https://newdomain.com";s:7:"version";s:5:"6.4.2";}
+//   ↑                    ↑
+//   Still 24!            Now 25 chars - LENGTH MISMATCH
+```
+
+This is why WP-CLI `search-replace` is strongly recommended for production migrations.
+
+### WP-CLI Method
+
+Recommended for migrations and server-side automation:
+
+```bash
+# Update URLs
+wp option update home 'https://newdomain.com'
+wp option update siteurl 'https://newdomain.com'
+
+# Search-replace across all tables (handles serialized data)
+wp search-replace 'http://olddomain.com' 'https://newdomain.com' \
+  --all-tables --report-changed-only
+
+# Flush cache and rewrite rules
+wp cache flush
+wp rewrite flush
+```
+
+**WP-CLI Search-Replace Options:**
+
+| Flag | Description |
+|------|-------------|
+| `--dry-run` | Preview changes without applying |
+| `--all-tables` | Include non-WordPress tables |
+| `--network` | For multisite, run on all sites |
+| `--skip-columns=<cols>` | Skip specific columns (e.g., guid) |
+| `--precise` | Use PHP serialization for accuracy |
+| `--report-changed-only` | Only report tables with changes |
+| `--log=<file>` | Log changes to file |
+
+**Comprehensive Migration Script:**
+
+```bash
+#!/bin/bash
+# WordPress URL Migration Script
+# Usage: ./migrate-urls.sh OLD_URL NEW_URL
+
+OLD_URL="${1:-http://staging.example.com}"
+NEW_URL="${2:-https://production.example.com}"
+BACKUP_FILE="pre-migration-$(date +%Y%m%d-%H%M%S).sql"
+
+echo "=== WordPress URL Migration ==="
+echo "From: $OLD_URL"
+echo "To:   $NEW_URL"
+
+# Create backup
+echo "[1/5] Creating database backup..."
+wp db export "$BACKUP_FILE" --add-drop-table
+
+# Dry run first
+echo "[2/5] Analyzing changes (dry run)..."
+wp search-replace "$OLD_URL" "$NEW_URL" \
+  --all-tables \
+  --dry-run \
+  --report-changed-only
+
+# Confirm before proceeding
+read -p "Proceed with migration? (y/N): " confirm
+if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
+  echo "Migration cancelled."
+  exit 0
+fi
+
+# Execute replacement
+echo "[3/5] Executing URL replacement..."
+wp search-replace "$OLD_URL" "$NEW_URL" \
+  --all-tables \
+  --precise \
+  --report-changed-only
+
+# Handle protocol changes (http → https)
+if [[ "$NEW_URL" == https://* && "$OLD_URL" == http://* ]]; then
+  echo "[3.5/5] Fixing mixed protocol references..."
+  OLD_HTTP="${OLD_URL/https:/http:}"
+  wp search-replace "$OLD_HTTP" "$NEW_URL" \
+    --all-tables \
+    --precise \
+    --report-changed-only
+fi
+
+# Flush caches
+echo "[4/5] Flushing caches..."
+wp cache flush
+wp transient delete --all
+wp rewrite flush
+
+# Verify
+echo "[5/5] Verifying configuration..."
+echo "Home URL:    $(wp option get home)"
+echo "Site URL:    $(wp option get siteurl)"
+
+echo ""
+echo "Migration complete! Backup saved: $BACKUP_FILE"
+```
+
+**Multisite Migration:**
+
+```bash
+# List all sites in network
+wp site list --fields=blog_id,url
+
+# Migrate specific site
+wp search-replace 'http://old.com' 'https://new.com' \
+  --url=http://old.com \
+  --all-tables-with-prefix
+
+# Migrate entire network
+wp search-replace 'http://old.com' 'https://new.com' \
+  --network \
+  --all-tables
+```
+
+### Common Scenarios
+
+#### Multisite Network
+
+Each site in a network requires individual URL configuration:
+
+```php
+// Network-wide constants
+define('DOMAIN_CURRENT_SITE', 'example.com');
+define('PATH_CURRENT_SITE', '/');
+
+// Per-site URLs managed via wp_blogs table
+```
+
+**Multisite Database Tables:**
+
+WordPress Multisite manages URLs across multiple tables:
+
+```sql
+-- Main site configuration
+SELECT * FROM wp_options WHERE option_name IN ('home', 'siteurl');
+
+-- Network sites registry
+SELECT blog_id, domain, path FROM wp_blogs;
+
+-- Per-site options (replace N with blog_id)
+SELECT * FROM wp_N_options WHERE option_name IN ('home', 'siteurl');
+
+-- Site mappings for domain mapping
+SELECT * FROM wp_domain_mapping;
+```
+
+**Network Administration Constants:**
+
+```php
+// Multisite network configuration
+define('WP_ALLOW_MULTISITE', true);
+define('MULTISITE', true);
+define('SUBDOMAIN_INSTALL', false);  // false = subdirectory, true = subdomain
+define('DOMAIN_CURRENT_SITE', 'example.com');
+define('PATH_CURRENT_SITE', '/');
+define('SITE_ID_CURRENT_SITE', 1);
+define('BLOG_ID_CURRENT_SITE', 1);
+
+// Cookie domains for cross-site authentication
+define('COOKIE_DOMAIN', '.example.com');
+define('ADMIN_COOKIE_PATH', '/');
+define('COOKIEPATH', '/');
+define('SITECOOKIEPATH', '/');
+```
+
+#### HTTPS/SSL Migration
+
+When moving from HTTP to HTTPS:
+
+```php
+// Force HTTPS
+define('FORCE_SSL_ADMIN', true);
+
+// Update URLs to HTTPS
+define('WP_HOME', 'https://example.com');
+define('WP_SITEURL', 'https://example.com');
+```
+
+Then update content URLs:
+
+```bash
+wp search-replace 'http://example.com' 'https://example.com' --all-tables
+```
+
+**SSL-Related Constants Reference:**
+
+| Constant | Purpose | Default |
+|----------|---------|---------|
+| `FORCE_SSL_ADMIN` | Force HTTPS for wp-admin and wp-login | `false` |
+| `FORCE_SSL_LOGIN` | Force HTTPS for login only (deprecated) | `false` |
+
+**Complete HTTPS Migration Checklist:**
+
+```php
+// wp-config.php HTTPS configuration
+define('FORCE_SSL_ADMIN', true);
+define('WP_HOME', 'https://example.com');
+define('WP_SITEURL', 'https://example.com');
+
+// Force HTTPS for all content
+if (strpos($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '', 'https') !== false) {
+    $_SERVER['HTTPS'] = 'on';
+}
+```
+
+**.htaccess HTTPS Redirect:**
+
+```apache
+# Force HTTPS redirect
+<IfModule mod_rewrite.c>
+RewriteEngine On
+RewriteCond %{HTTPS} off
+RewriteCond %{HTTP:X-Forwarded-Proto} !https
+RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+</IfModule>
+
+# HSTS Header (Strict Transport Security)
+<IfModule mod_headers.c>
+Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+</IfModule>
+```
+
+**nginx HTTPS Configuration:**
+
+```nginx
+server {
+    listen 80;
+    server_name example.com www.example.com;
+    return 301 https://$server_name$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name example.com www.example.com;
+
+    ssl_certificate /etc/letsencrypt/live/example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/example.com/privkey.pem;
+
+    # Modern SSL configuration
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256;
+    ssl_prefer_server_ciphers off;
+
+    # HSTS
+    add_header Strict-Transport-Security "max-age=63072000" always;
+
+    root /var/www/html;
+    index index.php;
+
+    location / {
+        try_files $uri $uri/ /index.php?$args;
+    }
+
+    location ~ \.php$ {
+        fastcgi_pass php-fpm:9000;
+        fastcgi_param HTTPS on;
+        include fastcgi_params;
+    }
+}
+```
+
+#### Reverse Proxy / Load Balancer
+
+For sites behind proxies (Cloudflare, nginx):
+
+```php
+// Trust proxy headers
+if (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') {
+    $_SERVER['HTTPS'] = 'on';
+}
+
+define('WP_HOME', 'https://example.com');
+define('WP_SITEURL', 'https://example.com');
+```
+
+**Complete Reverse Proxy Configuration:**
+
+WordPress needs to correctly detect the original client request when behind a proxy. Add this to `wp-config.php`:
+
+```php
+/**
+ * Reverse Proxy / Load Balancer Configuration
+ * Place before wp-settings.php require
+ */
+
+// Trust X-Forwarded-* headers from known proxies
+$trusted_proxies = [
+    '10.0.0.0/8',      // Internal network
+    '172.16.0.0/12',   // Docker default
+    '192.168.0.0/16',  // Local network
+    '127.0.0.1',       // Localhost
+];
+
+// Check if request is from trusted proxy
+$client_ip = $_SERVER['REMOTE_ADDR'] ?? '';
+$is_trusted = false;
+
+foreach ($trusted_proxies as $proxy) {
+    if (strpos($proxy, '/') !== false) {
+        // CIDR notation check (simplified)
+        list($subnet, $mask) = explode('/', $proxy);
+        if ((ip2long($client_ip) & ~((1 << (32 - $mask)) - 1)) == ip2long($subnet)) {
+            $is_trusted = true;
+            break;
+        }
+    } elseif ($client_ip === $proxy) {
+        $is_trusted = true;
+        break;
+    }
+}
+
+if ($is_trusted) {
+    // Set HTTPS from forwarded protocol
+    if (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') {
+        $_SERVER['HTTPS'] = 'on';
+    }
+
+    // Set real client IP
+    if (isset($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+        $forwarded_ips = explode(',', $_SERVER['HTTP_X_FORWARDED_FOR']);
+        $_SERVER['REMOTE_ADDR'] = trim($forwarded_ips[0]);
+    } elseif (isset($_SERVER['HTTP_X_REAL_IP'])) {
+        $_SERVER['REMOTE_ADDR'] = $_SERVER['HTTP_X_REAL_IP'];
+    }
+
+    // Set original host
+    if (isset($_SERVER['HTTP_X_FORWARDED_HOST'])) {
+        $_SERVER['HTTP_HOST'] = $_SERVER['HTTP_X_FORWARDED_HOST'];
+    }
+}
+
+define('WP_HOME', 'https://example.com');
+define('WP_SITEURL', 'https://example.com');
+```
+
+**Cloudflare-Specific Configuration:**
+
+```php
+// Cloudflare IP ranges (update periodically from cloudflare.com/ips)
+// Simplified version - use actual Cloudflare IPs in production
+if (isset($_SERVER['HTTP_CF_CONNECTING_IP'])) {
+    $_SERVER['REMOTE_ADDR'] = $_SERVER['HTTP_CF_CONNECTING_IP'];
+}
+
+if (isset($_SERVER['HTTP_CF_VISITOR'])) {
+    $visitor = json_decode($_SERVER['HTTP_CF_VISITOR']);
+    if ($visitor && $visitor->scheme === 'https') {
+        $_SERVER['HTTPS'] = 'on';
+    }
+}
+```
+
+**nginx Proxy Headers Configuration:**
+
+```nginx
+# nginx reverse proxy configuration
+location / {
+    proxy_pass http://wordpress-backend;
+
+    # Forward original request info
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-Host $host;
+    proxy_set_header X-Forwarded-Port $server_port;
+
+    # WebSocket support (if needed)
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+
+    # Timeouts for long-running requests
+    proxy_connect_timeout 60s;
+    proxy_send_timeout 60s;
+    proxy_read_timeout 60s;
+}
+```
+
+**Traefik Labels for Docker:**
+
+```yaml
+services:
+  wordpress:
+    image: wordpress:latest
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.wordpress.rule=Host(`example.com`)"
+      - "traefik.http.routers.wordpress.entrypoints=websecure"
+      - "traefik.http.routers.wordpress.tls=true"
+      - "traefik.http.routers.wordpress.tls.certresolver=letsencrypt"
+      - "traefik.http.services.wordpress.loadbalancer.server.port=80"
+    environment:
+      WORDPRESS_CONFIG_EXTRA: |
+        if (isset($$_SERVER['HTTP_X_FORWARDED_PROTO']) && $$_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') {
+            $$_SERVER['HTTPS'] = 'on';
+        }
+        define('WP_HOME', 'https://example.com');
+        define('WP_SITEURL', 'https://example.com');
+```
+
+### Troubleshooting
+
+#### Redirect Loop
+
+Mismatch between WP_HOME and actual URL. Check:
+- `.htaccess` rewrite rules
+- Proxy/CDN configuration
+- `$_SERVER['HTTPS']` value
+
+**Debugging Redirect Loops:**
+
+```php
+// Add to wp-config.php temporarily for debugging
+error_log('HTTPS: ' . ($_SERVER['HTTPS'] ?? 'not set'));
+error_log('REQUEST_URI: ' . $_SERVER['REQUEST_URI']);
+error_log('HTTP_HOST: ' . $_SERVER['HTTP_HOST']);
+error_log('SERVER_PORT: ' . $_SERVER['SERVER_PORT']);
+error_log('X-Forwarded-Proto: ' . ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? 'not set'));
+```
+
+**Common Redirect Loop Causes:**
+
+| Symptom | Cause | Solution |
+|---------|-------|----------|
+| Loop on all pages | WP_HOME/WP_SITEURL mismatch with actual URL | Verify constants match access URL |
+| Loop on HTTPS only | `$_SERVER['HTTPS']` not set | Add proxy header detection |
+| Loop on wp-admin | FORCE_SSL_ADMIN with HTTP access | Enable HTTPS or remove constant |
+| Loop after migration | Old URLs in database | Run WP-CLI search-replace |
+
+**Emergency Recovery:**
+
+If locked out due to redirect loop, access via FTP/SSH and add to `wp-config.php`:
+
+```php
+// Temporary debugging - remove after fixing
+define('WP_HOME', 'http://your-actual-domain.com');
+define('WP_SITEURL', 'http://your-actual-domain.com');
+
+// Disable all redirects temporarily
+remove_action('template_redirect', 'redirect_canonical');
+```
+
+#### Mixed Content Warnings
+
+After HTTPS migration, update:
+
+```bash
+# Update all internal URLs
+wp search-replace 'http://example.com' 'https://example.com' --all-tables
+
+# Check theme/plugin hardcoded URLs
+wp search-replace 'http:' 'https:' wp_posts wp_postmeta --dry-run
+```
+
+**Mixed Content Detection Script:**
+
+```bash
+#!/bin/bash
+# Find mixed content in database
+echo "Checking for HTTP references in wp_posts..."
+wp db query "SELECT ID, post_title FROM wp_posts WHERE post_content LIKE '%http://%'" --skip-column-names
+
+echo "Checking for HTTP references in wp_postmeta..."
+wp db query "SELECT post_id, meta_key FROM wp_postmeta WHERE meta_value LIKE '%http://%'" --skip-column-names
+
+echo "Checking for HTTP references in wp_options..."
+wp db query "SELECT option_name FROM wp_options WHERE option_value LIKE '%http://%'" --skip-column-names
+```
+
+**Content Security Policy for Mixed Content:**
+
+```apache
+# .htaccess - upgrade insecure requests
+<IfModule mod_headers.c>
+Header always set Content-Security-Policy "upgrade-insecure-requests"
+</IfModule>
+```
+
+```nginx
+# nginx - upgrade insecure requests
+add_header Content-Security-Policy "upgrade-insecure-requests" always;
+```
+
+#### White Screen of Death (WSOD)
+
+URL configuration errors can cause blank pages:
+
+```php
+// Add to wp-config.php for debugging
+define('WP_DEBUG', true);
+define('WP_DEBUG_LOG', true);
+define('WP_DEBUG_DISPLAY', false);
+
+// Check debug.log in wp-content/
+// tail -f wp-content/debug.log
+```
+
+**Common WSOD Causes Related to URLs:**
+
+| Error in Log | Cause | Solution |
+|--------------|-------|----------|
+| `Cannot modify header information` | Output before redirect | Check for whitespace before `<?php` |
+| `Maximum execution time exceeded` | Infinite redirect loop | Fix WP_HOME/WP_SITEURL mismatch |
+| `Allowed memory size exhausted` | Plugin conflict during URL change | Increase memory limit |
+
+#### Database Connection Issues After Migration
+
+After migrating to new server with different database host:
+
+```php
+// Update database host
+define('DB_HOST', 'new-db-host.example.com');
+
+// For Docker internal networking
+define('DB_HOST', 'db');  // Service name in docker-compose
+
+// For socket connections
+define('DB_HOST', 'localhost:/var/run/mysqld/mysqld.sock');
+```
+
+#### Performance Impact
+
+These constants bypass database queries, improving performance by ~2-5ms per request.
+
+**Performance Comparison:**
+
+| Configuration | Database Queries | Response Time Impact |
+|--------------|------------------|---------------------|
+| No constants (database lookup) | 2 queries per request | +2-5ms |
+| Constants defined | 0 queries | Baseline |
+| With object cache | 0-2 queries (cached) | +0.1-0.5ms |
+
+**Benchmarking URL Resolution:**
+
+```php
+// Add to theme's functions.php temporarily
+add_action('init', function() {
+    if (current_user_can('manage_options') && isset($_GET['benchmark_urls'])) {
+        $start = microtime(true);
+        for ($i = 0; $i < 1000; $i++) {
+            home_url('/');
+            site_url('/');
+        }
+        $end = microtime(true);
+        wp_die(sprintf('1000 URL resolutions: %.4f seconds', $end - $start));
+    }
+});
+// Access: yoursite.com?benchmark_urls=1
+```
+
+### Best Practices
+
+#### Configuration Management
+
+1. **Always define both constants** together to avoid inconsistencies
+2. **Use environment variables** for multi-environment deployments
+3. **Document URL changes** in version control comments
+4. **Test after changes** with `wp option get home` and `wp option get siteurl`
+5. **Use HTTPS** in production environments
+6. **Backup database** before direct SQL updates
+
+#### Security Considerations
+
+**Hardening wp-config.php:**
+
+```php
+// Prevent file editing from admin
+define('DISALLOW_FILE_EDIT', true);
+
+// Prevent plugin/theme installation
+define('DISALLOW_FILE_MODS', true);
+
+// Force SSL for admin and logins
+define('FORCE_SSL_ADMIN', true);
+
+// Limit post revisions
+define('WP_POST_REVISIONS', 5);
+
+// Disable WordPress cron (use system cron instead)
+define('DISABLE_WP_CRON', true);
+
+// Move wp-content directory (security through obscurity)
+// define('WP_CONTENT_DIR', '/path/to/custom/content');
+// define('WP_CONTENT_URL', 'https://example.com/custom/content');
+```
+
+**File Permissions:**
+
+```bash
+# Recommended permissions for WordPress files
+find /var/www/html -type d -exec chmod 755 {} \;
+find /var/www/html -type f -exec chmod 644 {} \;
+
+# Protect wp-config.php
+chmod 600 /var/www/html/wp-config.php
+
+# Make wp-content writable by web server
+chown -R www-data:www-data /var/www/html/wp-content
+```
+
+#### Multi-Environment Deployment
+
+**Environment Detection Pattern:**
+
+```php
+/**
+ * Environment-based configuration
+ * Detects environment from hostname or environment variable
+ */
+
+$environment = getenv('WP_ENV') ?: 'production';
+
+// Auto-detect from hostname
+if (!getenv('WP_ENV')) {
+    $host = $_SERVER['HTTP_HOST'] ?? '';
+    if (strpos($host, 'localhost') !== false || strpos($host, '.local') !== false) {
+        $environment = 'development';
+    } elseif (strpos($host, 'staging') !== false || strpos($host, 'test') !== false) {
+        $environment = 'staging';
+    }
+}
+
+switch ($environment) {
+    case 'development':
+        define('WP_HOME', 'http://localhost:8080');
+        define('WP_SITEURL', 'http://localhost:8080');
+        define('WP_DEBUG', true);
+        define('WP_DEBUG_LOG', true);
+        define('WP_DEBUG_DISPLAY', true);
+        define('SCRIPT_DEBUG', true);
+        break;
+
+    case 'staging':
+        define('WP_HOME', 'https://staging.example.com');
+        define('WP_SITEURL', 'https://staging.example.com');
+        define('WP_DEBUG', true);
+        define('WP_DEBUG_LOG', true);
+        define('WP_DEBUG_DISPLAY', false);
+        break;
+
+    case 'production':
+    default:
+        define('WP_HOME', 'https://example.com');
+        define('WP_SITEURL', 'https://example.com');
+        define('WP_DEBUG', false);
+        define('DISALLOW_FILE_EDIT', true);
+        break;
+}
+```
+
+**GitOps Configuration Pattern:**
+
+```plaintext
+project/
+├── wp-config.php              ← Base config (committed)
+├── wp-config-local.php        ← Local overrides (gitignored)
+├── environments/
+│   ├── development.php
+│   ├── staging.php
+│   └── production.php
+└── .env.example               ← Template for local .env
+```
+
+```php
+// wp-config.php - load environment-specific config
+$environment = getenv('WP_ENV') ?: 'production';
+$env_config = __DIR__ . "/environments/{$environment}.php";
+
+if (file_exists($env_config)) {
+    require_once $env_config;
+}
+
+// Local overrides (not in version control)
+$local_config = __DIR__ . '/wp-config-local.php';
+if (file_exists($local_config)) {
+    require_once $local_config;
+}
+```
+
+#### Caching Considerations
+
+**Object Cache Integration:**
+
+```php
+// Redis configuration
+define('WP_REDIS_HOST', 'redis');
+define('WP_REDIS_PORT', 6379);
+define('WP_REDIS_DATABASE', 0);
+
+// Memcached configuration
+$memcached_servers = [
+    ['memcached', 11211],
+];
+```
+
+**Cache Invalidation After URL Change:**
+
+```bash
+# Complete cache flush procedure
+wp cache flush
+wp transient delete --all
+wp rewrite flush
+
+# For popular caching plugins
+wp w3-total-cache flush all 2>/dev/null || true
+wp wp-super-cache flush 2>/dev/null || true
+
+# Clear object cache
+wp redis flush 2>/dev/null || true
+
+# Clear OPcache if available
+wp eval 'if (function_exists("opcache_reset")) opcache_reset();'
+```
+
+#### Monitoring and Validation
+
+**Health Check Script:**
+
+```bash
+#!/bin/bash
+# WordPress URL Health Check
+
+SITE_URL=$(wp option get home --skip-plugins --skip-themes)
+EXPECTED_URL="https://example.com"
+
+echo "=== WordPress URL Health Check ==="
+echo "Home URL:     $SITE_URL"
+echo "Expected:     $EXPECTED_URL"
+
+# Check HTTP response
+HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$SITE_URL")
+echo "HTTP Status:  $HTTP_CODE"
+
+# Check for redirect loops
+REDIRECT_COUNT=$(curl -s -o /dev/null -w "%{redirect_url}" -L --max-redirs 10 "$SITE_URL" 2>&1 | wc -l)
+echo "Redirects:    $REDIRECT_COUNT"
+
+# Check SSL certificate
+if [[ "$SITE_URL" == https://* ]]; then
+    SSL_EXPIRY=$(echo | openssl s_client -servername "${SITE_URL#https://}" -connect "${SITE_URL#https://}:443" 2>/dev/null | openssl x509 -noout -enddate 2>/dev/null)
+    echo "SSL Expires:  ${SSL_EXPIRY#notAfter=}"
+fi
+
+# Validate URLs match
+if [[ "$SITE_URL" == "$EXPECTED_URL" && "$HTTP_CODE" == "200" ]]; then
+    echo "Status:       ✅ HEALTHY"
+    exit 0
+else
+    echo "Status:       ❌ ISSUES DETECTED"
+    exit 1
+fi
+```
+
+---
+
+### Quick Reference
+
+**Essential Constants:**
+
+| Constant | Purpose | Example |
+|----------|---------|---------|
+| `WP_HOME` | Front-end URL | `https://example.com` |
+| `WP_SITEURL` | WordPress core URL | `https://example.com` |
+| `FORCE_SSL_ADMIN` | Force HTTPS for admin | `true` |
+| `COOKIE_DOMAIN` | Cookie domain scope | `.example.com` |
+
+**WP-CLI Quick Commands:**
+
+```bash
+# View current URLs
+wp option get home
+wp option get siteurl
+
+# Update URLs
+wp option update home 'https://newdomain.com'
+wp option update siteurl 'https://newdomain.com'
+
+# Full migration with search-replace
+wp search-replace 'old.com' 'new.com' --all-tables --dry-run
+wp search-replace 'old.com' 'new.com' --all-tables
+
+# Flush all caches
+wp cache flush && wp rewrite flush
+```
+
+**Emergency Recovery Steps:**
+
+1. Access server via SSH/FTP
+2. Edit `wp-config.php` with correct `WP_HOME` and `WP_SITEURL`
+3. Clear `.htaccess` or rename to `.htaccess.bak`
+4. Access wp-admin and verify Settings → General
+5. Go to Settings → Permalinks and click "Save" to regenerate `.htaccess`
+6. Test site thoroughly
+

@@ -3,6 +3,16 @@
     "MCP_DOCKER": {
       "command": "docker",
       "args": ["mcp", "gateway", "run"]
+    },
+    "io.github.upstash/context7": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["@upstash/context7-mcp@1.0.31"],
+      "env": {
+        "CONTEXT7_API_KEY": "ctx7sk-52c9ac33-8469-4475-8ac1-f1aa6024d477"
+      },
+      "gallery": "https://api.mcp.github.com",
+      "version": "1.0.31"
     }
   }
 }

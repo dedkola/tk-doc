@@ -1,10 +1,318 @@
 ---
 title: WordPress - wp_postmeta for specific post id
-description: WordPress - wp_postmeta for specific post id
-tags: [wordpress, wp_postmeta, post_id]
+description: Query and manage WordPress post metadata using wp_postmeta table with SQL examples and PHP implementations
+tags: [wordpress, wp_postmeta, post_id, database, sql, metadata]
 ---
+
+## Overview
+
+The `wp_postmeta` table is a core WordPress database table that stores custom metadata associated with posts, pages, and custom post types. This table uses the Entity-Attribute-Value (EAV) model, allowing flexible storage of unlimited custom fields per post.
+
+### Table Structure
+
+The `wp_postmeta` table consists of four columns:
+
+- **meta_id** (bigint): Auto-incrementing primary key
+- **post_id** (bigint): Foreign key referencing `wp_posts.ID`
+- **meta_key** (varchar): Name of the metadata field
+- **meta_value** (longtext): Value of the metadata field
+
+## Basic Query
+
+Query all metadata for a specific post:
 
 ```sql copy
 SELECT *
 FROM `sp`.`wp_postmeta` where `post_id` = 676902;
+```
+
+## Advanced SQL Queries
+
+### Query Specific Meta Key
+
+Retrieve a specific metadata field for a post:
+
+```sql
+SELECT meta_value
+FROM wp_postmeta
+WHERE post_id = 676902
+AND meta_key = '_edit_last';
+```
+
+### Filter by Meta Value
+
+Find all posts with a specific metadata value:
+
+```sql
+SELECT p.ID, p.post_title, pm.meta_value
+FROM wp_posts p
+INNER JOIN wp_postmeta pm ON p.ID = pm.post_id
+WHERE pm.meta_key = 'view_count'
+AND CAST(pm.meta_value AS UNSIGNED) > 1000
+ORDER BY CAST(pm.meta_value AS UNSIGNED) DESC;
+```
+
+### Multiple Meta Keys for One Post
+
+Retrieve multiple specific meta fields using conditional aggregation:
+
+```sql
+SELECT
+    post_id,
+    MAX(CASE WHEN meta_key = '_thumbnail_id' THEN meta_value END) AS thumbnail_id,
+    MAX(CASE WHEN meta_key = '_edit_last' THEN meta_value END) AS last_editor,
+    MAX(CASE WHEN meta_key = 'view_count' THEN meta_value END) AS views
+FROM wp_postmeta
+WHERE post_id = 676902
+GROUP BY post_id;
+```
+
+### Count Meta Entries per Post
+
+Analyze metadata distribution:
+
+```sql
+SELECT
+    post_id,
+    COUNT(*) AS meta_count,
+    GROUP_CONCAT(meta_key ORDER BY meta_key SEPARATOR ', ') AS meta_keys
+FROM wp_postmeta
+WHERE post_id IN (676902, 676903, 676904)
+GROUP BY post_id;
+```
+
+## PHP Implementation
+
+### Using WordPress Functions
+
+WordPress provides built-in functions for safe metadata operations:
+
+```php
+<?php
+// Get single meta value
+$view_count = get_post_meta(676902, 'view_count', true);
+
+// Get all metadata for a post
+$all_meta = get_post_meta(676902);
+
+// Update or create meta value
+update_post_meta(676902, 'view_count', 1500);
+
+// Add new meta value (allows duplicates)
+add_post_meta(676902, 'custom_field', 'value', false);
+
+// Delete meta value
+delete_post_meta(676902, 'old_field');
+```
+
+### Bulk Meta Operations
+
+Process multiple posts efficiently:
+
+```php
+<?php
+// Get posts with specific meta value
+$args = array(
+    'post_type' => 'post',
+    'meta_query' => array(
+        array(
+            'key' => 'view_count',
+            'value' => 1000,
+            'compare' => '>',
+            'type' => 'NUMERIC'
+        )
+    )
+);
+$popular_posts = new WP_Query($args);
+
+// Bulk update meta values
+global $wpdb;
+$wpdb->query($wpdb->prepare(
+    "UPDATE {$wpdb->postmeta}
+     SET meta_value = meta_value + 1
+     WHERE meta_key = %s
+     AND post_id = %d",
+    'view_count',
+    676902
+));
+```
+
+### Custom Meta Box Example
+
+Register and display custom metadata in WordPress admin:
+
+```php
+<?php
+// Register meta box
+function register_custom_meta_box() {
+    add_meta_box(
+        'custom_post_metadata',
+        'Custom Post Metadata',
+        'display_custom_meta_box',
+        'post',
+        'side',
+        'high'
+    );
+}
+add_action('add_meta_boxes', 'register_custom_meta_box');
+
+// Display meta box content
+function display_custom_meta_box($post) {
+    wp_nonce_field('custom_meta_box_nonce', 'meta_box_nonce');
+    $view_count = get_post_meta($post->ID, 'view_count', true);
+    ?>
+    <label for="view_count">View Count:</label>
+    <input type="number" id="view_count" name="view_count"
+           value="<?php echo esc_attr($view_count); ?>" />
+    <?php
+}
+
+// Save meta box data
+function save_custom_meta_box($post_id) {
+    if (!isset($_POST['meta_box_nonce']) ||
+        !wp_verify_nonce($_POST['meta_box_nonce'], 'custom_meta_box_nonce')) {
+        return;
+    }
+
+    if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) {
+        return;
+    }
+
+    if (isset($_POST['view_count'])) {
+        update_post_meta(
+            $post_id,
+            'view_count',
+            intval($_POST['view_count'])
+        );
+    }
+}
+add_action('save_post', 'save_custom_meta_box');
+```
+
+## Performance Considerations
+
+### Indexing
+
+The `wp_postmeta` table has two indexes by default:
+- **PRIMARY** on `meta_id`
+- **post_id** on `post_id`
+
+For frequently queried meta keys, add custom indexes:
+
+```sql
+CREATE INDEX idx_meta_key_value ON wp_postmeta(meta_key, meta_value(50));
+```
+
+### Query Optimization
+
+Avoid using `SELECT *` for large metadata sets:
+
+```sql
+-- Instead of: SELECT * FROM wp_postmeta WHERE post_id = 676902
+-- Use specific columns:
+SELECT meta_key, meta_value
+FROM wp_postmeta
+WHERE post_id = 676902;
+```
+
+### Caching Strategy
+
+WordPress automatically caches post metadata. Leverage this:
+
+```php
+<?php
+// WordPress caches this automatically
+$meta = get_post_meta(676902, 'view_count', true);
+
+// Clear cache when needed
+wp_cache_delete(676902, 'post_meta');
+
+// Or use transients for expensive queries
+$cache_key = 'popular_posts_' . md5(serialize($args));
+$results = get_transient($cache_key);
+
+if (false === $results) {
+    $results = $wpdb->get_results($query);
+    set_transient($cache_key, $results, HOUR_IN_SECONDS);
+}
+```
+
+## Common Meta Keys
+
+WordPress core uses several standard meta keys:
+
+| Meta Key | Description |
+|----------|-------------|
+| `_edit_last` | User ID of last editor |
+| `_edit_lock` | Post edit lock timestamp |
+| `_thumbnail_id` | Featured image attachment ID |
+| `_wp_page_template` | Custom page template filename |
+| `_wp_attached_file` | Attachment file path |
+| `_wp_attachment_metadata` | Serialized attachment data |
+
+## Security Best Practices
+
+### Sanitization and Validation
+
+Always sanitize and validate metadata:
+
+```php
+<?php
+// Sanitize before saving
+$safe_value = sanitize_text_field($_POST['custom_field']);
+update_post_meta($post_id, 'custom_field', $safe_value);
+
+// Validate and type-cast numeric values
+$view_count = absint($_POST['view_count']);
+update_post_meta($post_id, 'view_count', $view_count);
+
+// Escape on output
+echo esc_html(get_post_meta($post_id, 'custom_field', true));
+```
+
+### SQL Injection Prevention
+
+Always use prepared statements:
+
+```php
+<?php
+global $wpdb;
+
+// WRONG - vulnerable to SQL injection
+$results = $wpdb->get_results(
+    "SELECT * FROM {$wpdb->postmeta} WHERE meta_key = '{$_GET['key']}'"
+);
+
+// CORRECT - using prepared statements
+$results = $wpdb->get_results($wpdb->prepare(
+    "SELECT * FROM {$wpdb->postmeta} WHERE meta_key = %s",
+    $_GET['key']
+));
+```
+
+## Troubleshooting
+
+### Serialized Data
+
+Some meta values are serialized arrays. Handle them properly:
+
+```php
+<?php
+$serialized = get_post_meta(676902, '_wp_attachment_metadata', true);
+$unserialized = maybe_unserialize($serialized);
+
+// Or use WordPress function that handles this automatically
+$meta = get_post_meta(676902, '_wp_attachment_metadata', true);
+// Returns unserialized data automatically
+```
+
+### Orphaned Meta Records
+
+Clean up metadata for deleted posts:
+
+```sql
+DELETE pm
+FROM wp_postmeta pm
+LEFT JOIN wp_posts p ON pm.post_id = p.ID
+WHERE p.ID IS NULL;
 ```

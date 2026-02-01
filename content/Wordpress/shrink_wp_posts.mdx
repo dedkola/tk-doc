@@ -4,6 +4,358 @@ description: Delete posts in WordPress DB to light up the database
 tags: [wordpress, mysql, database, shrink]
 ---
 
+## Overview
+
+When managing WordPress installations, database bloat from accumulated posts, revisions, and metadata can significantly impact performance. This guide provides methods to safely reduce database size while preserving critical content and maintaining data integrity.
+
+### Why Database Optimization Matters
+
+- **Query Performance**: Smaller datasets result in faster query execution times
+- **Backup Size**: Reduces backup file size and backup duration
+- **Memory Usage**: InnoDB buffer pool operates more efficiently with less data
+- **Server Resources**: Decreases disk I/O and CPU utilization
+
+## Prerequisites
+
+- Direct database access (MySQL/MariaDB)
+- Database admin credentials
+- Understanding of SQL DELETE operations
+- **CRITICAL**: Full database backup before execution
+- Read-only test environment recommended for validation
+
+## Important Considerations
+
+### Data Integrity
+
+WordPress posts are interconnected with multiple related tables through foreign key relationships and referential integrity constraints:
+
+| Related Table | Content | Impact | Relationship Type |
+|---|---|---|---|
+| `wp_postmeta` | Post metadata, custom fields | Orphaned records if parent deleted | One-to-Many (post_id) |
+| `wp_comments` | Comments on posts | May reference deleted posts | One-to-Many (comment_post_ID) |
+| `wp_term_relationships` | Category/tag associations | Foreign key constraints | Many-to-Many (object_id) |
+| `wp_links` | Related post links | May break internal links | One-to-Many (link_target) |
+| `wp_postmeta` | Custom fields, SEO metadata | Orphaned metadata records | One-to-Many (post_id) |
+| `wp_term_relationships` | Post taxonomies | Breaks category/tag counts | Many-to-Many (object_id) |
+
+**Warning**: Deleting posts orphans their associated comments and metadata unless handled with cascading deletes.
+
+### Understanding WordPress Database Schema
+
+The `wp_posts` table is the central entity in WordPress's database architecture:
+
+```sql
+-- Core wp_posts table structure
+CREATE TABLE wp_posts (
+  ID bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  post_author bigint(20) unsigned NOT NULL DEFAULT '0',
+  post_date datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+  post_date_gmt datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+  post_content longtext NOT NULL,
+  post_title text NOT NULL,
+  post_excerpt text NOT NULL,
+  post_status varchar(20) NOT NULL DEFAULT 'publish',
+  comment_status varchar(20) NOT NULL DEFAULT 'open',
+  ping_status varchar(20) NOT NULL DEFAULT 'open',
+  post_password varchar(255) NOT NULL DEFAULT '',
+  post_name varchar(200) NOT NULL DEFAULT '',
+  to_ping text NOT NULL,
+  pinged text NOT NULL,
+  post_modified datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+  post_modified_gmt datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+  post_content_filtered longtext NOT NULL,
+  post_parent bigint(20) unsigned NOT NULL DEFAULT '0',
+  guid varchar(255) NOT NULL DEFAULT '',
+  menu_order int(11) NOT NULL DEFAULT '0',
+  post_type varchar(20) NOT NULL DEFAULT 'post',
+  post_mime_type varchar(100) NOT NULL DEFAULT '',
+  comment_count bigint(20) NOT NULL DEFAULT '0',
+  PRIMARY KEY (ID),
+  KEY post_name (post_name(191)),
+  KEY type_status_date (post_type,post_status,post_date,ID),
+  KEY post_parent (post_parent),
+  KEY post_author (post_author)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+```
+
+**Key Indexes for Performance:**
+- `PRIMARY KEY (ID)`: Clustered index for row lookup
+- `type_status_date`: Composite index for filtered queries
+- `post_name`: Index for permalink resolution
+- `post_author`: Foreign key reference to `wp_users`
+
+### InnoDB Storage Engine Characteristics
+
+WordPress uses InnoDB by default, which has specific implications for bulk deletions:
+
+**Transaction Isolation:**
+- Default level: `REPEATABLE READ`
+- DELETE operations acquire exclusive locks on affected rows
+- Gap locks prevent phantom reads in range scans
+- Lock escalation can occur with large batch operations
+
+**Row-Level Locking Behavior:**
+```sql
+-- Check current transaction isolation level
+SELECT @@transaction_ISOLATION;
+
+-- View active InnoDB locks during deletion
+SELECT * FROM performance_schema.data_locks
+WHERE OBJECT_SCHEMA = 'wordpress_db'
+AND OBJECT_NAME = 'wp_posts';
+
+-- Monitor lock wait statistics
+SELECT * FROM performance_schema.data_lock_waits;
+```
+
+**Buffer Pool Impact:**
+- Deleted rows remain in buffer pool until evicted
+- `OPTIMIZE TABLE` forces buffer pool refresh
+- Monitor buffer pool efficiency:
+
+```sql
+-- Check InnoDB buffer pool statistics
+SHOW ENGINE INNODB STATUS\G
+
+-- Buffer pool hit ratio (target: >99%)
+SELECT
+    VARIABLE_VALUE AS buffer_pool_reads,
+    (SELECT VARIABLE_VALUE FROM information_schema.GLOBAL_STATUS
+     WHERE VARIABLE_NAME = 'Innodb_buffer_pool_read_requests') AS read_requests,
+    ROUND(
+        (1 - VARIABLE_VALUE /
+         (SELECT VARIABLE_VALUE FROM information_schema.GLOBAL_STATUS
+          WHERE VARIABLE_NAME = 'Innodb_buffer_pool_read_requests')) * 100,
+        2
+    ) AS hit_ratio_percent
+FROM information_schema.GLOBAL_STATUS
+WHERE VARIABLE_NAME = 'Innodb_buffer_pool_reads';
+```
+
+**Transaction Isolation Levels Explained:**
+
+MySQL InnoDB supports four transaction isolation levels as defined by SQL standards. Understanding these is crucial for bulk deletion operations:
+
+| Isolation Level | Dirty Reads | Non-Repeatable Reads | Phantom Reads | Performance | Use Case |
+|---|---|---|---|---|---|
+| `READ UNCOMMITTED` | Possible | Possible | Possible | Highest | Analytics (low accuracy requirements) |
+| `READ COMMITTED` | Prevented | Possible | Possible | High | Most web applications |
+| `REPEATABLE READ` (default) | Prevented | Prevented | Possible* | Medium | WordPress default (InnoDB gap locks) |
+| `SERIALIZABLE` | Prevented | Prevented | Prevented | Lowest | Financial transactions |
+
+*InnoDB uses gap locks in REPEATABLE READ to prevent phantom reads.
+
+**Lock Types in DELETE Operations:**
+
+```sql
+-- Next-key locks: Combination of record lock + gap lock
+-- Applied during DELETE operations in REPEATABLE READ isolation
+
+-- Example: Deleting posts with ID > 100 and ID < 200
+DELETE FROM wp_posts WHERE ID > 100 AND ID < 200;
+
+-- InnoDB acquires:
+-- 1. Record locks on existing rows (101, 102, ..., 199)
+-- 2. Gap locks on ranges between rows
+-- 3. Next-key locks = record lock + gap lock before record
+
+-- View current lock waits
+SELECT
+    waiting_trx_id,
+    waiting_pid,
+    waiting_query,
+    blocking_trx_id,
+    blocking_pid,
+    blocking_query,
+    wait_started,
+    wait_age,
+    locked_table,
+    locked_index,
+    locked_type
+FROM sys.innodb_lock_waits;
+
+-- Check lock timeout setting
+SHOW VARIABLES LIKE 'innodb_lock_wait_timeout';
+
+-- Adjust lock timeout for bulk operations (default: 50 seconds)
+SET SESSION innodb_lock_wait_timeout = 300;
+```
+
+**Deadlock Detection and Prevention:**
+
+```sql
+-- Enable deadlock detection (enabled by default)
+SHOW VARIABLES LIKE 'innodb_deadlock_detect';
+
+-- View recent deadlocks
+SHOW ENGINE INNODB STATUS\G
+
+-- Deadlock prevention strategies for bulk deletes:
+
+-- Strategy 1: Order operations consistently
+-- Always delete from parent to child tables in same order
+DELETE FROM wp_postmeta WHERE post_id IN (SELECT ID FROM temp_delete_list);
+DELETE FROM wp_term_relationships WHERE object_id IN (SELECT ID FROM temp_delete_list);
+DELETE FROM wp_posts WHERE ID IN (SELECT ID FROM temp_delete_list);
+
+-- Strategy 2: Use smaller transactions
+-- Break large deletes into smaller batches
+DELIMITER $$
+CREATE PROCEDURE safe_batch_delete(IN batch_size INT, IN max_id INT)
+BEGIN
+    DECLARE current_id INT DEFAULT 0;
+    DECLARE rows_deleted INT;
+
+    delete_loop: LOOP
+        START TRANSACTION;
+
+        DELETE FROM wp_posts
+        WHERE ID > current_id
+        AND ID <= current_id + batch_size
+        AND ID NOT IN (SELECT id FROM posts_to_keep)
+        LIMIT 1000;
+
+        SET rows_deleted = ROW_COUNT();
+        SET current_id = current_id + batch_size;
+
+        COMMIT;
+
+        -- Exit if no more rows or reached max_id
+        IF rows_deleted = 0 OR current_id >= max_id THEN
+            LEAVE delete_loop;
+        END IF;
+
+        -- Brief pause to allow other transactions
+        DO SLEEP(0.1);
+    END LOOP;
+END$$
+DELIMITER ;
+
+-- Execute the procedure
+CALL safe_batch_delete(1000, 100000);
+
+-- Monitor deadlock rate
+SELECT
+    VARIABLE_VALUE AS deadlock_count
+FROM information_schema.GLOBAL_STATUS
+WHERE VARIABLE_NAME = 'Innodb_deadlocks';
+```
+
+### MySQL Configuration for Bulk Operations
+
+Before performing large-scale deletions, optimize MySQL configuration for bulk operations:
+
+```sql
+-- Temporarily increase delete buffer for large operations
+SET GLOBAL innodb_change_buffering = 'all';
+
+-- Adjust transaction commit behavior (use with caution)
+-- 0 = Write and flush once per second (faster, less safe)
+-- 1 = Write and flush at each commit (default, safest)
+-- 2 = Write at commit, flush once per second (balanced)
+SET GLOBAL innodb_flush_log_at_trx_commit = 2;
+
+-- View current InnoDB configuration
+SHOW VARIABLES LIKE 'innodb%';
+
+-- Check adaptive hash index status
+SHOW ENGINE INNODB STATUS\G
+
+-- Monitor undo log size during operations
+SELECT
+    SUBSYSTEM,
+    NAME,
+    COUNT
+FROM performance_schema.memory_summary_global_by_event_name
+WHERE NAME LIKE '%innodb%undo%';
+```
+
+**Important Configuration Parameters:**
+
+| Parameter | Default | Recommended for Bulk Delete | Description |
+|---|---|---|---|
+| `innodb_buffer_pool_size` | 128M | 70% of RAM | InnoDB cache size for data/indexes |
+| `innodb_log_file_size` | 48M | 512M-2G | Redo log file size |
+| `innodb_flush_log_at_trx_commit` | 1 | 2 (temp) | Transaction durability vs performance |
+| `innodb_io_capacity` | 200 | 2000+ (SSD) | I/O operations per second |
+| `innodb_change_buffering` | all | all | Buffer INSERT/UPDATE/DELETE operations |
+
+**Restore safe settings after bulk operations:**
+```sql
+SET GLOBAL innodb_flush_log_at_trx_commit = 1;
+SET GLOBAL innodb_change_buffering = 'all';
+```
+
+### Backup Strategy
+
+```bash
+# Full database backup before any DELETE operations
+mysqldump -u username -p database_name > wordpress_backup_$(date +%Y%m%d_%H%M%S).sql
+
+# Specific table backup
+mysqldump -u username -p database_name wp_posts > wp_posts_backup.sql
+
+# Backup with compression for large databases
+mysqldump -u username -p database_name | gzip > wordpress_backup_$(date +%Y%m%d_%H%M%S).sql.gz
+
+# Backup with compression and progress indicator
+mysqldump -u username -p database_name | pv | gzip > wordpress_backup_$(date +%Y%m%d_%H%M%S).sql.gz
+
+# Incremental backup using binary logs (ensure binlog is enabled)
+mysqldump -u username -p --single-transaction --flush-logs --master-data=2 \
+  database_name > wordpress_full_$(date +%Y%m%d_%H%M%S).sql
+
+# Verify backup integrity
+gunzip -c wordpress_backup_20260201_120000.sql.gz | mysql -u username -p test_restore_db
+
+# Backup multiple related tables together
+mysqldump -u username -p database_name \
+  wp_posts wp_postmeta wp_comments wp_term_relationships \
+  > wordpress_posts_backup_$(date +%Y%m%d_%H%M%S).sql
+```
+
+**Backup Best Practices:**
+
+**Full vs. Selective Backups:**
+- Full backup: All tables and data
+- Selective: Only affected tables (`wp_posts`, `wp_postmeta`, `wp_comments`)
+- Binary log backups for point-in-time recovery
+
+**Backup Validation:**
+
+```bash
+# Test backup file integrity
+if gunzip -t wordpress_backup.sql.gz; then
+    echo "Backup file is valid"
+else
+    echo "Backup file is corrupted!"
+fi
+
+# Verify record count before deletion
+mysql -u username -p -e "SELECT COUNT(*) FROM wp_posts;" database_name
+```
+
+**Point-in-Time Recovery Setup:**
+
+```sql
+-- Enable binary logging in my.cnf or my.ini
+[mysqld]
+log-bin=mysql-bin
+binlog_format=ROW
+expire_logs_days=7
+
+-- Verify binary logging is enabled
+SHOW VARIABLES LIKE 'log_bin';
+
+-- List binary logs
+SHOW BINARY LOGS;
+
+-- View binary log events
+SHOW BINLOG EVENTS IN 'mysql-bin.000001';
+```
+
+## Safe Deletion: Retain First 100 and Last 100 Posts
+
 Delete posts in WordPress DB except 100 first and last 100
 
 ```sql
@@ -20,3 +372,1382 @@ WHERE ID NOT IN (
     ) AS last_100
 );
 ```
+
+### Understanding the Query Mechanics
+
+This query uses a **derived table pattern** to circumvent MySQL's limitation where you cannot directly reference the same table in a DELETE and subquery. The nested `SELECT` statements create temporary result sets that MySQL treats as separate entities.
+
+**Key Technical Points:**
+
+- **Subquery Execution Order**: MySQL first evaluates the innermost `SELECT` statements to build the `first_100` and `last_100` derived tables
+- **UNION Operator**: Combines both result sets while automatically removing duplicates (critical if a database has fewer than 200 posts)
+- **NOT IN Performance**: For small result sets (&lt;1000 rows), `NOT IN` performs adequately. For larger operations, consider `LEFT JOIN ... WHERE ... IS NULL` pattern
+- **Transaction Isolation**: This operation acquires row-level locks on InnoDB tables during execution
+
+### Pre-Deletion Validation Queries
+
+Before executing deletion, verify which posts will be affected:
+
+```sql
+-- Count posts that will be deleted
+SELECT COUNT(*) AS posts_to_delete
+FROM wp_posts
+WHERE ID NOT IN (
+    SELECT ID FROM (
+        SELECT ID FROM wp_posts ORDER BY ID ASC LIMIT 100
+    ) AS first_100
+    UNION
+    SELECT ID FROM (
+        SELECT ID FROM wp_posts ORDER BY ID DESC LIMIT 100
+    ) AS last_100
+);
+
+-- Preview posts that will be deleted
+SELECT ID, post_title, post_type, post_status, post_date
+FROM wp_posts
+WHERE ID NOT IN (
+    SELECT ID FROM (
+        SELECT ID FROM wp_posts ORDER BY ID ASC LIMIT 100
+    ) AS first_100
+    UNION
+    SELECT ID FROM (
+        SELECT ID FROM wp_posts ORDER BY ID DESC LIMIT 100
+    ) AS last_100
+)
+ORDER BY ID
+LIMIT 20;
+
+-- Analyze post types in deletion scope
+SELECT post_type, COUNT(*) AS count
+FROM wp_posts
+WHERE ID NOT IN (
+    SELECT ID FROM (
+        SELECT ID FROM wp_posts ORDER BY ID ASC LIMIT 100
+    ) AS first_100
+    UNION
+    SELECT ID FROM (
+        SELECT ID FROM wp_posts ORDER BY ID DESC LIMIT 100
+    ) AS last_100
+)
+GROUP BY post_type;
+```
+
+### Monitoring Deletion Progress
+
+For long-running operations, monitor progress and resource usage:
+
+```sql
+-- Create progress monitoring table
+CREATE TEMPORARY TABLE deletion_progress (
+    checkpoint_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    posts_remaining INT,
+    posts_deleted INT,
+    execution_time_seconds INT
+);
+
+-- Monitor deletion in real-time (run in separate session)
+SELECT
+    p.checkpoint_time,
+    p.posts_remaining,
+    p.posts_deleted,
+    p.execution_time_seconds,
+    ROUND(p.posts_deleted / p.execution_time_seconds, 2) AS deletion_rate_per_sec
+FROM deletion_progress p
+ORDER BY p.checkpoint_time DESC
+LIMIT 10;
+
+-- Track table size changes during deletion
+SELECT
+    table_name,
+    ROUND((data_length + index_length) / 1024 / 1024, 2) AS size_mb,
+    table_rows,
+    ROUND(data_length / table_rows, 2) AS avg_row_length
+FROM information_schema.tables
+WHERE table_schema = DATABASE()
+AND table_name = 'wp_posts';
+
+-- Monitor active connections and processes
+SHOW PROCESSLIST;
+
+-- Check for blocking queries
+SELECT
+    r.trx_id waiting_trx_id,
+    r.trx_mysql_thread_id waiting_thread,
+    r.trx_query waiting_query,
+    b.trx_id blocking_trx_id,
+    b.trx_mysql_thread_id blocking_thread,
+    b.trx_query blocking_query
+FROM information_schema.innodb_lock_waits w
+INNER JOIN information_schema.innodb_trx b ON b.trx_id = w.blocking_trx_id
+INNER JOIN information_schema.innodb_trx r ON r.trx_id = w.requesting_trx_id;
+```
+
+## Advanced Deletion Strategies
+
+### Deletion by Post Type and Status
+
+Selective deletion targeting specific content types:
+
+```sql
+-- Delete only draft posts outside retention range
+DELETE FROM wp_posts
+WHERE post_status = 'draft'
+AND ID NOT IN (
+    SELECT ID FROM (
+        SELECT ID FROM wp_posts
+        WHERE post_status = 'draft'
+        ORDER BY ID ASC LIMIT 50
+    ) AS first_50
+    UNION
+    SELECT ID FROM (
+        SELECT ID FROM wp_posts
+        WHERE post_status = 'draft'
+        ORDER BY ID DESC LIMIT 50
+    ) AS last_50
+);
+
+-- Delete post revisions older than 30 days
+DELETE FROM wp_posts
+WHERE post_type = 'revision'
+AND post_modified < DATE_SUB(NOW(), INTERVAL 30 DAY);
+
+-- Delete auto-drafts
+DELETE FROM wp_posts
+WHERE post_status = 'auto-draft'
+AND post_date < DATE_SUB(NOW(), INTERVAL 7 DAY);
+```
+
+### Safe Transaction-Wrapped Deletion
+
+Use explicit transactions for rollback capability:
+
+```sql
+-- Start transaction
+START TRANSACTION;
+
+-- Store deletion scope for verification
+CREATE TEMPORARY TABLE deleted_posts_backup AS
+SELECT * FROM wp_posts
+WHERE ID NOT IN (
+    SELECT ID FROM (
+        SELECT ID FROM wp_posts ORDER BY ID ASC LIMIT 100
+    ) AS first_100
+    UNION
+    SELECT ID FROM (
+        SELECT ID FROM wp_posts ORDER BY ID DESC LIMIT 100
+    ) AS last_100
+);
+
+-- Verify temporary table
+SELECT COUNT(*) FROM deleted_posts_backup;
+
+-- Perform deletion
+DELETE FROM wp_posts
+WHERE ID IN (SELECT ID FROM deleted_posts_backup);
+
+-- Verify results - if satisfactory, commit; otherwise rollback
+SELECT
+    (SELECT COUNT(*) FROM wp_posts) AS remaining_posts,
+    (SELECT COUNT(*) FROM deleted_posts_backup) AS deleted_posts;
+
+-- COMMIT; -- Uncomment to finalize
+-- ROLLBACK; -- Uncomment to undo
+```
+
+### Batch Deletion for Large Datasets
+
+For databases with millions of posts, deleting in batches prevents long-running locks and replication lag:
+
+```sql
+-- Delete in batches of 1000 until complete
+SET @batch_size = 1000;
+SET @rows_affected = 1;
+
+WHILE @rows_affected > 0 DO
+    DELETE FROM wp_posts
+    WHERE ID NOT IN (
+        SELECT ID FROM (
+            SELECT ID FROM wp_posts ORDER BY ID ASC LIMIT 100
+        ) AS first_100
+        UNION
+        SELECT ID FROM (
+            SELECT ID FROM wp_posts ORDER BY ID DESC LIMIT 100
+        ) AS last_100
+    )
+    LIMIT @batch_size;
+
+    SET @rows_affected = ROW_COUNT();
+
+    -- Pause to allow replication catchup and reduce I/O pressure
+    SELECT SLEEP(0.5);
+END WHILE;
+```
+
+### Cascading Cleanup of Related Data
+
+After post deletion, clean up orphaned records in related tables:
+
+```sql
+-- Remove orphaned post metadata
+DELETE pm FROM wp_postmeta pm
+LEFT JOIN wp_posts p ON pm.post_id = p.ID
+WHERE p.ID IS NULL;
+
+-- Remove orphaned term relationships
+DELETE tr FROM wp_term_relationships tr
+LEFT JOIN wp_posts p ON tr.object_id = p.ID
+WHERE p.ID IS NULL;
+
+-- Update comment counts for posts
+UPDATE wp_posts p
+SET comment_count = (
+    SELECT COUNT(*)
+    FROM wp_comments c
+    WHERE c.comment_post_ID = p.ID
+    AND c.comment_approved = '1'
+);
+
+-- Optional: Delete orphaned comments
+DELETE c FROM wp_comments c
+LEFT JOIN wp_posts p ON c.comment_post_ID = p.ID
+WHERE p.ID IS NULL;
+```
+
+### Database Health and Statistics Analysis
+
+After cleanup operations, perform comprehensive health checks:
+
+```sql
+-- Comprehensive table statistics
+SELECT
+    table_name,
+    engine,
+    table_rows,
+    ROUND(data_length / 1024 / 1024, 2) AS data_mb,
+    ROUND(index_length / 1024 / 1024, 2) AS index_mb,
+    ROUND((data_length + index_length) / 1024 / 1024, 2) AS total_mb,
+    ROUND(data_free / 1024 / 1024, 2) AS free_mb,
+    ROUND((data_free / (data_length + index_length + data_free)) * 100, 2) AS fragmentation_percent
+FROM information_schema.tables
+WHERE table_schema = DATABASE()
+AND table_name IN ('wp_posts', 'wp_postmeta', 'wp_comments', 'wp_term_relationships')
+ORDER BY (data_length + index_length) DESC;
+
+-- Index cardinality analysis
+SELECT
+    table_name,
+    index_name,
+    non_unique,
+    seq_in_index,
+    column_name,
+    cardinality,
+    CASE
+        WHEN cardinality IS NULL THEN 'N/A'
+        WHEN cardinality = 0 THEN 'Poor'
+        WHEN cardinality < 100 THEN 'Low'
+        WHEN cardinality < 1000 THEN 'Medium'
+        ELSE 'High'
+    END AS selectivity
+FROM information_schema.statistics
+WHERE table_schema = DATABASE()
+AND table_name = 'wp_posts'
+ORDER BY table_name, index_name, seq_in_index;
+
+-- Check for duplicate or redundant indexes
+SELECT
+    a.table_name,
+    a.index_name AS index_1,
+    GROUP_CONCAT(a.column_name ORDER BY a.seq_in_index) AS columns_1,
+    b.index_name AS index_2,
+    GROUP_CONCAT(b.column_name ORDER BY b.seq_in_index) AS columns_2
+FROM information_schema.statistics a
+JOIN information_schema.statistics b ON a.table_schema = b.table_schema
+    AND a.table_name = b.table_name
+    AND a.index_name != b.index_name
+    AND a.column_name = b.column_name
+    AND a.seq_in_index = b.seq_in_index
+WHERE a.table_schema = DATABASE()
+AND a.table_name = 'wp_posts'
+GROUP BY a.table_name, a.index_name, b.index_name
+HAVING columns_1 = columns_2;
+
+-- Identify orphaned metadata across all post-related tables
+SELECT
+    'wp_postmeta' AS table_name,
+    COUNT(*) AS orphaned_records,
+    ROUND(SUM(LENGTH(meta_value)) / 1024 / 1024, 2) AS wasted_mb
+FROM wp_postmeta pm
+LEFT JOIN wp_posts p ON pm.post_id = p.ID
+WHERE p.ID IS NULL
+
+UNION ALL
+
+SELECT
+    'wp_comments' AS table_name,
+    COUNT(*) AS orphaned_records,
+    ROUND(SUM(LENGTH(comment_content)) / 1024 / 1024, 2) AS wasted_mb
+FROM wp_comments c
+LEFT JOIN wp_posts p ON c.comment_post_ID = p.ID
+WHERE p.ID IS NULL
+
+UNION ALL
+
+SELECT
+    'wp_term_relationships' AS table_name,
+    COUNT(*) AS orphaned_records,
+    0 AS wasted_mb
+FROM wp_term_relationships tr
+LEFT JOIN wp_posts p ON tr.object_id = p.ID
+WHERE p.ID IS NULL;
+
+-- Analyze post type distribution and size
+SELECT
+    post_type,
+    post_status,
+    COUNT(*) AS post_count,
+    ROUND(AVG(LENGTH(post_content)), 2) AS avg_content_length,
+    ROUND(SUM(LENGTH(post_content)) / 1024 / 1024, 2) AS total_content_mb,
+    MIN(post_date) AS oldest_post,
+    MAX(post_date) AS newest_post
+FROM wp_posts
+GROUP BY post_type, post_status
+ORDER BY post_count DESC;
+```
+
+### Deletion by Post Type and Status
+
+Selective deletion targeting specific content types:
+
+```sql
+-- Delete only draft posts outside retention range
+DELETE FROM wp_posts
+WHERE post_status = 'draft'
+AND ID NOT IN (
+    SELECT ID FROM (
+        SELECT ID FROM wp_posts
+        WHERE post_status = 'draft'
+        ORDER BY ID ASC LIMIT 50
+    ) AS first_50
+    UNION
+    SELECT ID FROM (
+        SELECT ID FROM wp_posts
+        WHERE post_status = 'draft'
+        ORDER BY ID DESC LIMIT 50
+    ) AS last_50
+);
+
+-- Delete post revisions older than 30 days
+DELETE FROM wp_posts
+WHERE post_type = 'revision'
+AND post_modified < DATE_SUB(NOW(), INTERVAL 30 DAY);
+
+-- Delete auto-drafts
+DELETE FROM wp_posts
+WHERE post_status = 'auto-draft'
+AND post_date < DATE_SUB(NOW(), INTERVAL 7 DAY);
+```
+
+### Safe Transaction-Wrapped Deletion
+
+Use explicit transactions for rollback capability:
+
+```sql
+-- Start transaction
+START TRANSACTION;
+
+-- Store deletion scope for verification
+CREATE TEMPORARY TABLE deleted_posts_backup AS
+SELECT * FROM wp_posts
+WHERE ID NOT IN (
+    SELECT ID FROM (
+        SELECT ID FROM wp_posts ORDER BY ID ASC LIMIT 100
+    ) AS first_100
+    UNION
+    SELECT ID FROM (
+        SELECT ID FROM wp_posts ORDER BY ID DESC LIMIT 100
+    ) AS last_100
+);
+
+-- Verify temporary table
+SELECT COUNT(*) FROM deleted_posts_backup;
+
+-- Perform deletion
+DELETE FROM wp_posts
+WHERE ID IN (SELECT ID FROM deleted_posts_backup);
+
+-- Verify results - if satisfactory, commit; otherwise rollback
+SELECT
+    (SELECT COUNT(*) FROM wp_posts) AS remaining_posts,
+    (SELECT COUNT(*) FROM deleted_posts_backup) AS deleted_posts;
+
+-- COMMIT; -- Uncomment to finalize
+-- ROLLBACK; -- Uncomment to undo
+```
+
+## Post-Deletion Optimization
+
+### Table Optimization and Defragmentation
+
+After bulk deletions, reclaim disk space and rebuild indexes:
+
+```sql
+-- Optimize wp_posts table
+OPTIMIZE TABLE wp_posts;
+
+-- Analyze table statistics for query planner
+ANALYZE TABLE wp_posts;
+
+-- Check table fragmentation status
+SELECT
+    table_name,
+    ROUND(data_length / 1024 / 1024, 2) AS data_mb,
+    ROUND(index_length / 1024 / 1024, 2) AS index_mb,
+    ROUND(data_free / 1024 / 1024, 2) AS free_mb
+FROM information_schema.tables
+WHERE table_schema = DATABASE()
+AND table_name = 'wp_posts';
+```
+
+### Reset Auto-Increment Counter
+
+If all early posts are deleted, reset the auto-increment value:
+
+```sql
+-- Find the maximum ID
+SELECT MAX(ID) FROM wp_posts;
+
+-- Reset auto-increment to next available value
+ALTER TABLE wp_posts AUTO_INCREMENT = 1;
+
+-- Verify new auto-increment value
+SELECT AUTO_INCREMENT
+FROM information_schema.tables
+WHERE table_schema = DATABASE()
+AND table_name = 'wp_posts';
+```
+
+### Index Optimization and Statistics
+
+After bulk deletions, index statistics may become outdated, leading to suboptimal query plans:
+
+```sql
+-- Analyze table to update index statistics
+ANALYZE TABLE wp_posts;
+
+-- Check index usage statistics
+SELECT
+    OBJECT_SCHEMA AS database_name,
+    OBJECT_NAME AS table_name,
+    INDEX_NAME,
+    COUNT_STAR AS total_accesses,
+    COUNT_READ AS read_operations,
+    COUNT_WRITE AS write_operations,
+    COUNT_FETCH AS rows_fetched,
+    COUNT_INSERT AS rows_inserted,
+    COUNT_UPDATE AS rows_updated,
+    COUNT_DELETE AS rows_deleted
+FROM performance_schema.table_io_waits_summary_by_index_usage
+WHERE OBJECT_SCHEMA = DATABASE()
+AND OBJECT_NAME = 'wp_posts'
+ORDER BY COUNT_STAR DESC;
+
+-- Find unused indexes (candidates for removal)
+SELECT
+    t.TABLE_SCHEMA AS database_name,
+    t.TABLE_NAME AS table_name,
+    s.INDEX_NAME,
+    s.COLUMN_NAME,
+    s.SEQ_IN_INDEX AS column_position,
+    s.CARDINALITY,
+    ROUND((s.CARDINALITY / t.TABLE_ROWS) * 100, 2) AS selectivity_percent,
+    CASE
+        WHEN u.INDEX_NAME IS NULL THEN 'UNUSED - Consider dropping'
+        ELSE 'USED'
+    END AS usage_status
+FROM information_schema.STATISTICS s
+INNER JOIN information_schema.TABLES t
+    ON s.TABLE_SCHEMA = t.TABLE_SCHEMA
+    AND s.TABLE_NAME = t.TABLE_NAME
+LEFT JOIN (
+    SELECT DISTINCT OBJECT_SCHEMA, OBJECT_NAME, INDEX_NAME
+    FROM performance_schema.table_io_waits_summary_by_index_usage
+    WHERE COUNT_STAR > 0
+) u ON s.TABLE_SCHEMA = u.OBJECT_SCHEMA
+    AND s.TABLE_NAME = u.OBJECT_NAME
+    AND s.INDEX_NAME = u.INDEX_NAME
+WHERE s.TABLE_SCHEMA = DATABASE()
+AND s.TABLE_NAME = 'wp_posts'
+AND s.INDEX_NAME != 'PRIMARY'
+ORDER BY t.TABLE_NAME, s.INDEX_NAME, s.SEQ_IN_INDEX;
+
+-- Check for duplicate indexes
+SELECT
+    a.TABLE_NAME,
+    a.INDEX_NAME AS index1,
+    GROUP_CONCAT(a.COLUMN_NAME ORDER BY a.SEQ_IN_INDEX) AS columns1,
+    b.INDEX_NAME AS index2,
+    GROUP_CONCAT(b.COLUMN_NAME ORDER BY b.SEQ_IN_INDEX) AS columns2,
+    'Potential duplicate - review for removal' AS recommendation
+FROM information_schema.STATISTICS a
+JOIN information_schema.STATISTICS b
+    ON a.TABLE_SCHEMA = b.TABLE_SCHEMA
+    AND a.TABLE_NAME = b.TABLE_NAME
+    AND a.INDEX_NAME < b.INDEX_NAME
+WHERE a.TABLE_SCHEMA = DATABASE()
+AND a.TABLE_NAME = 'wp_posts'
+GROUP BY a.TABLE_NAME, a.INDEX_NAME, b.INDEX_NAME
+HAVING columns1 = columns2;
+
+-- Rebuild indexes to reclaim space and improve performance
+ALTER TABLE wp_posts ENGINE=InnoDB;
+
+-- Or rebuild specific index
+ALTER TABLE wp_posts DROP INDEX type_status_date;
+ALTER TABLE wp_posts ADD INDEX type_status_date (post_type, post_status, post_date, ID);
+
+-- Force index hints for queries
+-- Use when optimizer makes poor choices after deletion
+SELECT * FROM wp_posts FORCE INDEX (type_status_date)
+WHERE post_type = 'post'
+AND post_status = 'publish'
+ORDER BY post_date DESC
+LIMIT 10;
+```
+
+**Index Best Practices for WordPress:**
+
+**Composite Index Ordering:** Most selective columns first
+
+```sql
+-- Good: Filters reduce dataset quickly
+INDEX (post_type, post_status, post_date)
+
+-- Bad: Less selective column first
+INDEX (post_date, post_type, post_status)
+```
+
+**Covering Indexes:** Include all columns in SELECT
+
+```sql
+-- Query: SELECT post_title, post_date FROM wp_posts WHERE post_type = 'post'
+-- Covering index includes all needed columns
+CREATE INDEX idx_covering ON wp_posts(post_type, post_date, post_title);
+```
+
+**Prefix Indexes:** For long VARCHAR/TEXT columns
+
+```sql
+-- Only index first 50 characters of post_name
+CREATE INDEX idx_post_name_prefix ON wp_posts(post_name(50));
+```
+
+## Performance Monitoring
+
+### Query Execution Analysis
+
+Monitor query performance with `EXPLAIN` and execution profiling:
+
+```sql
+-- Basic EXPLAIN for deletion query
+EXPLAIN DELETE FROM wp_posts
+WHERE ID NOT IN (
+    SELECT ID FROM (
+        SELECT ID FROM wp_posts ORDER BY ID ASC LIMIT 100
+    ) AS first_100
+    UNION
+    SELECT ID FROM (
+        SELECT ID FROM wp_posts ORDER BY ID DESC LIMIT 100
+    ) AS last_100
+);
+
+-- Extended EXPLAIN with execution plan details
+EXPLAIN FORMAT=JSON
+DELETE FROM wp_posts
+WHERE ID NOT IN (
+    SELECT ID FROM (
+        SELECT ID FROM wp_posts ORDER BY ID ASC LIMIT 100
+    ) AS first_100
+    UNION
+    SELECT ID FROM (
+        SELECT ID FROM wp_posts ORDER BY ID DESC LIMIT 100
+    ) AS last_100
+);
+
+-- Enable query profiling
+SET profiling = 1;
+
+-- Run your deletion query
+-- DELETE FROM wp_posts WHERE [condition];
+
+-- View profiling results
+SHOW PROFILES;
+
+-- Get detailed timing for specific query
+SHOW PROFILE FOR QUERY 1;
+
+-- View CPU and block I/O statistics
+SHOW PROFILE CPU, BLOCK IO FOR QUERY 1;
+
+-- Disable profiling when done
+SET profiling = 0;
+
+-- Analyze slow query log patterns
+SELECT
+    DIGEST_TEXT,
+    COUNT_STAR AS execution_count,
+    ROUND(AVG_TIMER_WAIT / 1000000000000, 2) AS avg_time_sec,
+    ROUND(MAX_TIMER_WAIT / 1000000000000, 2) AS max_time_sec,
+    ROUND(SUM_ROWS_EXAMINED / COUNT_STAR, 0) AS avg_rows_examined,
+    ROUND(SUM_ROWS_SENT / COUNT_STAR, 0) AS avg_rows_sent
+FROM performance_schema.events_statements_summary_by_digest
+WHERE DIGEST_TEXT LIKE '%wp_posts%'
+ORDER BY SUM_TIMER_WAIT DESC
+LIMIT 10;
+```
+
+**Understanding EXPLAIN Output:**
+
+| Column | Description | Optimization Goal |
+|---|---|---|
+| `select_type` | Type of SELECT (SIMPLE, PRIMARY, SUBQUERY) | Minimize subqueries when possible |
+| `type` | Join type (ALL, index, range, ref, eq_ref, const) | Aim for ref or better (avoid ALL) |
+| `possible_keys` | Indexes that could be used | Ensure relevant indexes exist |
+| `key` | Actual index used | Verify correct index selection |
+| `rows` | Estimated rows examined | Lower is better |
+| `Extra` | Additional execution details | Watch for "Using filesort" or "Using temporary" |
+
+### Disk Space Verification
+
+Check actual disk space reclaimed:
+
+```bash
+# Before deletion
+du -sh /var/lib/mysql/database_name/
+
+# After deletion and OPTIMIZE
+du -sh /var/lib/mysql/database_name/
+
+# Check specific table files
+ls -lh /var/lib/mysql/database_name/wp_posts.*
+```
+
+## Troubleshooting
+
+### Common Issues and Solutions
+
+**Issue**: Query times out on large databases
+
+**Solution**: Use batch deletion with `LIMIT` and iterate:
+
+```sql
+-- Incremental deletion
+SET @deleted = 1;
+WHILE @deleted > 0 DO
+    DELETE FROM wp_posts
+    WHERE ID NOT IN (
+        SELECT ID FROM (
+            SELECT ID FROM wp_posts ORDER BY ID ASC LIMIT 100
+        ) AS first_100
+        UNION
+        SELECT ID FROM (
+            SELECT ID FROM wp_posts ORDER BY ID DESC LIMIT 100
+        ) AS last_100
+    )
+    LIMIT 5000;
+    SET @deleted = ROW_COUNT();
+    SELECT @deleted AS 'Rows deleted in this batch';
+END WHILE;
+```
+
+**Issue**: Replication lag in master-slave setup
+
+**Solution**: Add delays between batch operations:
+
+```sql
+DELETE FROM wp_posts WHERE [...] LIMIT 1000;
+SELECT SLEEP(2); -- 2 second pause
+```
+
+**Issue**: Foreign key constraints prevent deletion
+
+**Solution**: Temporarily disable foreign key checks (use with extreme caution):
+
+```sql
+SET FOREIGN_KEY_CHECKS = 0;
+-- Perform deletion
+DELETE FROM wp_posts WHERE [...];
+SET FOREIGN_KEY_CHECKS = 1;
+```
+
+## Best Practices Summary
+
+- **Always backup**: Create full database dumps before any DELETE operation
+- **Test in staging**: Validate queries on non-production data first
+- **Use transactions**: Wrap operations in `START TRANSACTION` for rollback capability
+- **Monitor replication**: Check slave lag in replicated environments
+- **Schedule maintenance**: Perform bulk deletions during low-traffic periods
+- **Verify results**: Run count queries before and after operations
+- **Clean related data**: Remove orphaned metadata and relationships
+- **Optimize tables**: Run `OPTIMIZE TABLE` after bulk deletions
+- **Update statistics**: Use `ANALYZE TABLE` to refresh query optimizer statistics
+- **Document changes**: Log what was deleted and why for audit trails
+- **Consider alternatives**: Evaluate WordPress plugins like WP-Optimize or WP-Sweep for safer GUI-based cleanup
+
+## WordPress-Specific Optimizations
+
+### Using WP-CLI for Database Management
+
+WordPress Command Line Interface (WP-CLI) provides safer abstraction layer for database operations:
+
+```bash
+# Check database status
+wp db check
+
+# Optimize database tables
+wp db optimize
+
+# Export database with compression
+wp db export wordpress_backup.sql.gz
+
+# Search and replace in database (useful after cleanup)
+wp search-replace 'old-url.com' 'new-url.com' --dry-run
+
+# Clean post revisions
+wp post delete $(wp post list --post_type='revision' --format=ids) --force
+
+# Delete auto-drafts
+wp post delete $(wp post list --post_status=auto-draft --format=ids) --force
+
+# List orphaned postmeta
+wp db query "SELECT meta_id, post_id FROM wp_postmeta pm
+             LEFT JOIN wp_posts p ON pm.post_id = p.ID
+             WHERE p.ID IS NULL LIMIT 10;"
+
+# Delete orphaned postmeta
+wp db query "DELETE pm FROM wp_postmeta pm
+             LEFT JOIN wp_posts p ON pm.post_id = p.ID
+             WHERE p.ID IS NULL;"
+```
+
+### WordPress PHP Functions for Safe Database Operations
+
+When building custom WordPress plugins or themes that handle post deletion:
+
+```php
+<?php
+/**
+ * Safe bulk post deletion using WordPress APIs
+ * Respects post relationships and triggers proper hooks
+ */
+function safely_delete_old_posts($keep_first = 100, $keep_last = 100) {
+    global $wpdb;
+
+    // Get total post count
+    $total = $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_type = 'post'");
+
+    if ($total <= ($keep_first + $keep_last)) {
+        return new WP_Error('insufficient_posts', 'Not enough posts to delete');
+    }
+
+    // Get IDs to keep
+    $keep_ids = array_merge(
+        $wpdb->get_col($wpdb->prepare(
+            "SELECT ID FROM {$wpdb->posts}
+             WHERE post_type = 'post'
+             ORDER BY ID ASC LIMIT %d",
+            $keep_first
+        )),
+        $wpdb->get_col($wpdb->prepare(
+            "SELECT ID FROM {$wpdb->posts}
+             WHERE post_type = 'post'
+             ORDER BY ID DESC LIMIT %d",
+            $keep_last
+        ))
+    );
+
+    // Get posts to delete
+    $delete_ids = $wpdb->get_col($wpdb->prepare(
+        "SELECT ID FROM {$wpdb->posts}
+         WHERE post_type = 'post'
+         AND ID NOT IN (" . implode(',', array_map('intval', $keep_ids)) . ")"
+    ));
+
+    $deleted_count = 0;
+
+    // Delete in batches of 50
+    foreach (array_chunk($delete_ids, 50) as $batch) {
+        foreach ($batch as $post_id) {
+            // wp_delete_post handles metadata, comments, and relationships
+            if (wp_delete_post($post_id, true)) {
+                $deleted_count++;
+            }
+        }
+
+        // Prevent memory exhaustion
+        wp_cache_flush();
+
+        // Give server breathing room
+        sleep(1);
+    }
+
+    return $deleted_count;
+}
+
+/**
+ * Clean orphaned postmeta using WordPress database class
+ */
+function clean_orphaned_postmeta() {
+    global $wpdb;
+
+    $deleted = $wpdb->query("
+        DELETE pm FROM {$wpdb->postmeta} pm
+        LEFT JOIN {$wpdb->posts} p ON pm.post_id = p.ID
+        WHERE p.ID IS NULL
+    ");
+
+    return $deleted;
+}
+
+/**
+ * Get database statistics
+ */
+function get_wordpress_db_stats() {
+    global $wpdb;
+
+    $stats = array();
+
+    // Post count by type
+    $stats['posts_by_type'] = $wpdb->get_results("
+        SELECT post_type, post_status, COUNT(*) as count
+        FROM {$wpdb->posts}
+        GROUP BY post_type, post_status
+        ORDER BY count DESC
+    ");
+
+    // Orphaned postmeta
+    $stats['orphaned_postmeta'] = $wpdb->get_var("
+        SELECT COUNT(*) FROM {$wpdb->postmeta} pm
+        LEFT JOIN {$wpdb->posts} p ON pm.post_id = p.ID
+        WHERE p.ID IS NULL
+    ");
+
+    // Orphaned comments
+    $stats['orphaned_comments'] = $wpdb->get_var("
+        SELECT COUNT(*) FROM {$wpdb->comments} c
+        LEFT JOIN {$wpdb->posts} p ON c.comment_post_ID = p.ID
+        WHERE p.ID IS NULL
+    ");
+
+    // Table sizes
+    $stats['table_sizes'] = $wpdb->get_results("
+        SELECT
+            table_name,
+            ROUND((data_length + index_length) / 1024 / 1024, 2) AS size_mb
+        FROM information_schema.tables
+        WHERE table_schema = '" . DB_NAME . "'
+        AND table_name LIKE '{$wpdb->prefix}%'
+        ORDER BY (data_length + index_length) DESC
+    ");
+
+    return $stats;
+}
+
+/**
+ * Schedule automated cleanup as WordPress cron job
+ */
+function schedule_database_cleanup() {
+    if (!wp_next_scheduled('custom_db_cleanup')) {
+        wp_schedule_event(time(), 'weekly', 'custom_db_cleanup');
+    }
+}
+add_action('wp', 'schedule_database_cleanup');
+
+function perform_scheduled_cleanup() {
+    global $wpdb;
+
+    // Delete old revisions
+    $wpdb->query("
+        DELETE FROM {$wpdb->posts}
+        WHERE post_type = 'revision'
+        AND post_modified < DATE_SUB(NOW(), INTERVAL 30 DAY)
+        LIMIT 1000
+    ");
+
+    // Delete old auto-drafts
+    $wpdb->query("
+        DELETE FROM {$wpdb->posts}
+        WHERE post_status = 'auto-draft'
+        AND post_date < DATE_SUB(NOW(), INTERVAL 7 DAY)
+        LIMIT 1000
+    ");
+
+    // Clean orphaned metadata
+    clean_orphaned_postmeta();
+}
+add_action('custom_db_cleanup', 'perform_scheduled_cleanup');
+?>
+```
+
+### WordPress Database Table Relationships
+
+Understanding how WordPress tables interconnect helps prevent data integrity issues:
+
+```sql
+-- View all WordPress tables and their sizes
+SELECT
+    table_name,
+    engine,
+    table_rows,
+    ROUND((data_length + index_length) / 1024 / 1024, 2) AS total_size_mb,
+    ROUND(data_length / 1024 / 1024, 2) AS data_size_mb,
+    ROUND(index_length / 1024 / 1024, 2) AS index_size_mb
+FROM information_schema.tables
+WHERE table_schema = DATABASE()
+AND table_name LIKE 'wp_%'
+ORDER BY (data_length + index_length) DESC;
+
+-- Check referential integrity across post-related tables
+SELECT
+    'Posts without authors' AS issue,
+    COUNT(*) AS count
+FROM wp_posts p
+LEFT JOIN wp_users u ON p.post_author = u.ID
+WHERE u.ID IS NULL AND p.post_author != 0
+
+UNION ALL
+
+SELECT
+    'Comments on deleted posts' AS issue,
+    COUNT(*) AS count
+FROM wp_comments c
+LEFT JOIN wp_posts p ON c.comment_post_ID = p.ID
+WHERE p.ID IS NULL
+
+UNION ALL
+
+SELECT
+    'Postmeta for deleted posts' AS issue,
+    COUNT(*) AS count
+FROM wp_postmeta pm
+LEFT JOIN wp_posts p ON pm.post_id = p.ID
+WHERE p.ID IS NULL
+
+UNION ALL
+
+SELECT
+    'Term relationships for deleted posts' AS issue,
+    COUNT(*) AS count
+FROM wp_term_relationships tr
+LEFT JOIN wp_posts p ON tr.object_id = p.ID
+WHERE p.ID IS NULL AND tr.term_taxonomy_id IN (
+    SELECT term_taxonomy_id
+    FROM wp_term_taxonomy
+    WHERE taxonomy IN ('category', 'post_tag')
+);
+```
+
+### Performance Impact Analysis
+
+Before and after metrics to measure optimization impact:
+
+```sql
+-- Before optimization: Capture baseline metrics
+CREATE TABLE optimization_baseline AS
+SELECT
+    'wp_posts' AS table_name,
+    COUNT(*) AS row_count,
+    ROUND(AVG(LENGTH(post_content))) AS avg_content_size,
+    MIN(post_date) AS oldest_date,
+    MAX(post_date) AS newest_date,
+    (SELECT COUNT(*) FROM wp_postmeta) AS postmeta_count,
+    (SELECT COUNT(*) FROM wp_comments) AS comments_count,
+    NOW() AS measured_at
+FROM wp_posts;
+
+-- After optimization: Compare results
+SELECT
+    b.table_name,
+    b.row_count AS before_rows,
+    (SELECT COUNT(*) FROM wp_posts) AS after_rows,
+    b.row_count - (SELECT COUNT(*) FROM wp_posts) AS rows_deleted,
+    b.postmeta_count AS before_postmeta,
+    (SELECT COUNT(*) FROM wp_postmeta) AS after_postmeta,
+    b.comments_count AS before_comments,
+    (SELECT COUNT(*) FROM wp_comments) AS after_comments,
+    TIMESTAMPDIFF(MINUTE, b.measured_at, NOW()) AS minutes_elapsed
+FROM optimization_baseline b;
+
+-- Query performance comparison
+-- Run this BEFORE optimization
+EXPLAIN ANALYZE
+SELECT * FROM wp_posts
+WHERE post_type = 'post'
+AND post_status = 'publish'
+ORDER BY post_date DESC
+LIMIT 10;
+
+-- Run the same query AFTER optimization to compare execution time
+```
+
+## Monitoring and Alerting
+
+### Real-Time Performance Monitoring
+
+Set up comprehensive monitoring for database operations:
+
+```sql
+-- Monitor long-running queries
+SELECT
+    ID,
+    USER,
+    HOST,
+    DB,
+    COMMAND,
+    TIME AS duration_seconds,
+    STATE,
+    INFO AS query_text,
+    TIME_MS / 1000 AS duration_decimal_sec
+FROM information_schema.PROCESSLIST
+WHERE COMMAND != 'Sleep'
+AND TIME > 10  -- Queries running longer than 10 seconds
+ORDER BY TIME DESC;
+
+-- Monitor table lock contention
+SELECT
+    OBJECT_SCHEMA AS database_name,
+    OBJECT_NAME AS table_name,
+    COUNT_STAR AS total_waits,
+    SUM_TIMER_WAIT / 1000000000000 AS total_wait_time_sec,
+    AVG_TIMER_WAIT / 1000000000000 AS avg_wait_time_sec,
+    MAX_TIMER_WAIT / 1000000000000 AS max_wait_time_sec
+FROM performance_schema.table_lock_waits_summary_by_table
+WHERE OBJECT_SCHEMA = DATABASE()
+AND OBJECT_NAME = 'wp_posts'
+ORDER BY SUM_TIMER_WAIT DESC;
+
+-- Track disk I/O per table
+SELECT
+    OBJECT_SCHEMA,
+    OBJECT_NAME,
+    COUNT_READ AS read_operations,
+    COUNT_WRITE AS write_operations,
+    COUNT_FETCH AS rows_fetched,
+    COUNT_INSERT AS rows_inserted,
+    COUNT_UPDATE AS rows_updated,
+    COUNT_DELETE AS rows_deleted,
+    SUM_TIMER_WAIT / 1000000000000 AS total_io_time_sec
+FROM performance_schema.table_io_waits_summary_by_table
+WHERE OBJECT_SCHEMA = DATABASE()
+AND OBJECT_NAME IN ('wp_posts', 'wp_postmeta', 'wp_comments')
+ORDER BY SUM_TIMER_WAIT DESC;
+
+-- Monitor InnoDB row operations
+SHOW GLOBAL STATUS LIKE 'Innodb_rows%';
+
+-- Check for table cache pressure
+SHOW GLOBAL STATUS LIKE 'Open%tables';
+SHOW VARIABLES LIKE 'table_open_cache';
+
+-- Monitor connection usage
+SHOW STATUS LIKE 'Threads_connected';
+SHOW STATUS LIKE 'Max_used_connections';
+SHOW VARIABLES LIKE 'max_connections';
+```
+
+### Automated Health Checks
+
+Create stored procedures for recurring health checks:
+
+```sql
+DELIMITER $$
+
+CREATE PROCEDURE check_database_health()
+BEGIN
+    -- Check for orphaned records
+    SELECT
+        'Orphaned postmeta' AS check_type,
+        COUNT(*) AS issues_found,
+        CASE
+            WHEN COUNT(*) = 0 THEN 'PASS'
+            WHEN COUNT(*) < 100 THEN 'WARNING'
+            ELSE 'CRITICAL'
+        END AS status
+    FROM wp_postmeta pm
+    LEFT JOIN wp_posts p ON pm.post_id = p.ID
+    WHERE p.ID IS NULL
+
+    UNION ALL
+
+    -- Check table fragmentation
+    SELECT
+        'Table fragmentation' AS check_type,
+        ROUND((data_free / (data_length + index_length + data_free)) * 100, 2) AS issues_found,
+        CASE
+            WHEN (data_free / (data_length + index_length + data_free)) * 100 < 10 THEN 'PASS'
+            WHEN (data_free / (data_length + index_length + data_free)) * 100 < 25 THEN 'WARNING'
+            ELSE 'CRITICAL'
+        END AS status
+    FROM information_schema.tables
+    WHERE table_schema = DATABASE()
+    AND table_name = 'wp_posts'
+
+    UNION ALL
+
+    -- Check InnoDB buffer pool usage
+    SELECT
+        'Buffer pool usage' AS check_type,
+        ROUND(
+            (SELECT VARIABLE_VALUE FROM information_schema.GLOBAL_STATUS
+             WHERE VARIABLE_NAME = 'Innodb_buffer_pool_pages_data') /
+            (SELECT VARIABLE_VALUE FROM information_schema.GLOBAL_STATUS
+             WHERE VARIABLE_NAME = 'Innodb_buffer_pool_pages_total') * 100,
+            2
+        ) AS issues_found,
+        CASE
+            WHEN (SELECT VARIABLE_VALUE FROM information_schema.GLOBAL_STATUS
+                  WHERE VARIABLE_NAME = 'Innodb_buffer_pool_pages_data') /
+                 (SELECT VARIABLE_VALUE FROM information_schema.GLOBAL_STATUS
+                  WHERE VARIABLE_NAME = 'Innodb_buffer_pool_pages_total') * 100 < 80 THEN 'PASS'
+            WHEN (SELECT VARIABLE_VALUE FROM information_schema.GLOBAL_STATUS
+                  WHERE VARIABLE_NAME = 'Innodb_buffer_pool_pages_data') /
+                 (SELECT VARIABLE_VALUE FROM information_schema.GLOBAL_STATUS
+                  WHERE VARIABLE_NAME = 'Innodb_buffer_pool_pages_total') * 100 < 95 THEN 'WARNING'
+            ELSE 'CRITICAL'
+        END AS status;
+END$$
+
+DELIMITER ;
+
+-- Run health check
+CALL check_database_health();
+```
+
+### Logging and Audit Trail
+
+Implement comprehensive logging for deletion operations:
+
+```sql
+-- Create audit log table
+CREATE TABLE IF NOT EXISTS wp_deletion_audit (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    deletion_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    deleted_by VARCHAR(100),
+    deletion_type VARCHAR(50),
+    records_deleted INT,
+    table_affected VARCHAR(100),
+    deletion_criteria TEXT,
+    execution_time_seconds DECIMAL(10,2),
+    disk_space_freed_mb DECIMAL(10,2),
+    notes TEXT,
+    INDEX idx_deletion_date (deletion_date),
+    INDEX idx_table_affected (table_affected)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Log deletion operation
+INSERT INTO wp_deletion_audit (
+    deleted_by,
+    deletion_type,
+    records_deleted,
+    table_affected,
+    deletion_criteria,
+    execution_time_seconds,
+    disk_space_freed_mb,
+    notes
+) VALUES (
+    USER(),
+    'bulk_post_deletion',
+    (SELECT COUNT(*) FROM deleted_posts_backup),
+    'wp_posts',
+    'Kept first 100 and last 100 rows',
+    TIMESTAMPDIFF(SECOND, @start_time, NOW()),
+    (SELECT ROUND(data_free / 1024 / 1024, 2)
+     FROM information_schema.tables
+     WHERE table_schema = DATABASE() AND table_name = 'wp_posts'),
+    'Part of monthly cleanup routine'
+);
+
+-- Query audit history
+SELECT
+    deletion_date,
+    deleted_by,
+    deletion_type,
+    records_deleted,
+    table_affected,
+    execution_time_seconds,
+    disk_space_freed_mb,
+    notes
+FROM wp_deletion_audit
+ORDER BY deletion_date DESC
+LIMIT 20;
+
+-- Analyze deletion patterns
+SELECT
+    DATE_FORMAT(deletion_date, '%Y-%m') AS month,
+    SUM(records_deleted) AS total_deleted,
+    SUM(disk_space_freed_mb) AS total_space_freed_mb,
+    AVG(execution_time_seconds) AS avg_execution_time,
+    COUNT(*) AS deletion_operations
+FROM wp_deletion_audit
+GROUP BY DATE_FORMAT(deletion_date, '%Y-%m')
+ORDER BY month DESC;
+```
+
+### Performance Baseline Documentation
+
+Create a reference document of expected performance metrics:
+
+```bash
+# Create performance baseline script
+cat > /path/to/scripts/wp_performance_baseline.sh << 'EOF'
+#!/bin/bash
+
+# WordPress Database Performance Baseline
+# Run this before and after major database operations
+
+MYSQL_USER="your_user"
+MYSQL_PASS="your_pass"
+MYSQL_DB="your_database"
+OUTPUT_FILE="wp_perf_baseline_$(date +%Y%m%d_%H%M%S).txt"
+
+echo "=== WordPress Database Performance Baseline ===" > "$OUTPUT_FILE"
+echo "Generated: $(date)" >> "$OUTPUT_FILE"
+echo "" >> "$OUTPUT_FILE"
+
+# Table sizes
+echo "=== Table Sizes ===" >> "$OUTPUT_FILE"
+mysql -u "$MYSQL_USER" -p"$MYSQL_PASS" "$MYSQL_DB" -e "
+SELECT
+    table_name,
+    table_rows,
+    ROUND((data_length + index_length) / 1024 / 1024, 2) AS size_mb
+FROM information_schema.tables
+WHERE table_schema = DATABASE()
+AND table_name LIKE 'wp_%'
+ORDER BY (data_length + index_length) DESC;
+" >> "$OUTPUT_FILE"
+
+# Post counts by type
+echo "" >> "$OUTPUT_FILE"
+echo "=== Post Counts by Type ===" >> "$OUTPUT_FILE"
+mysql -u "$MYSQL_USER" -p"$MYSQL_PASS" "$MYSQL_DB" -e "
+SELECT post_type, post_status, COUNT(*) as count
+FROM wp_posts
+GROUP BY post_type, post_status
+ORDER BY count DESC;
+" >> "$OUTPUT_FILE"
+
+# Index statistics
+echo "" >> "$OUTPUT_FILE"
+echo "=== Index Cardinality ===" >> "$OUTPUT_FILE"
+mysql -u "$MYSQL_USER" -p"$MYSQL_PASS" "$MYSQL_DB" -e "
+SELECT table_name, index_name, cardinality
+FROM information_schema.statistics
+WHERE table_schema = DATABASE()
+AND table_name = 'wp_posts'
+ORDER BY table_name, index_name;
+" >> "$OUTPUT_FILE"
+
+# Slow query statistics
+echo "" >> "$OUTPUT_FILE"
+echo "=== Top 10 Slowest Queries ===" >> "$OUTPUT_FILE"
+mysql -u "$MYSQL_USER" -p"$MYSQL_PASS" "$MYSQL_DB" -e "
+SELECT
+    DIGEST_TEXT,
+    COUNT_STAR as exec_count,
+    ROUND(AVG_TIMER_WAIT / 1000000000000, 2) as avg_time_sec
+FROM performance_schema.events_statements_summary_by_digest
+WHERE SCHEMA_NAME = DATABASE()
+ORDER BY AVG_TIMER_WAIT DESC
+LIMIT 10;
+" >> "$OUTPUT_FILE"
+
+echo "" >> "$OUTPUT_FILE"
+echo "Baseline saved to: $OUTPUT_FILE"
+EOF
+
+chmod +x /path/to/scripts/wp_performance_baseline.sh
+```
+
+## Troubleshooting Common Issues
+
+### Issue: Lock Wait Timeout Exceeded
+
+**Symptoms:**
+```
+ERROR 1205 (HY000): Lock wait timeout exceeded; try restarting transaction
+```
+
+**Solutions:**
+```sql
+-- Increase lock wait timeout temporarily
+SET SESSION innodb_lock_wait_timeout = 300;
+
+-- Check what's holding locks
+SELECT
+    r.trx_id waiting_trx_id,
+    r.trx_mysql_thread_id waiting_thread,
+    r.trx_query waiting_query,
+    b.trx_id blocking_trx_id,
+    b.trx_mysql_thread_id blocking_thread,
+    b.trx_query blocking_query,
+    TIMESTAMPDIFF(SECOND, r.trx_started, NOW()) AS wait_age_seconds
+FROM information_schema.innodb_lock_waits w
+INNER JOIN information_schema.innodb_trx b ON b.trx_id = w.blocking_trx_id
+INNER JOIN information_schema.innodb_trx r ON r.trx_id = w.requesting_trx_id;
+
+-- Kill blocking thread (use with caution)
+-- KILL <blocking_thread_id>;
+```
+
+### Issue: Out of Memory Errors
+
+**Symptoms:**
+```
+ERROR 1038 (HY001): Out of sort memory
+ERROR 2006 (HY000): MySQL server has gone away
+```
+
+**Solutions:**
+```sql
+-- Increase memory buffers
+SET SESSION sort_buffer_size = 4194304;
+SET SESSION read_buffer_size = 2097152;
+
+-- Monitor memory usage
+SELECT
+    SUBSTRING_INDEX(event_name, '/', 2) AS memory_category,
+    ROUND(SUM(CURRENT_NUMBER_OF_BYTES_USED) / 1024 / 1024, 2) AS memory_used_mb
+FROM performance_schema.memory_summary_global_by_event_name
+WHERE event_name LIKE 'memory/%'
+GROUP BY memory_category
+ORDER BY SUM(CURRENT_NUMBER_OF_BYTES_USED) DESC
+LIMIT 10;
+```
+
+### Issue: Disk Space Not Reclaimed
+
+**Symptoms:** Table size doesn't decrease after deletion
+
+**Solutions:**
+```sql
+-- Check fragmentation
+SELECT
+    table_name,
+    ROUND(data_free / 1024 / 1024, 2) AS free_space_mb,
+    ROUND((data_free / (data_length + index_length + data_free)) * 100, 2) AS fragmentation_percent
+FROM information_schema.tables
+WHERE table_schema = DATABASE()
+AND table_name = 'wp_posts';
+
+-- Reclaim space
+OPTIMIZE TABLE wp_posts;
+
+-- Verify file-per-table mode
+SHOW VARIABLES LIKE 'innodb_file_per_table';
+```
+
+## Best Practices Summary
+
+- [MySQL DELETE Documentation](https://dev.mysql.com/doc/refman/8.0/en/delete.html)
+- [InnoDB Table Optimization](https://dev.mysql.com/doc/refman/8.0/en/optimize-table.html)
+- [WordPress Database Schema](https://codex.wordpress.org/Database_Description)
