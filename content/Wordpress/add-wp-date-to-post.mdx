@@ -4,6 +4,24 @@ description: Add date time to WordPress RSS feed
 tags: [wordpress, rss, date, time]
 ---
 
+## Overview
+
+RSS (Really Simple Syndication) feeds require properly formatted date-time values to comply with the RSS 2.0 specification. WordPress provides built-in functions to convert MySQL datetime values stored in the database into RFC 2822 compliant formats required by RSS readers and aggregators.
+
+## RSS Date Requirements
+
+The RSS 2.0 specification mandates that all date-time values conform to **RFC 822** (updated by RFC 2822). This format ensures compatibility across feed readers, podcatchers, and news aggregators worldwide.
+
+**RFC 2822 Date Format:**
+
+```
+Day, DD Mon YYYY HH:MM:SS +ZZZZ
+```
+
+Example: `Thu, 21 Dec 2023 16:01:07 +0200`
+
+## Last Build Date
+
 The first example shows how to format the last build date of an RSS feed
 using the post's creation date in RFC 2822 format (required by RSS specification).
 
@@ -12,6 +30,10 @@ using the post's creation date in RFC 2822 format (required by RSS specification
     <?php echo mysql2date(' r', $post->post_date, false); ?>
 </lastBuildDate>
 ```
+
+The `<lastBuildDate>` element indicates when the channel content last changed. Feed readers use this to determine if they need to refresh their cached content.
+
+## Publication Date
 
 The second example demonstrates formatting individual post publication dates
 with a specific timezone offset (+0300) and custom date format for RSS pubDate elements.
@@ -23,12 +45,150 @@ with a specific timezone offset (+0300) and custom date format for RSS pubDate e
 </pubDate>
 ```
 
-Key Functions Used:
+The `<pubDate>` element specifies when the item was published. This is critical for feed readers to sort items chronologically and identify new content.
 
-- mysql2date(): Converts MySQL datetime to specified format
-- get_post_time(): Retrieves post time in specified format
+## Key Functions Reference
 
-Format Specifications:
+### mysql2date()
 
-- 'r' format: RFC 2822 formatted date (e.g., "Thu, 21 Dec 2000 16:01:07 +0200")
-- 'D, d M Y H:i:s +0300': Custom format with timezone offset
+Converts a MySQL datetime string to a specified PHP date format.
+
+**Function Signature:**
+
+```php
+mysql2date( string $format, string $date, bool $translate = true ): string|int|false
+```
+
+**Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `$format` | string | PHP date format string or 'G' for Unix timestamp, 'U' for Unix timestamp |
+| `$date` | string | MySQL datetime value (YYYY-MM-DD HH:MM:SS) |
+| `$translate` | bool | Whether to translate the date string (default: true). Set to false for RSS feeds |
+
+**Return Value:** Formatted date string, Unix timestamp (if format is 'G' or 'U'), or false on failure.
+
+### get_post_time()
+
+Retrieves the time at which the post was written.
+
+**Function Signature:**
+
+```php
+get_post_time( string $format = 'U', bool $gmt = false, int|WP_Post $post = null, bool $translate = false ): string|int|false
+```
+
+**Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `$format` | string | PHP date format (default: 'U' for Unix timestamp) |
+| `$gmt` | bool | Whether to return GMT time (default: false) |
+| `$post` | int\|WP_Post | Post ID or object (default: current post) |
+| `$translate` | bool | Whether to translate the time string |
+
+## PHP Date Format Characters
+
+| Character | Description | Example |
+|-----------|-------------|---------|
+| `D` | Three-letter day name | Mon, Tue, Wed |
+| `d` | Day of month, 2 digits with leading zeros | 01–31 |
+| `M` | Three-letter month name | Jan, Feb, Mar |
+| `Y` | Full numeric year, 4 digits | 2023, 2024 |
+| `H` | Hour in 24-hour format with leading zeros | 00–23 |
+| `i` | Minutes with leading zeros | 00–59 |
+| `s` | Seconds with leading zeros | 00–59 |
+| `r` | RFC 2822 formatted date | Thu, 21 Dec 2000 16:01:07 +0200 |
+
+## Timezone Offset Formats
+
+The timezone offset in RSS dates must be expressed as `+HHMM` or `-HHMM`:
+
+| Timezone | Offset | Description |
+|----------|--------|-------------|
+| UTC | +0000 | Coordinated Universal Time |
+| CET | +0100 | Central European Time |
+| EET | +0200 | Eastern European Time |
+| MSK | +0300 | Moscow Standard Time |
+| EST | -0500 | Eastern Standard Time (US) |
+| PST | -0800 | Pacific Standard Time (US) |
+
+## Additional Code Examples
+
+### Dynamic Timezone from WordPress Settings
+
+Retrieve the timezone offset from WordPress settings instead of hardcoding:
+
+```php
+<pubDate>
+    <?php
+    $gmt_offset = get_option('gmt_offset');
+    $timezone = sprintf('%+03d00', $gmt_offset);
+    echo mysql2date('D, d M Y H:i:s ' . $timezone,
+        get_post_time('Y-m-d H:i:s', true), false);
+    ?>
+</pubDate>
+```
+
+### Using WordPress Timezone String
+
+For sites configured with named timezones (e.g., "Europe/Moscow"):
+
+```php
+<pubDate>
+    <?php
+    $timezone_string = get_option('timezone_string');
+    if ($timezone_string) {
+        $datetime = new DateTime(get_post_time('Y-m-d H:i:s', true), new DateTimeZone('UTC'));
+        $datetime->setTimezone(new DateTimeZone($timezone_string));
+        echo $datetime->format('D, d M Y H:i:s O');
+    } else {
+        echo mysql2date('r', get_post_time('Y-m-d H:i:s', true), false);
+    }
+    ?>
+</pubDate>
+```
+
+### Modified Date for Updated Posts
+
+Include the last modified date for posts that have been updated after initial publication:
+
+```php
+<?php if (get_the_modified_time('U') > get_post_time('U')) : ?>
+<atom:updated xmlns:atom="http://www.w3.org/2005/Atom">
+    <?php echo mysql2date('c', get_the_modified_time('Y-m-d H:i:s', true), false); ?>
+</atom:updated>
+<?php endif; ?>
+```
+
+## Common Issues and Solutions
+
+### Incorrect Timezone Display
+
+**Problem:** Dates show wrong timezone offset.
+
+**Solution:** Ensure WordPress timezone settings are configured correctly in **Settings → General → Timezone**. Use `get_option('gmt_offset')` or `get_option('timezone_string')` for dynamic timezone handling.
+
+### Date Translation Issues
+
+**Problem:** Day and month names appear in localized language instead of English.
+
+**Solution:** Set the third parameter of `mysql2date()` to `false` to disable translation. RSS feeds require English date names per specification.
+
+### MySQL Date Format Mismatch
+
+**Problem:** `mysql2date()` returns false or unexpected results.
+
+**Solution:** Verify the input date follows MySQL format `YYYY-MM-DD HH:MM:SS`. WordPress stores dates in this format in the `post_date` and `post_date_gmt` columns.
+
+## Related WordPress Functions
+
+| Function | Description |
+|----------|-------------|
+| `get_the_date()` | Retrieves formatted post date |
+| `get_the_time()` | Retrieves formatted post time |
+| `get_the_modified_date()` | Retrieves formatted post modification date |
+| `get_post_modified_time()` | Retrieves post modification time |
+| `current_time()` | Retrieves current time based on WordPress settings |
+| `wp_date()` | Retrieves date in localized format (WordPress 5.3+) |

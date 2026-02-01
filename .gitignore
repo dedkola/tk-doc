@@ -19,6 +19,8 @@ tests/
 .pnpm-store/*
 # testing
 /coverage
+CLAUDE.MD
+QWEN.MD
 
 # next.js
 /.next/
