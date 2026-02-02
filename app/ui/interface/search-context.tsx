@@ -7,7 +7,8 @@ import {
   useEffect,
   Suspense,
 } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
+
 interface SearchContextType {
   searchQuery: string;
   setSearchQuery: (query: string) => void;
@@ -19,39 +20,77 @@ interface SearchContextType {
 const SearchContext = createContext<SearchContextType | undefined>(undefined);
 
 function UrlSync({
-  setSelectedTag,
-}: {
+                   searchQuery,
+                   setSearchQuery,
+                   setSelectedTag,
+                 }: {
+  searchQuery: string;
+  setSearchQuery: (query: string) => void;
   setSelectedTag: (tag: string | null) => void;
 }) {
   const searchParams = useSearchParams();
-  const tag = searchParams.get("tag");
+  const router = useRouter();
+  const pathname = usePathname();
 
+  const tag = searchParams.get("tag");
+  const query = searchParams.get("search");
+
+  // Sync Tag from URL
   useEffect(() => {
     setSelectedTag(tag);
   }, [tag, setSelectedTag]);
 
+  // Sync Search state from URL
+  useEffect(() => {
+    setSearchQuery(query || "");
+  }, [query, setSearchQuery]);
+
+  // Sync URL from Search state (Debounced)
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      const params = new URLSearchParams(searchParams.toString());
+      const currentQuery = params.get("search") || "";
+
+      if (searchQuery !== currentQuery) {
+        if (searchQuery) {
+          params.set("search", searchQuery);
+        } else {
+          params.delete("search");
+        }
+        router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+      }
+    }, 300);
+
+    return () => clearTimeout(handler);
+  }, [searchQuery, pathname, router, searchParams]);
+
   return null;
 }
+
 export function SearchProvider({ children }: { children: ReactNode }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   return (
-    <SearchContext.Provider
-      value={{
-        searchQuery,
-        setSearchQuery,
-        selectedTag,
-        setSelectedTag,
-        sidebarOpen,
-        setSidebarOpen,
-      }}
-    >
-      <Suspense fallback={null}>
-        <UrlSync setSelectedTag={setSelectedTag} />
-      </Suspense>
-      {children}
-    </SearchContext.Provider>
+      <SearchContext.Provider
+          value={{
+            searchQuery,
+            setSearchQuery,
+            selectedTag,
+            setSelectedTag,
+            sidebarOpen,
+            setSidebarOpen,
+          }}
+      >
+        <Suspense fallback={null}>
+          <UrlSync
+              searchQuery={searchQuery}
+              setSearchQuery={setSearchQuery}
+              setSelectedTag={setSelectedTag}
+          />
+        </Suspense>
+        {children}
+      </SearchContext.Provider>
   );
 }
 
