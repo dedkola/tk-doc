@@ -3,8 +3,15 @@ export interface MDXFile {
   title: string;
   description?: string;
   tags?: string[];
+  keywords?: string[];
   folder?: string;
   content?: string;
+  /** ISO date string from frontmatter or file mtime */
+  publishedAt?: string;
+  /** ISO date string from frontmatter or file mtime */
+  updatedAt?: string;
+  /** File system last modified date */
+  lastModified: Date;
 }
 
 import matter from "gray-matter";
@@ -41,40 +48,73 @@ export function getMDXFiles(dir: string, baseDir: string = dir): MDXFile[] {
       const data = parsed.data as Record<string, unknown> | undefined;
 
       const title =
-        data && data.title
-          ? String(data.title).replace(/^['"]|['"]$/g, "")
-          : item.name.replace(".mdx", "");
+          data && data.title
+              ? String(data.title).replace(/^['"]|['"]$/g, "")
+              : item.name.replace(".mdx", "");
 
       const description =
-        data && data.description
-          ? String(data.description).replace(/^['"]|['"]$/g, "")
-          : undefined;
+          data && data.description
+              ? String(data.description).replace(/^['"]|['"]$/g, "")
+              : undefined;
 
       const tags =
-        data && data.tags
-          ? Array.isArray(data.tags)
-            ? [...new Set(data.tags.map(String).map((t) => t.trim()))]
-            : [
-                ...new Set(
-                  String(data.tags)
-                    .split(",")
-                    .map((t) => t.trim()),
-                ),
-              ]
-          : undefined;
+          data && data.tags
+              ? Array.isArray(data.tags)
+                  ? [...new Set(data.tags.map(String).map((t) => t.trim()))]
+                  : [
+                    ...new Set(
+                        String(data.tags)
+                            .split(",")
+                            .map((t) => t.trim()),
+                    ),
+                  ]
+              : undefined;
 
       const folder = slug.length > 1 ? slug[0] : undefined;
 
       // Extract content without frontmatter for searching
       const contentWithoutFrontmatter = parsed.content.trim();
 
+      // Get file modification time
+      const stats = fs.statSync(fullPath);
+      const lastModified = stats.mtime;
+
+      // Parse keywords from frontmatter
+      const keywords =
+          data && data.keywords
+              ? Array.isArray(data.keywords)
+                  ? [...new Set(data.keywords.map(String).map((k) => k.trim()))]
+                  : [
+                    ...new Set(
+                        String(data.keywords)
+                            .split(",")
+                            .map((k) => k.trim()),
+                    ),
+                  ]
+              : undefined;
+
+      // Parse dates from frontmatter (fallback to file mtime)
+      const publishedAt =
+          data && data.publishedAt
+              ? new Date(String(data.publishedAt)).toISOString()
+              : undefined;
+
+      const updatedAt =
+          data && data.updatedAt
+              ? new Date(String(data.updatedAt)).toISOString()
+              : lastModified.toISOString();
+
       files.push({
         slug,
         title,
         description,
         tags,
+        keywords,
         folder,
         content: contentWithoutFrontmatter,
+        publishedAt,
+        updatedAt,
+        lastModified,
       });
     }
   }
