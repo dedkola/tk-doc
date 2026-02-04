@@ -45,3 +45,6 @@ config/config.local.ts
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+.pnpm-store
+playwright-report
+test-results
