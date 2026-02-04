@@ -23,6 +23,28 @@ docker compose up --build    # Build and run container (port 3003 → 3000)
 
 **Important**: Always use `pnpm` as the package manager. The project uses `pnpm-lock.yaml`.
 
+### Development Environment Setup
+
+**Prerequisites:**
+1. **Node.js 18.17+** - Required for Next.js 16
+2. **pnpm** - Must be installed globally: `npm install -g pnpm`
+3. **Internet access** - Required for Google Fonts during build (see Known Issues below)
+
+**First-time setup:**
+```bash
+# 1. Install pnpm if not already installed
+npm install -g pnpm
+
+# 2. Install dependencies
+pnpm install
+
+# 3. Copy example local config (optional, for dev overrides)
+cp config/config.local.example.ts config/config.local.ts
+
+# 4. Start dev server
+pnpm dev
+```
+
 ## Architecture
 
 ### Content System
@@ -199,22 +221,23 @@ The application implements several performance patterns:
 
 ## Testing
 
-- Uses **Playwright** for end-to-end testing
-- Test files in `tests/` directory (e.g., `homepage-ui-bugs.spec.ts`)
-- Tests focus on:
-  - Layout shifts (CLS < 0.1)
-  - Z-index layering
-  - Horizontal overflow detection
-  - Text containment
-  - Visual regression testing with screenshots
-- Run tests with `pnpm test`
-- Test results and reports stored in `test-results/` and `playwright-report/`
+- **No test infrastructure currently exists** in the repository
+- The `pnpm test` script is defined in package.json but Playwright is not configured
+- Test directory does not exist
+- If adding tests:
+  - Install Playwright: `pnpm add -D @playwright/test`
+  - Create `tests/` directory
+  - Add `playwright.config.ts`
+  - Follow existing Next.js/React testing patterns
+  - Focus on critical user flows and component interactions
 
 ## Context7 MCP Integration (MANDATORY)
 
 <instruction forToolsWithPrefix="mcp_io">
 ALWAYS use the Context7 MCP server to retrieve up-to-date documentation and code examples for ANY library or framework question.
 </instruction>
+
+**MCP Configuration**: Located in `.ai/mcp/mcp.json` with Context7 API key configured.
 
 **CRITICAL**: You MUST use the `mcp_io_github_ups_resolve-library-id` and `mcp_io_github_ups_get-library-docs` tools for:
 
@@ -261,3 +284,237 @@ Call `resolve-library-id` first to get the library ID, then `get-library-docs` t
 - All UI components available without imports
 - Code blocks automatically syntax-highlighted
 - External links open in new tab automatically
+
+## Known Issues & Workarounds
+
+### Build Issues
+
+#### 1. Google Fonts Network Error (CRITICAL)
+
+**Error:**
+```
+Failed to fetch `Inter` from Google Fonts.
+Failed to fetch `JetBrains Mono` from Google Fonts.
+```
+
+**Cause**: The build process requires internet access to fetch Google Fonts. In restricted network environments (CI/CD, containers, air-gapped systems), this causes build failures.
+
+**Affected File**: `app/layout.tsx` (lines 71-81)
+
+**Workarounds**:
+
+1. **Option A: Skip font optimization (Quick Fix)**
+   - Set env variable: `NEXT_DISABLE_GOOGLE_FONTS=true`
+   - Fonts will fallback to system defaults
+   - Not recommended for production
+
+2. **Option B: Use local fonts (Recommended)**
+   - Download font files to `public/fonts/`
+   - Use `next/font/local` instead of `next/font/google`
+   - Example:
+   ```typescript
+   import localFont from 'next/font/local'
+   
+   const inter = localFont({
+     src: '../public/fonts/Inter-Variable.woff2',
+     variable: '--font-inter',
+     display: 'swap',
+   })
+   ```
+
+3. **Option C: Pre-cache fonts (CI/CD)**
+   - Add caching step to download fonts before build
+   - Store in Next.js cache directory
+   - Requires CI/CD configuration
+
+**Current Status**: Known issue, not fixed. Build will fail in environments without Google Fonts access.
+
+### Lint Issues
+
+Run `pnpm lint` to see current issues:
+
+#### 1. TypeScript Error (ERROR)
+- **File**: `types/config.local.d.ts`
+- **Issue**: Uses `any` type instead of proper typing
+- **Fix**: Replace `any` with `Partial<BaseSiteConfig>`
+
+#### 2. Unused Variables (WARNINGS)
+- **File**: `components/Code.tsx` - Variable `prismLoaded` assigned but never used
+- **File**: `components/TableOfContents.tsx` - Import `useCallback` defined but never used
+- **Fix**: Remove unused imports/variables or mark with underscore prefix
+
+#### 3. Image Optimization (WARNING)
+- **File**: `mdx-components.tsx` (line 118)
+- **Issue**: Using `<img>` instead of Next.js `<Image />`
+- **Impact**: Slower LCP, higher bandwidth
+- **Note**: May be intentional for MDX content flexibility
+
+**Fixing Lint Issues:**
+```bash
+# Some issues auto-fixable
+pnpm lint --fix
+
+# Manual fixes required for TypeScript errors
+```
+
+### Missing Features
+
+1. **No test infrastructure** - Playwright mentioned in docs but not configured
+2. **No CI/CD workflows** - Only Dependabot configured in `.github/`
+3. **No pre-commit hooks** - No Husky or lint-staged setup
+
+## Troubleshooting Guide
+
+### Build Failures
+
+**Symptom**: Build fails with font fetch errors
+- **Solution**: See "Google Fonts Network Error" above
+
+**Symptom**: TypeScript compilation errors
+- **Check**: Run `pnpm lint` to identify issues
+- **Solution**: Fix type errors before building
+
+**Symptom**: Module not found errors
+- **Solution**: Run `pnpm install` to ensure all dependencies installed
+- **Check**: Verify `pnpm-lock.yaml` is committed
+
+### Development Issues
+
+**Symptom**: Dev server won't start
+- **Check**: Ensure port 3000 is available
+- **Solution**: Kill process using port or set custom port: `PORT=3001 pnpm dev`
+
+**Symptom**: Config changes not applied
+- **Solution**: Restart dev server after changing any file in `config/` directory
+
+**Symptom**: New MDX file not appearing in sidebar
+- **Solution**: Restart dev server (sidebar generated at build time)
+
+### Docker Issues
+
+**Symptom**: Docker build fails with font errors
+- **Solution**: Build with network access or implement local fonts workaround
+- **Note**: `next.config.mjs` uses `standalone` output only when `DOCKER_BUILD=true`
+
+**Symptom**: Port 3003 already in use
+- **Solution**: Change port mapping in `compose.yaml`
+
+## Important Files to Know
+
+### Configuration Files (Do Not Break!)
+
+- `config/config.base.ts` - **NEVER MODIFY** (template defaults)
+- `config/config.private.ts` - Production overrides (committed)
+- `config/config.local.ts` - Local dev overrides (gitignored)
+- `config/site.ts` - Aggregator (do not modify merge logic)
+
+### Core System Files
+
+- `lib/mdx-utils.ts` - MDX file discovery and parsing (server-side only)
+- `lib/extract-headings.ts` - TOC generation
+- `mdx-components.tsx` - Component mapping for MDX files
+- `app/layout.tsx` - Root layout (contains font configuration)
+- `app/docs/[...slug]/page.tsx` - Dynamic MDX routing
+
+### Type Definitions
+
+- `types/config.local.d.ts` - Local config types (has lint error)
+- `types/*.d.ts` - Additional type definitions
+
+## Code Quality Standards
+
+### Before Committing
+
+1. **Run linter**: `pnpm lint` (should have no errors, warnings acceptable if justified)
+2. **Test build**: `pnpm build` (may fail due to Google Fonts - document workaround)
+3. **Check types**: TypeScript strict mode is enabled
+4. **Review changes**: Ensure no accidental config.base.ts modifications
+
+### Code Style
+
+- **TypeScript**: Strict mode enabled, avoid `any` types
+- **React**: Server Components by default, `'use client'` only when necessary
+- **Imports**: Use path aliases (`@/`, `@components/`, `@lib/`, `@app/`)
+- **Components**: PascalCase filenames, export with `forwardRef` and `displayName`
+- **CSS**: Tailwind utilities only, use `cn()` for conditional classes
+
+## Package Management
+
+**CRITICAL**: Only use `pnpm`. Do not use `npm` or `yarn`.
+
+- **Lockfile**: `pnpm-lock.yaml` must be committed
+- **Node version**: 18.17+ required
+- **Adding dependencies**: `pnpm add <package>`
+- **Dev dependencies**: `pnpm add -D <package>`
+
+**Warning**: Build scripts for `sharp@0.34.5` and `unrs-resolver@1.11.1` are ignored by default. Run `pnpm approve-builds` if needed.
+
+## Deployment Considerations
+
+### Vercel (Recommended)
+
+- Analytics and Speed Insights pre-configured
+- Auto-detects Next.js configuration
+- No additional setup needed
+
+### Docker
+
+- Multi-stage build configured in `Dockerfile`
+- Uses standalone output for optimized image size
+- Port mapping: 3003 (host) → 3000 (container)
+- **Issue**: Will fail without Google Fonts workaround
+
+### Self-Hosted
+
+- Run `pnpm build` then `pnpm start`
+- Requires Node.js 18.17+ runtime
+- Set `NODE_ENV=production`
+- **Issue**: Build will fail without internet access for fonts
+
+## Security
+
+### Headers Configured
+
+- `X-Content-Type-Options: nosniff`
+- `Referrer-Policy: strict-origin-when-cross-origin`
+- `X-Frame-Options: SAMEORIGIN`
+- `Permissions-Policy` for geolocation, microphone, camera
+- `Strict-Transport-Security` (HSTS) for HTTPS
+
+### Configuration in
+
+- `next.config.mjs` - Security headers
+- All headers apply to `/:path*`
+
+## Git Workflow
+
+### Branch Strategy
+
+- Main branch: Development work
+- Feature branches: Use descriptive names
+- Dependabot: Auto-creates PRs for dependency updates (assigned to `dedkola`)
+
+### .gitignore Highlights
+
+- `node_modules/` - Dependencies (never commit)
+- `.next/` - Build output
+- `config/config.local.ts` - Local dev overrides
+- Standard Next.js ignores applied
+
+## Quick Reference
+
+### Component Count
+- 28+ UI components in `components/ui/`
+- All built on Radix UI primitives
+- Organized by category (buttons, forms, modals)
+
+### Content Organization
+- Start with `content/component-examples.mdx`
+- Create folders for sections (guides, api, tutorials)
+- Automatic sidebar generation from folder structure
+
+### Performance
+- Dynamic imports for Footer and Analytics
+- Server Components by default
+- Lazy-loaded Code component for syntax highlighting
+- Standalone Docker builds for size optimization
