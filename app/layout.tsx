@@ -6,7 +6,7 @@ import Header from "@/components/header";
 import { SearchProvider } from "@/app/ui/interface/search-context";
 import { siteConfig } from "@/config/site";
 import type { Metadata, Viewport } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import React from "react";
 import { SpeedInsights } from '@vercel/speed-insights/next';
@@ -68,15 +68,16 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-const inter = Inter({
+// Use Geist fonts from Next.js instead of Google Fonts to avoid build failures
+const inter = localFont({
+  src: "../node_modules/next/dist/next-devtools/server/font/geist-latin.woff2",
   variable: "--font-inter",
-  subsets: ["latin"],
   display: "swap",
 });
 
-const jetbrainsMono = JetBrains_Mono({
+const jetbrainsMono = localFont({
+  src: "../node_modules/next/dist/next-devtools/server/font/geist-mono-latin.woff2",
   variable: "--font-jetbrains",
-  subsets: ["latin"],
   display: "swap",
 });
 
