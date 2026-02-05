@@ -27,8 +27,8 @@ html {
 }
 
 @theme inline {
-  --font-sans: "Inter", "Inter Fallback", sans-serif;
-  --font-mono: "JetBrains Mono", "JetBrains Mono Fallback", monospace;
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, monospace;
 
   /* Slate-based color system for clean white design */
   --color-background: #ffffff;

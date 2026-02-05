@@ -6,7 +6,6 @@ import Header from "@/components/header";
 import { SearchProvider } from "@/app/ui/interface/search-context";
 import { siteConfig } from "@/config/site";
 import type { Metadata, Viewport } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import React from "react";
 import { SpeedInsights } from '@vercel/speed-insights/next';
@@ -68,18 +67,6 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-const inter = Inter({
-  variable: "--font-inter",
-  subsets: ["latin"],
-  display: "swap",
-});
-
-const jetbrainsMono = JetBrains_Mono({
-  variable: "--font-jetbrains",
-  subsets: ["latin"],
-  display: "swap",
-});
-
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -89,7 +76,7 @@ export default function RootLayout({
   const groupedFiles = groupByFolder(allMDXFiles);
 
   return (
-    <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable}`}>
+    <html lang="en">
       <head />
       <body className="bg-white text-slate-800 antialiased selection:bg-blue-100 selection:text-blue-700 flex min-h-screen flex-col">
         <Analytics />
