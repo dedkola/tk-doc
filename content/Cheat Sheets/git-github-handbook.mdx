@@ -1,0 +1,813 @@
+---
+title: Git & GitHub Cheat Sheet
+description: Quick reference handbook for essential Git and GitHub CLI commands
+tags: [git, github, cheat-sheet, version-control, gh-cli]
+keywords: [git commands, github, clone, commit, push, pull, merge, rebase, branch, gh cli, stash, bisect, worktree]
+---
+
+## Setup & Configuration
+
+### Set User Identity
+
+```bash
+git config --global user.name "Your Name"
+git config --global user.email "you@example.com"
+```
+
+### View Configuration
+
+```bash
+git config --list                          # show all settings
+git config --list --show-origin            # show settings with file locations
+git config user.name                       # show single value
+```
+
+### Set Default Branch Name
+
+```bash
+git config --global init.defaultBranch main
+```
+
+### Set Default Editor
+
+```bash
+git config --global core.editor "code --wait"   # VS Code
+git config --global core.editor "vim"            # Vim
+git config --global core.editor "nano"           # Nano
+```
+
+### Credential & Auth Helpers
+
+```bash
+git config --global credential.helper cache              # cache for 15 min
+git config --global credential.helper 'cache --timeout=3600'  # cache 1 hour
+git config --global credential.helper store              # save to disk (plain text)
+```
+
+### Line Ending Configuration
+
+```bash
+git config --global core.autocrlf input   # macOS/Linux (LF)
+git config --global core.autocrlf true    # Windows (CRLF → LF on commit)
+```
+
+---
+
+## Creating & Cloning Repositories
+
+### Initialize a New Repo
+
+```bash
+git init                       # init in current directory
+git init my-project            # create new directory & init
+git init --bare my-repo.git    # bare repo (for servers)
+```
+
+### Clone an Existing Repo
+
+```bash
+git clone https://github.com/user/repo.git
+git clone https://github.com/user/repo.git my-folder    # custom directory
+git clone git@github.com:user/repo.git                   # SSH
+```
+
+### Clone a Specific Branch
+
+```bash
+git clone -b branch-name https://github.com/user/repo.git
+git clone -b v2.0 --single-branch https://github.com/user/repo.git   # single branch only
+```
+
+### Shallow Clone
+
+```bash
+git clone --depth 1 https://github.com/user/repo.git               # latest commit only
+git clone --depth 10 https://github.com/user/repo.git              # last 10 commits
+git clone --shallow-since="2024-01-01" https://github.com/user/repo.git
+```
+
+---
+
+## Staging & Snapshotting
+
+### Check Status
+
+```bash
+git status
+git status -s              # short format
+git status -sb             # short + branch info
+```
+
+### Stage Files
+
+```bash
+git add file.txt           # stage a single file
+git add src/               # stage entire directory
+git add .                  # stage all changes in current dir
+git add -A                 # stage all changes in entire repo
+git add *.js               # stage by pattern
+git add -p                 # interactive staging (hunk by hunk)
+```
+
+### Unstage Files
+
+```bash
+git restore --staged file.txt         # modern syntax
+git restore --staged .                # unstage everything
+git reset HEAD file.txt               # older syntax
+```
+
+### Commit Changes
+
+```bash
+git commit -m "commit message"
+git commit -am "message"              # stage tracked files + commit
+git commit --amend                    # edit last commit message
+git commit --amend --no-edit          # add staged changes to last commit silently
+git commit --allow-empty -m "msg"     # empty commit (useful for CI triggers)
+git commit -m "title" -m "body"       # multi-line: title + description
+```
+
+### Discard Local Changes
+
+```bash
+git restore file.txt                  # discard working directory changes
+git restore .                         # discard all changes
+git restore --source=HEAD --staged --worktree file.txt   # restore both index & working tree
+git checkout -- file.txt              # older syntax
+```
+
+### Move & Remove Files
+
+```bash
+git mv old-name.txt new-name.txt     # rename/move tracked file
+git rm file.txt                       # remove from working tree & index
+git rm --cached file.txt              # untrack but keep on disk
+git rm -r --cached folder/            # untrack entire folder
+```
+
+---
+
+## Branching
+
+### List Branches
+
+```bash
+git branch                # local branches
+git branch -r             # remote branches
+git branch -a             # all branches
+git branch -v             # branches with last commit
+git branch -vv            # branches with upstream tracking info
+git branch --merged       # branches merged into current
+git branch --no-merged    # branches not yet merged
+```
+
+### Create a Branch
+
+```bash
+git branch new-branch                    # create only
+git checkout -b new-branch               # create and switch
+git switch -c new-branch                 # create and switch (modern)
+git checkout -b feature origin/feature   # track remote branch
+git switch -c feature --track origin/feature
+```
+
+### Switch Branches
+
+```bash
+git checkout branch-name
+git switch branch-name           # modern syntax
+git switch -                     # switch to previous branch
+```
+
+### Rename a Branch
+
+```bash
+git branch -m old-name new-name          # rename specific branch
+git branch -m new-name                   # rename current branch
+# After renaming, update remote:
+git push origin --delete old-name
+git push -u origin new-name
+```
+
+### Delete a Branch
+
+```bash
+git branch -d branch-name                # safe delete (merged only)
+git branch -D branch-name                # force delete
+git push origin --delete branch-name     # delete remote branch
+```
+
+---
+
+## Merging & Rebasing
+
+### Merge a Branch into Current
+
+```bash
+git merge branch-name
+git merge --no-ff branch-name            # always create merge commit
+git merge --squash branch-name           # squash all commits into one (then git commit)
+```
+
+### Abort a Merge
+
+```bash
+git merge --abort
+```
+
+### Resolve Conflicts
+
+```bash
+# After fixing conflicts manually:
+git add resolved-file.txt
+git commit                               # finalize merge
+# Or pick a side:
+git checkout --ours file.txt             # keep current branch version
+git checkout --theirs file.txt           # keep incoming branch version
+```
+
+### Rebase
+
+```bash
+git rebase main                          # rebase onto main
+git rebase -i HEAD~3                     # interactive rebase last 3 commits
+git rebase -i --autosquash HEAD~5        # auto-reorder fixup/squash commits
+git rebase --onto main feature bugfix    # rebase bugfix onto main (skip feature)
+git rebase --abort                       # cancel rebase
+git rebase --continue                    # after resolving conflicts
+git rebase --skip                        # skip current conflicting commit
+```
+
+### Interactive Rebase Actions
+
+```bash
+# Inside the interactive rebase editor:
+# pick   = use commit as-is
+# reword = edit commit message
+# edit   = pause to amend the commit
+# squash = merge into previous commit (keep message)
+# fixup  = merge into previous commit (discard message)
+# drop   = remove commit entirely
+```
+
+---
+
+## Remote Repositories
+
+### View Remotes
+
+```bash
+git remote -v                                # list remotes with URLs
+git remote show origin                       # detailed info about a remote
+```
+
+### Add a Remote
+
+```bash
+git remote add origin https://github.com/user/repo.git
+git remote add upstream https://github.com/original/repo.git
+```
+
+### Change Remote URL
+
+```bash
+git remote set-url origin https://github.com/user/new-repo.git
+git remote set-url origin git@github.com:user/repo.git    # switch to SSH
+```
+
+### Rename & Remove Remotes
+
+```bash
+git remote rename origin upstream
+git remote remove origin
+```
+
+---
+
+## Fetch, Pull & Push
+
+### Fetch (Download Without Merging)
+
+```bash
+git fetch                         # fetch from default remote
+git fetch origin                  # fetch from specific remote
+git fetch --all                   # fetch from all remotes
+git fetch --prune                 # remove stale remote-tracking branches
+git fetch origin --tags           # fetch all tags from remote
+git fetch origin branch-name      # fetch a specific branch
+```
+
+### Pull (Fetch + Merge)
+
+```bash
+git pull                          # pull current branch
+git pull origin main              # pull specific branch
+git pull --rebase                 # fetch + rebase instead of merge
+git pull --rebase=interactive     # interactive rebase on pull
+git pull --autostash              # auto-stash before pull, apply after
+git pull --ff-only                # only fast-forward (fail if diverged)
+```
+
+### Push
+
+```bash
+git push                          # push current branch
+git push origin main              # push specific branch
+git push -u origin main           # set upstream tracking and push
+git push --all                    # push all branches
+git push --tags                   # push all tags
+git push origin v1.0.0            # push a specific tag
+git push --force                  # force push ⚠️ destructive — rewrites remote
+git push --force-with-lease       # safer force push (fails if remote has new commits)
+git push origin --delete branch   # delete remote branch
+```
+
+---
+
+## Stashing
+
+### Save Changes to Stash
+
+```bash
+git stash                         # stash tracked changes
+git stash -u                      # include untracked files
+git stash -a                      # include untracked + ignored files
+git stash push -m "description"   # with a message (modern)
+git stash push src/file.txt       # stash specific files
+```
+
+### List & Apply Stashes
+
+```bash
+git stash list                    # list all stashes
+git stash show                    # show latest stash summary
+git stash show -p                 # show latest stash diff
+git stash apply                   # apply latest stash (keep in stash)
+git stash pop                     # apply latest stash and remove it
+git stash apply stash@{2}         # apply specific stash
+```
+
+### Drop & Branch from Stash
+
+```bash
+git stash drop                    # remove latest stash
+git stash drop stash@{2}          # remove specific stash
+git stash clear                   # remove all stashes
+git stash branch new-branch       # create branch from stash and apply
+```
+
+---
+
+## Viewing History & Diffs
+
+### View Commit Log
+
+```bash
+git log                                  # full log
+git log --oneline                        # compact format
+git log --oneline --graph --all          # graph with all branches
+git log --oneline --decorate --graph     # with branch/tag names
+git log --author="Name"                  # filter by author
+git log --grep="fix"                     # search commit messages
+git log -n 5                             # last 5 commits
+git log --since="2024-01-01"             # commits since date
+git log --until="2024-06-01"             # commits until date
+git log --after="1 week ago"             # relative dates
+git log -- file.txt                      # history of specific file
+git log --follow file.txt                # follow renames
+git log --stat                           # include file change stats
+git log --pretty=format:"%h %an %s"      # custom format
+```
+
+### Pretty Log Formats
+
+```bash
+# Useful custom formats:
+git log --pretty=format:"%C(red)%h%Creset %s %C(blue)(%an)%Creset"
+git log --pretty=format:"%h %ad %s" --date=short
+```
+
+### View Differences
+
+```bash
+git diff                          # unstaged changes
+git diff --staged                 # staged changes (same as --cached)
+git diff HEAD                     # all changes since last commit
+git diff main..feature            # diff between branches
+git diff main...feature           # changes in feature since branching from main
+git diff HEAD~2                   # diff from 2 commits ago
+git diff --stat                   # summary of changes
+git diff --name-only              # only file names
+git diff --name-status            # file names with status (M/A/D)
+git diff --word-diff              # inline word-level diff
+```
+
+### Show a Specific Commit
+
+```bash
+git show abc1234                  # full commit details
+git show HEAD                     # latest commit
+git show HEAD~2                   # 2 commits ago
+git show HEAD:src/file.txt        # file content at commit
+git show --stat abc1234           # commit stats only
+```
+
+### Blame (Line-by-Line Authorship)
+
+```bash
+git blame file.txt
+git blame -L 10,20 file.txt       # specific line range
+git blame -w file.txt             # ignore whitespace changes
+git blame -C file.txt             # detect moved/copied lines
+```
+
+### Shortlog (Summary by Author)
+
+```bash
+git shortlog -sn                  # count commits per author
+git shortlog -sn --no-merges      # exclude merge commits
+```
+
+---
+
+## Undoing & Resetting
+
+### Reset Commits
+
+```bash
+git reset --soft HEAD~1           # undo commit, keep changes staged
+git reset --mixed HEAD~1          # undo commit, unstage changes (default)
+git reset --hard HEAD~1           # undo commit, discard all changes ⚠️
+git reset --hard origin/main      # reset to match remote exactly ⚠️
+```
+
+### Revert a Commit (Safe Undo)
+
+```bash
+git revert abc1234                # create new commit that undoes changes
+git revert HEAD                   # revert last commit
+git revert HEAD~3..HEAD           # revert last 3 commits
+git revert --no-commit abc1234    # stage revert without committing
+```
+
+### Cherry-Pick (Apply Specific Commits)
+
+```bash
+git cherry-pick abc1234                   # apply a single commit
+git cherry-pick abc1234 def5678           # apply multiple commits
+git cherry-pick abc1234..def5678          # apply range of commits
+git cherry-pick --no-commit abc1234       # stage without committing
+git cherry-pick --abort                   # cancel in-progress cherry-pick
+```
+
+### Recover Lost Commits
+
+```bash
+git reflog                        # view history of HEAD movements
+git reflog show feature-branch    # reflog for specific branch
+git checkout abc1234              # go to a specific commit (detached HEAD)
+git branch recovery abc1234       # create branch from lost commit
+```
+
+---
+
+## Tags
+
+### List Tags
+
+```bash
+git tag                                    # list all tags
+git tag -l "v1.*"                          # filter tags by pattern
+git tag -l --sort=-version:refname "v*"    # sort by version descending
+```
+
+### Create Tags
+
+```bash
+git tag v1.0.0                             # lightweight tag
+git tag -a v1.0.0 -m "Release 1.0.0"      # annotated tag (recommended)
+git tag -a v1.0.0 abc1234                  # tag a past commit
+```
+
+### Push Tags
+
+```bash
+git push origin v1.0.0             # push single tag
+git push origin --tags             # push all tags
+git push --follow-tags             # push commits + annotated tags
+```
+
+### Delete Tags
+
+```bash
+git tag -d v1.0.0                  # delete local tag
+git push origin --delete v1.0.0    # delete remote tag
+git push origin :refs/tags/v1.0.0  # alternative delete syntax
+```
+
+### Show Tag Info
+
+```bash
+git show v1.0.0                    # show tag details and commit
+git describe                       # describe HEAD relative to nearest tag
+git describe --tags --abbrev=0     # nearest tag name only
+```
+
+---
+
+## Advanced: Bisect, Worktree & Submodules
+
+### Bisect (Binary Search for Bugs)
+
+```bash
+git bisect start                   # begin bisect session
+git bisect bad                     # mark current commit as bad
+git bisect good abc1234            # mark a known good commit
+# Git checks out a midpoint — test it, then:
+git bisect good                    # if this commit works
+git bisect bad                     # if this commit is broken
+# Repeat until Git finds the first bad commit
+git bisect reset                   # end bisect, return to original branch
+git bisect log                     # view bisect history
+git bisect replay log.txt          # replay a saved bisect session
+```
+
+### Automated Bisect
+
+```bash
+git bisect start HEAD abc1234
+git bisect run ./test-script.sh    # auto-test each step (exit 0 = good)
+```
+
+### Worktrees (Multiple Working Directories)
+
+```bash
+git worktree list                              # list all worktrees
+git worktree add ../hotfix-tree hotfix-branch   # create linked worktree
+git worktree add -b new-branch ../new-tree      # create worktree + new branch
+git worktree remove ../hotfix-tree              # remove a worktree
+git worktree move ../old-path ../new-path       # move a worktree
+```
+
+### Submodules
+
+```bash
+git submodule add https://github.com/user/lib.git libs/lib   # add submodule
+git submodule init                             # initialize submodule config
+git submodule update                           # fetch & checkout submodule commits
+git submodule update --init                    # init + update in one step
+git submodule update --init --recursive        # include nested submodules
+git submodule update --remote                  # update to latest remote commit
+git submodule foreach git pull origin main     # pull in all submodules
+git submodule status                           # show submodule commit SHAs
+git submodule deinit libs/lib                  # unregister a submodule
+git rm libs/lib                                # remove submodule from project
+```
+
+### Sparse Checkout (Partial Repo)
+
+```bash
+git sparse-checkout init --cone                # enable cone mode
+git sparse-checkout set src/ docs/             # only checkout these dirs
+git sparse-checkout add tests/                 # add more dirs
+git sparse-checkout list                       # show checked-out dirs
+git sparse-checkout disable                    # disable, restore full repo
+```
+
+---
+
+## GitHub CLI (gh)
+
+### Authentication
+
+```bash
+gh auth login                              # interactive login
+gh auth login --web                        # browser-based login
+gh auth login --with-token < token.txt     # token from file
+gh auth login --hostname enterprise.internal  # GitHub Enterprise
+gh auth status                             # check auth status
+gh auth logout                             # log out
+gh auth refresh --scopes write:packages    # add extra scopes
+```
+
+### Repository Management
+
+```bash
+gh repo create my-repo --public            # create public repo
+gh repo create my-org/project --private    # create in org
+gh repo create --source=. --remote=origin --push  # from local dir
+gh repo clone user/repo                    # clone a repo
+gh repo fork user/repo                     # fork a repo
+gh repo fork user/repo --clone             # fork and clone locally
+gh repo fork --org my-org                  # fork into organization
+gh repo view                               # view repo info
+gh repo view --web                         # open in browser
+gh repo set-default owner/repo             # set default repo for CLI
+gh repo list user --limit 50               # browse repos
+```
+
+### Pull Requests
+
+```bash
+gh pr create --title "Title" --body "Body"    # create PR
+gh pr create --fill                            # auto-fill from commits
+gh pr create --draft                           # create as draft
+gh pr create --web                             # open creation page in browser
+gh pr create --base main --head feature        # specify branches
+gh pr list                                     # list open PRs
+gh pr list --state all                         # list all PRs
+gh pr view 42                                  # view PR details
+gh pr view 42 --web                            # open PR in browser
+gh pr checkout 42                              # checkout PR locally
+gh pr diff 42                                  # view PR diff
+gh pr merge 42                                 # merge PR
+gh pr merge 42 --squash                        # squash merge
+gh pr merge 42 --rebase                        # rebase merge
+gh pr merge 42 --auto                          # auto-merge when checks pass
+gh pr close 42                                 # close without merging
+gh pr reopen 42                                # reopen a closed PR
+gh pr review 42 --approve                      # approve PR
+gh pr review 42 -r -b "needs changes"          # request changes
+gh pr revert 42                                # revert a merged PR
+```
+
+### Search PRs
+
+```bash
+gh search prs "fix bug" --repo=user/repo
+gh search prs --review-requested=@me --state=open
+gh search prs --author=@me --merged
+gh search prs --assignee=@me --draft
+```
+
+### Issues
+
+```bash
+gh issue create --title "Bug" --body "Details"
+gh issue create --label "bug,urgent"           # with labels
+gh issue create --assignee @me                 # assign to self
+gh issue list                                  # list open issues
+gh issue list --state all --limit 100
+gh issue list --label "bug"                    # filter by label
+gh issue view 42                               # view issue details
+gh issue close 42                              # close issue
+gh issue reopen 42                             # reopen issue
+gh issue edit 42 --add-label "priority"        # edit labels
+gh issue comment 42 --body "Working on this"
+```
+
+### Releases
+
+```bash
+gh release create v1.0.0                       # create release
+gh release create v1.0.0 --generate-notes      # auto-generate notes
+gh release create v1.0.0 --draft               # create draft release
+gh release create v1.0.0 ./build.zip           # upload asset
+gh release list                                # list releases
+gh release view v1.0.0                         # view release
+gh release download v1.0.0                     # download assets
+gh release delete v1.0.0                       # delete release
+```
+
+### Gists
+
+```bash
+gh gist create file.txt                        # create gist from file
+gh gist create file.txt --public               # public gist
+gh gist create -d "description" file.txt       # with description
+gh gist list                                   # list your gists
+gh gist view <id>                              # view gist
+gh gist clone <id>                             # clone gist locally
+gh gist edit <id>                              # edit a gist
+gh gist delete <id>                            # delete a gist
+```
+
+### Workflow Runs (GitHub Actions)
+
+```bash
+gh workflow list                               # list workflows
+gh workflow view deploy.yml                    # view workflow details
+gh workflow run deploy.yml                     # trigger workflow manually
+gh workflow run deploy.yml -f env=production   # with input parameters
+gh run list                                    # list recent runs
+gh run view 12345                              # view run summary
+gh run view 12345 --log                        # full run log
+gh run view 12345 --log-failed                 # only failed step logs
+gh run watch 12345                             # live-watch a run
+gh run rerun 12345                             # rerun a workflow
+gh run cancel 12345                            # cancel a run
+gh run download 12345                          # download run artifacts
+```
+
+### Secrets & Variables
+
+```bash
+gh secret set MY_SECRET                        # set repo secret (prompt)
+gh secret set MY_SECRET < secret.txt           # set from file
+gh secret set MY_SECRET --env production       # environment secret
+gh secret set MYSECRET --user                  # user-level (Codespaces)
+gh secret list                                 # list repo secrets
+gh secret delete MY_SECRET                     # delete a secret
+gh variable set MY_VAR --body "value"          # set a variable
+gh variable list                               # list variables
+```
+
+### SSH & GPG Keys
+
+```bash
+gh ssh-key list                                # list SSH keys
+gh ssh-key add ~/.ssh/id_ed25519.pub           # add SSH key
+gh gpg-key list                                # list GPG keys
+gh gpg-key add key.pub                         # add GPG key
+```
+
+### GitHub API (Direct Access)
+
+```bash
+gh api repos/user/repo                         # GET request
+gh api repos/user/repo/issues -f title="Bug"   # POST with fields
+gh api --method DELETE repos/user/repo/issues/1
+gh api graphql -f query='{ viewer { login } }'  # GraphQL query
+gh api repos/{owner}/{repo}/releases --jq '.[0].tag_name'  # with jq filter
+```
+
+---
+
+## Cleanup & Maintenance
+
+### Remove Untracked Files
+
+```bash
+git clean -n                  # dry run — show what would be removed
+git clean -f                  # remove untracked files
+git clean -fd                 # remove untracked files and directories
+git clean -fX                 # remove only ignored files
+git clean -fdx                # remove untracked + ignored files & dirs ⚠️
+```
+
+### Garbage Collection
+
+```bash
+git gc                        # standard cleanup
+git gc --aggressive           # deeper optimization
+git gc --prune=now            # prune all unreachable objects immediately
+```
+
+### Prune & Verify
+
+```bash
+git remote prune origin       # remove stale remote-tracking branches
+git fetch --prune             # prune during fetch
+git prune                     # remove unreachable objects
+git fsck                      # verify repository integrity
+```
+
+### Count Objects & Repo Size
+
+```bash
+git count-objects -vH          # human-readable object count & size
+git rev-list --count HEAD      # total commit count
+```
+
+---
+
+## Useful Aliases
+
+```bash
+git config --global alias.st "status -sb"
+git config --global alias.co checkout
+git config --global alias.br branch
+git config --global alias.ci commit
+git config --global alias.unstage "restore --staged"
+git config --global alias.last "log -1 HEAD --stat"
+git config --global alias.lg "log --oneline --graph --all --decorate"
+git config --global alias.amend "commit --amend --no-edit"
+git config --global alias.undo "reset --soft HEAD~1"
+git config --global alias.contributors "shortlog -sn --no-merges"
+git config --global alias.aliases "config --get-regexp alias"
+```
+
+---
+
+## .gitignore Patterns
+
+```bash
+# Common patterns
+*.log                  # ignore all .log files
+node_modules/          # ignore directory
+dist/                  # ignore build output
+.env                   # ignore env files
+.env.*                 # ignore all env variants
+!.env.example          # exception — track this one
+**/*.tmp               # ignore .tmp in any nested directory
+build/                 # ignore build folder
+*.DS_Store             # macOS system files
+Thumbs.db              # Windows system files
+```
+
+### Global .gitignore
+
+```bash
+git config --global core.excludesfile ~/.gitignore_global
+```
