@@ -1,0 +1,801 @@
+---
+title: Ubuntu CLI Handbook
+description: Quick reference for essential Ubuntu/Linux command-line commands — navigation, file management, system config, networking, logs, and more.
+tags: [ubuntu, linux, cli, cheat-sheet, terminal, bash, sysadmin]
+keywords: [ubuntu commands, linux terminal, bash cheat sheet, sysadmin, cli reference]
+publishedAt: 2026-02-06
+---
+
+# Ubuntu CLI Handbook
+
+A practical quick-reference for the most commonly used Ubuntu/Linux CLI commands, organized by category for fast lookup.
+
+---
+
+## Navigation & File System
+
+### Current Directory & Moving Around
+
+```bash
+pwd                         # Print current working directory
+cd /path/to/dir             # Change directory
+cd ~                        # Go to home directory
+cd -                        # Go to previous directory
+cd ..                       # Go up one level
+pushd /path                 # Push directory onto stack and cd
+popd                        # Pop directory from stack and cd back
+```
+
+### Listing Files
+
+```bash
+ls                          # List files
+ls -la                      # List all files (including hidden) with details
+ls -lh                      # Human-readable file sizes
+ls -lt                      # Sort by modification time (newest first)
+ls -lS                      # Sort by size (largest first)
+ls -R                       # List recursively
+ls -i                       # Show inode numbers
+tree                        # Show directory tree (install: sudo apt install tree)
+tree -L 2                   # Limit tree depth to 2 levels
+```
+
+### Finding Files
+
+```bash
+find . -name "*.log"                  # Find files by name
+find . -iname "*.txt"                 # Case-insensitive search
+find / -type f -size +100M            # Files larger than 100 MB
+find . -type f -mtime -7              # Modified in last 7 days
+find . -type f -empty                 # Find empty files
+find . -type f -ls                    # Detailed listing of found files
+find . -name "*.tmp" -delete          # Find and delete
+locate filename                       # Fast search (uses index, run sudo updatedb first)
+which command                         # Show full path of a command
+whereis command                       # Locate binary, source, man page
+type command                          # Show how a command would be interpreted
+```
+
+---
+
+## File Operations
+
+### Create, Copy, Move, Delete
+
+```bash
+touch file.txt              # Create empty file / update timestamp
+mkdir dirname               # Create directory
+mkdir -p path/to/nested     # Create nested directories
+cp file.txt copy.txt        # Copy file
+cp -r dir/ dir_copy/        # Copy directory recursively
+mv old.txt new.txt          # Rename / move file
+rm file.txt                 # Delete file
+rm -rf directory/           # Delete directory recursively (use with caution!)
+rmdir empty_dir             # Remove empty directory only
+```
+
+### Linking
+
+```bash
+ln file hardlink            # Create hard link
+ln -s /path/to/file symlink # Create symbolic (soft) link
+readlink -f symlink         # Resolve full path of a symlink
+```
+
+### File Content
+
+```bash
+cat file.txt                # Print entire file
+less file.txt               # Scrollable viewer (q to quit)
+head -n 20 file.txt         # First 20 lines
+tail -n 20 file.txt         # Last 20 lines
+tail -f /var/log/syslog     # Follow file in real-time (great for logs)
+wc -l file.txt              # Count lines
+wc -w file.txt              # Count words
+diff file1 file2            # Compare two files
+stat file.txt               # Detailed file metadata
+file unknown_file           # Detect file type
+```
+
+### Archiving & Compression
+
+```bash
+tar -czf archive.tar.gz dir/       # Create gzipped tar
+tar -xzf archive.tar.gz            # Extract gzipped tar
+tar -xzf archive.tar.gz -C /dest/  # Extract to specific directory
+tar -tf archive.tar.gz              # List contents without extracting
+zip -r archive.zip dir/            # Create zip
+unzip archive.zip                  # Extract zip
+gzip file                          # Compress (replaces original)
+gunzip file.gz                     # Decompress
+```
+
+---
+
+## Permissions & Ownership
+
+### Viewing Permissions
+
+```bash
+ls -la                       # View permissions
+stat -c '%A %a %n' file.txt # Octal + symbolic permissions
+getfacl file.txt             # View Access Control Lists
+```
+
+### Changing Permissions
+
+```bash
+chmod 755 file.txt           # rwxr-xr-x
+chmod 644 file.txt           # rw-r--r--
+chmod +x script.sh           # Add execute permission
+chmod -R 755 directory/      # Recursive permission change
+```
+
+<Alert>
+<AlertTitle>Permission Reference</AlertTitle>
+<AlertDescription>
+`r=4` `w=2` `x=1` — Owner / Group / Others. Example: `755` = owner rwx, group r-x, others r-x.
+</AlertDescription>
+</Alert>
+
+### Changing Ownership
+
+```bash
+chown user file.txt              # Change owner
+chown user:group file.txt        # Change owner and group
+chown -R user:group directory/   # Recursive ownership change
+```
+
+### ACLs (Access Control Lists)
+
+```bash
+setfacl -m u:username:rwx file   # Grant user specific access
+getfacl -R /some/path > perms.txt  # Backup ACLs
+setfacl --restore=perms.txt        # Restore ACLs
+```
+
+---
+
+## Text Processing & Search
+
+### grep — Search Inside Files
+
+```bash
+grep "pattern" file.txt          # Search for pattern
+grep -i "pattern" file.txt      # Case-insensitive
+grep -r "pattern" /path/        # Recursive search
+grep -n "pattern" file.txt      # Show line numbers
+grep -c "pattern" file.txt      # Count matches
+grep -v "pattern" file.txt      # Invert match (lines NOT matching)
+grep -l "pattern" *.log         # List filenames with matches
+grep -E "foo|bar" file.txt      # Extended regex (egrep)
+```
+
+### sed — Stream Editor
+
+```bash
+sed 's/old/new/' file.txt          # Replace first occurrence per line
+sed 's/old/new/g' file.txt         # Replace all occurrences
+sed -i 's/old/new/g' file.txt      # In-place edit
+sed -n '10,20p' file.txt           # Print lines 10-20
+sed '/pattern/d' file.txt          # Delete lines matching pattern
+```
+
+### awk — Column Processing
+
+```bash
+awk '{print $1}' file.txt           # Print first column
+awk '{print $1, $3}' file.txt       # Print 1st and 3rd columns
+awk -F: '{print $1}' /etc/passwd    # Use : as delimiter
+awk '{x += $3} END {print x}' file  # Sum values in column 3
+awk 'NR==5,NR==10' file.txt         # Print lines 5 to 10
+```
+
+### Other Useful Text Tools
+
+```bash
+sort file.txt                # Sort lines alphabetically
+sort -n file.txt             # Sort numerically
+sort -u file.txt             # Sort and remove duplicates
+uniq                         # Remove adjacent duplicates (use with sort)
+cut -d: -f1 /etc/passwd      # Cut fields by delimiter
+tr 'a-z' 'A-Z' < file.txt   # Translate characters (lowercase → uppercase)
+tee output.txt               # Read stdin, write to file AND stdout
+xargs                        # Build commands from stdin
+```
+
+---
+
+## User & Group Management
+
+### User Operations
+
+```bash
+whoami                           # Current username
+id                               # Current user UID, GID, groups
+id username                      # Info about specific user
+sudo adduser username            # Create new user (interactive)
+sudo useradd username            # Create user (non-interactive)
+sudo passwd username             # Set/change password
+sudo deluser username            # Delete user
+sudo deluser --remove-home user  # Delete user + home directory
+su - username                    # Switch to another user
+sudo -i                          # Open root shell
+```
+
+### Group Operations
+
+```bash
+groups                           # List groups for current user
+groups username                  # List groups for a user
+sudo addgroup groupname          # Create group
+sudo adduser username groupname  # Add user to group
+sudo deluser username groupname  # Remove user from group
+sudo usermod -aG group username  # Append user to group (keeps existing)
+```
+
+### Key User Files
+
+```bash
+cat /etc/passwd                  # All user accounts
+cat /etc/group                   # All groups
+cat /etc/shadow                  # Password hashes (root only)
+cat /etc/sudoers                 # Sudoers config (edit with visudo!)
+```
+
+---
+
+## Process Management
+
+### Viewing Processes
+
+```bash
+ps aux                       # All running processes
+ps aux | grep nginx          # Find specific process
+top                          # Real-time process monitor
+htop                         # Better interactive process monitor (install: sudo apt install htop)
+pgrep -a nginx               # Find PID by name
+pidof nginx                  # Get PID of a running program
+```
+
+### Controlling Processes
+
+```bash
+kill PID                     # Terminate process (SIGTERM)
+kill -9 PID                  # Force kill (SIGKILL)
+pkill process_name           # Kill by name
+killall process_name         # Kill all instances by name
+```
+
+### Background & Job Control
+
+```bash
+command &                    # Run in background
+jobs                         # List background jobs
+fg %1                        # Bring job 1 to foreground
+bg %1                        # Resume job 1 in background
+nohup command &              # Run command immune to hangups
+disown %1                    # Detach job from terminal
+```
+
+### Resource Usage
+
+```bash
+free -h                      # Memory usage
+uptime                       # System uptime and load averages
+vmstat 1                     # Virtual memory stats (every 1 sec)
+iostat 1                     # CPU and I/O stats
+lsof -p PID                 # Files opened by a process
+lsof -i :80                 # What process is using port 80
+```
+
+---
+
+## Disk & Storage
+
+### Disk Usage
+
+```bash
+df -h                        # Filesystem disk space usage
+df -i                        # Inode usage
+du -sh /path                 # Total size of a directory
+du -sh *                     # Size of each item in current dir
+du -h --max-depth=1          # One level deep summary
+ncdu /                       # Interactive disk usage browser (install: sudo apt install ncdu)
+```
+
+### Disk & Partitions
+
+```bash
+lsblk                        # List block devices (disks, partitions)
+blkid                        # Show UUID and filesystem type
+fdisk -l                     # List partition tables
+mount                        # Show mounted filesystems
+mount /dev/sdb1 /mnt/data    # Mount a partition
+umount /mnt/data             # Unmount
+cat /etc/fstab               # Permanent mount configuration
+```
+
+---
+
+## Package Management (APT)
+
+### Basic APT Commands
+
+```bash
+sudo apt update                    # Refresh package index
+sudo apt upgrade                   # Upgrade all installed packages
+sudo apt full-upgrade              # Upgrade with dependency changes
+sudo apt install package_name      # Install a package
+sudo apt remove package_name       # Remove a package (keep config)
+sudo apt purge package_name        # Remove package + config files
+sudo apt autoremove                # Remove unneeded dependencies
+sudo apt search keyword            # Search for packages
+sudo apt show package_name         # Show package details
+sudo apt list --installed          # List all installed packages
+sudo apt list --upgradable         # List upgradable packages
+```
+
+### DPKG (Low-Level)
+
+```bash
+dpkg -l                            # List all installed packages
+dpkg -l | grep package             # Check if a package is installed
+dpkg -S /path/to/file              # Which package owns this file?
+dpkg -i package.deb                # Install local .deb file
+dpkg --configure -a                # Configure partially installed packages
+dpkg --audit                       # List problematic packages
+```
+
+### APT Repositories
+
+```bash
+cat /etc/apt/sources.list                 # Main repo config
+ls /etc/apt/sources.list.d/              # Additional repo configs
+sudo add-apt-repository ppa:name/ppa     # Add PPA
+sudo add-apt-repository --remove ppa:name/ppa  # Remove PPA
+```
+
+### Snap Packages
+
+```bash
+snap list                          # List installed snaps
+sudo snap install package          # Install snap
+sudo snap remove package           # Remove snap
+sudo snap refresh                  # Update all snaps
+snap info package                  # Snap details
+```
+
+---
+
+## Networking
+
+### IP & Interfaces
+
+```bash
+ip addr show                 # Show IP addresses (modern)
+ip link show                 # Show network interfaces
+ip route show                # Show routing table / default gateway
+hostname -I                  # Quick way to get local IP
+ifconfig                     # Legacy IP info (net-tools)
+```
+
+### Connectivity Testing
+
+```bash
+ping -c 4 google.com         # Ping with 4 packets
+traceroute google.com        # Trace route to host
+mtr google.com               # Combined ping + traceroute
+curl -I https://example.com  # Fetch HTTP headers
+wget https://example.com/file.tar.gz  # Download file
+```
+
+### DNS
+
+```bash
+dig example.com              # DNS lookup
+dig +short example.com       # Short DNS answer
+nslookup example.com         # Legacy DNS lookup
+host example.com             # Simple DNS lookup
+cat /etc/resolv.conf         # DNS resolver configuration
+resolvectl status            # systemd-resolved DNS status
+```
+
+### Ports & Connections
+
+```bash
+ss -tulnp                    # List listening ports (modern)
+ss -plat                     # All TCP connections with processes
+netstat -tulnp               # Legacy listening ports
+lsof -iTCP -sTCP:LISTEN -P -n   # Listening TCP processes
+nmap -sT localhost           # Port scan (install: sudo apt install nmap)
+```
+
+### Firewall (UFW)
+
+```bash
+sudo ufw status              # Show firewall status
+sudo ufw enable              # Enable firewall
+sudo ufw disable             # Disable firewall
+sudo ufw allow 22/tcp        # Allow SSH
+sudo ufw allow 80/tcp        # Allow HTTP
+sudo ufw allow 443/tcp       # Allow HTTPS
+sudo ufw deny 3306           # Block MySQL port
+sudo ufw delete allow 80/tcp # Remove a rule
+sudo ufw logging on          # Enable logging
+sudo ufw reset               # Reset all rules
+```
+
+### Netplan (Ubuntu Network Config)
+
+```bash
+ls /etc/netplan/              # Netplan config files
+cat /etc/netplan/*.yaml       # View network config
+sudo netplan apply            # Apply network changes
+sudo netplan try              # Test config (auto-reverts on failure)
+```
+
+---
+
+## Systemd & Services
+
+### Service Management
+
+```bash
+sudo systemctl start service        # Start a service
+sudo systemctl stop service         # Stop a service
+sudo systemctl restart service      # Restart a service
+sudo systemctl reload service       # Reload config without restart
+sudo systemctl status service       # Check service status
+sudo systemctl enable service       # Enable on boot
+sudo systemctl disable service      # Disable on boot
+sudo systemctl is-active service    # Check if active
+sudo systemctl is-enabled service   # Check if enabled on boot
+```
+
+### Listing & Inspecting
+
+```bash
+systemctl list-units --type=service             # List running services
+systemctl list-units --type=service --all        # List all services
+systemctl list-unit-files                        # List unit files (enabled/disabled)
+systemctl cat service                            # Show unit file content
+systemctl show service                           # Show all properties
+```
+
+### System Control
+
+```bash
+sudo systemctl daemon-reload     # Reload unit files after changes
+sudo systemctl poweroff          # Shutdown
+sudo systemctl reboot            # Reboot
+sudo systemctl suspend           # Suspend
+sudo systemctl hibernate         # Hibernate
+```
+
+### Timers (Cron Alternative)
+
+```bash
+systemctl list-timers            # List active timers
+systemctl status snap.certbot.renew.timer  # Timer status example
+```
+
+---
+
+## Logs & Journalctl
+
+### Journalctl (systemd logs)
+
+```bash
+journalctl                           # All logs
+journalctl -u nginx                  # Logs for specific service
+journalctl -u nginx --since today    # Since today
+journalctl -u nginx --since "1 hour ago"
+journalctl -f                        # Follow logs in real-time
+journalctl -p err                    # Only errors
+journalctl -p warning                # Warnings and above
+journalctl --disk-usage              # Log storage size
+journalctl -b                        # Logs from current boot
+journalctl -b -1                     # Logs from previous boot
+journalctl --list-boots              # List all boot sessions
+```
+
+### Traditional Log Files
+
+```bash
+# Most logs are in /var/log/
+ls /var/log/
+
+# Key log files:
+cat /var/log/syslog              # General system log
+cat /var/log/auth.log            # Authentication & sudo logs
+cat /var/log/kern.log            # Kernel messages
+cat /var/log/dpkg.log            # Package manager log
+cat /var/log/apt/history.log     # APT install history
+cat /var/log/boot.log            # Boot messages
+cat /var/log/ufw.log             # Firewall log (if UFW enabled)
+
+# Nginx / Apache logs:
+cat /var/log/nginx/access.log
+cat /var/log/nginx/error.log
+cat /var/log/apache2/access.log
+cat /var/log/apache2/error.log
+
+# MySQL / MariaDB:
+cat /var/log/mysql/error.log
+
+# Follow logs in real-time:
+tail -f /var/log/syslog
+```
+
+### dmesg (Kernel Ring Buffer)
+
+```bash
+dmesg                                # All kernel messages
+dmesg | tail -20                     # Last 20 kernel messages
+dmesg -T                             # Human-readable timestamps
+dmesg --level=err                    # Only errors
+dmesg -w                             # Follow in real-time
+```
+
+---
+
+## Important Config File Locations
+
+Quick reference for where Ubuntu stores key configuration files:
+
+### System
+
+| File / Directory | Purpose |
+|---|---|
+| `/etc/hostname` | System hostname |
+| `/etc/hosts` | Static host-to-IP mappings |
+| `/etc/fstab` | Filesystem mount table |
+| `/etc/environment` | System-wide environment variables |
+| `/etc/timezone` | Timezone setting |
+| `/etc/locale.gen` | Locale configuration |
+| `/etc/default/grub` | GRUB bootloader config |
+| `/etc/crontab` | System-wide cron jobs |
+| `/etc/sysctl.conf` | Kernel parameters |
+
+### Networking
+
+| File / Directory | Purpose |
+|---|---|
+| `/etc/netplan/*.yaml` | Network config (Ubuntu 18.04+) |
+| `/etc/resolv.conf` | DNS resolver |
+| `/etc/hosts.allow` | TCP wrappers allow |
+| `/etc/hosts.deny` | TCP wrappers deny |
+
+### Security & Users
+
+| File / Directory | Purpose |
+|---|---|
+| `/etc/passwd` | User accounts |
+| `/etc/shadow` | Password hashes |
+| `/etc/group` | Group definitions |
+| `/etc/sudoers` | Sudo access (edit with `visudo`) |
+| `/etc/ssh/sshd_config` | SSH server config |
+| `/etc/pam.d/` | PAM authentication modules |
+
+### Services
+
+| File / Directory | Purpose |
+|---|---|
+| `/etc/nginx/` | Nginx config |
+| `/etc/apache2/` | Apache config |
+| `/etc/mysql/` | MySQL / MariaDB config |
+| `/etc/docker/daemon.json` | Docker daemon config |
+| `/etc/systemd/system/` | Custom systemd unit files |
+
+### Package Management
+
+| File / Directory | Purpose |
+|---|---|
+| `/etc/apt/sources.list` | APT repositories |
+| `/etc/apt/sources.list.d/` | Additional repos |
+| `/etc/apt/apt.conf.d/` | APT configuration fragments |
+
+### Shell
+
+| File / Directory | Purpose |
+|---|---|
+| `~/.bashrc` | Per-user Bash config (interactive) |
+| `~/.bash_profile` | Per-user login shell config |
+| `~/.profile` | Per-user profile (used by many shells) |
+| `/etc/bash.bashrc` | System-wide Bash config |
+| `/etc/profile` | System-wide login shell profile |
+| `/etc/profile.d/` | Drop-in profile scripts |
+
+---
+
+## SSH
+
+### Connecting
+
+```bash
+ssh user@host                    # Connect to remote host
+ssh -p 2222 user@host            # Custom port
+ssh -i ~/.ssh/key.pem user@host  # Specify private key
+ssh -L 8080:localhost:80 user@host  # Local port forwarding
+ssh -J jumphost user@target      # Jump through bastion host
+```
+
+### Key Management
+
+```bash
+ssh-keygen -t ed25519 -C "email@example.com"  # Generate key pair
+ssh-copy-id user@host                          # Copy public key to server
+cat ~/.ssh/authorized_keys                     # View authorized keys
+eval "$(ssh-agent -s)" && ssh-add ~/.ssh/key   # Start agent & add key
+```
+
+### SSH Config File
+
+```bash
+cat ~/.ssh/config    # Per-user SSH config
+```
+
+Example `~/.ssh/config`:
+```text
+Host myserver
+    HostName 192.168.1.100
+    User admin
+    Port 22
+    IdentityFile ~/.ssh/mykey
+```
+
+---
+
+## Cron & Scheduled Tasks
+
+### Crontab
+
+```bash
+crontab -e                   # Edit current user's crontab
+crontab -l                   # List current crontab
+crontab -r                   # Remove current crontab
+sudo crontab -u user -e      # Edit another user's crontab
+```
+
+### Cron Syntax
+
+```text
+# ┌───────────── minute (0–59)
+# │ ┌───────────── hour (0–23)
+# │ │ ┌───────────── day of month (1–31)
+# │ │ │ ┌───────────── month (1–12)
+# │ │ │ │ ┌───────────── day of week (0–7, 0 & 7 = Sunday)
+# │ │ │ │ │
+# * * * * * command_to_run
+
+# Examples:
+0 2 * * *   /usr/local/bin/backup.sh      # Daily at 2:00 AM
+*/15 * * * * /usr/bin/check-health.sh      # Every 15 minutes
+0 0 * * 0   /usr/local/bin/weekly.sh       # Weekly on Sunday midnight
+@reboot     /usr/local/bin/on-startup.sh   # Run at boot
+```
+
+### Cron Directories (Drop-In Scripts)
+
+```bash
+ls /etc/cron.d/          # Custom cron files
+ls /etc/cron.daily/      # Runs daily
+ls /etc/cron.hourly/     # Runs hourly
+ls /etc/cron.weekly/     # Runs weekly
+ls /etc/cron.monthly/    # Runs monthly
+```
+
+---
+
+## System Information
+
+### Hardware & OS
+
+```bash
+uname -a                     # Kernel & OS info
+lsb_release -a               # Ubuntu version details
+cat /etc/os-release           # OS release info
+hostnamectl                   # Hostname and OS details
+arch                          # CPU architecture
+lscpu                         # CPU info
+lsmem                         # Memory info
+lspci                         # PCI devices
+lsusb                         # USB devices
+lshw -short                   # Full hardware summary
+dmidecode -t memory           # Detailed RAM info (root)
+```
+
+### System Resources
+
+```bash
+free -h                       # Memory usage
+uptime                        # Uptime & load
+cat /proc/cpuinfo             # CPU details
+cat /proc/meminfo             # Memory details
+nproc                         # Number of CPU cores
+```
+
+### Date & Time
+
+```bash
+date                          # Current date/time
+timedatectl                   # Timezone & NTP status
+sudo timedatectl set-timezone America/New_York  # Set timezone
+```
+
+---
+
+## Environment Variables
+
+```bash
+env                           # List all environment variables
+echo $PATH                    # Print specific variable
+echo $HOME                    # Home directory
+export VAR="value"            # Set variable for current session
+printenv VAR                  # Print variable value
+```
+
+### Making Variables Persistent
+
+```bash
+# For current user — add to ~/.bashrc:
+echo 'export MY_VAR="value"' >> ~/.bashrc
+source ~/.bashrc
+
+# System-wide — add to /etc/environment:
+sudo nano /etc/environment
+# Add: MY_VAR="value"
+```
+
+---
+
+## Useful One-Liners & Tips
+
+### History
+
+```bash
+history                       # Show command history
+history | grep ssh            # Search history
+!!                            # Repeat last command
+!$                            # Last argument of previous command
+ctrl+r                        # Reverse search in history
+```
+
+### Piping & Redirection
+
+```bash
+command > file.txt            # Redirect stdout to file (overwrite)
+command >> file.txt           # Append stdout to file
+command 2> error.log          # Redirect stderr
+command &> all.log            # Redirect both stdout and stderr
+command1 | command2           # Pipe stdout to next command
+command | tee file.txt        # Pipe and save to file simultaneously
+```
+
+### Handy Shortcuts
+
+```bash
+ctrl+c                        # Cancel current command
+ctrl+z                        # Suspend current command
+ctrl+d                        # Logout / end input
+ctrl+l                        # Clear screen
+ctrl+a                        # Move cursor to beginning of line
+ctrl+e                        # Move cursor to end of line
+ctrl+w                        # Delete word before cursor
+ctrl+u                        # Delete from cursor to beginning of line
+ctrl+k                        # Delete from cursor to end of line
+tab                           # Auto-complete
+```
+
+### Quick Operations
+
+```bash
+alias ll='ls -la'                     # Create an alias
+sudo !!                               # Run last command as sudo
+watch -n 5 'df -h'                    # Repeat command every 5 seconds
+time command                          # Measure execution time
+yes | command                         # Auto-confirm prompts
+command1 && command2                   # Run command2 only if command1 succeeds
+command1 || command2                   # Run command2 only if command1 fails
+```
