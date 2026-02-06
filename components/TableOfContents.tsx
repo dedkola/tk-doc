@@ -47,10 +47,11 @@ export function TableOfContents({ headings }: TOCProps) {
           const intersectingEntries = entries.filter((entry) => entry.isIntersecting);
           
           if (intersectingEntries.length > 0) {
-            // Sort by how close they are to the top of the viewport
-            // The heading closest to (or just past) the top should be active
+            // Sort by position from top of viewport
+            // Headings closer to or past the top (including negative values) should be active
+            // This ensures the heading currently being read is highlighted
             intersectingEntries.sort((a, b) => {
-              return Math.abs(a.boundingClientRect.top) - Math.abs(b.boundingClientRect.top);
+              return a.boundingClientRect.top - b.boundingClientRect.top;
             });
             
             setActiveId(intersectingEntries[0].target.id);
