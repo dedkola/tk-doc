@@ -7,7 +7,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
   const allMDXFiles = getAllMDXFiles();
 
   const docs = allMDXFiles.map((file) => ({
-    url: `${baseUrl}/docs/${file.slug.join("/")}`,
+    url: `${baseUrl}/docs/${file.slug.map((s) => encodeURIComponent(s)).join("/")}`,
     lastModified: file.lastModified,
     changeFrequency: "weekly" as const,
     priority: 0.8,

@@ -424,7 +424,8 @@ export async function generateMetadata({
   params: Promise<{ slug: string[] }>;
 }) {
   const { slug } = await params;
-  const filePath = slug.join("/");
+  const decodedSlug = slug.map((s) => decodeURIComponent(s));
+  const filePath = decodedSlug.join("/");
   const fullPath = path.join(process.cwd(), "content", `${filePath}.mdx`);
 
   if (!fs.existsSync(fullPath)) {
@@ -470,7 +471,8 @@ export default async function Page({
   params: Promise<{ slug: string[] }>;
 }) {
   const { slug } = await params;
-  const filePath = slug.join("/");
+  const decodedSlug = slug.map((s) => decodeURIComponent(s));
+  const filePath = decodedSlug.join("/");
 
   // Read and parse MDX file with frontmatter
   const fullPath = path.join(process.cwd(), "content", `${filePath}.mdx`);
@@ -511,12 +513,12 @@ export default async function Page({
     { name: "Home", url: siteConfig.url },
     { name: "Docs", url: `${siteConfig.url}/docs` },
   ];
-  if (slug.length > 1) {
+  if (decodedSlug.length > 1) {
     // Add category
-    const category = slug[0].charAt(0).toUpperCase() + slug[0].slice(1);
+    const category = decodedSlug[0].charAt(0).toUpperCase() + decodedSlug[0].slice(1);
     breadcrumbItems.push({
       name: category,
-      url: `${siteConfig.url}/docs/${slug[0]}`,
+      url: `${siteConfig.url}/docs/${encodeURIComponent(decodedSlug[0])}`,
     });
   }
   breadcrumbItems.push({
