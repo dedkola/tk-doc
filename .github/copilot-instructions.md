@@ -179,6 +179,8 @@ All MDX files go in the `content/` directory. The file path becomes the URL:
 - `content/getting-started.mdx` → `/docs/getting-started`
 - `content/api/authentication.mdx` → `/docs/api/authentication`
 
+**Folder Organization**: Content is organized by category (Docker/, Kubernetes/, Ubuntu/, etc.). Each folder becomes a section in auto-generated navigation.
+
 ### Frontmatter Format
 
 All MDX files should include frontmatter:
@@ -187,8 +189,12 @@ All MDX files should include frontmatter:
 title: Page Title
 description: Brief description for SEO
 tags: [tag1, tag2, tag3]
+keywords: [optional, searchable, terms]
+publishedAt: 2024-01-01  # Optional, ISO date
 ---
 ```
+
+**Supported Fields**: title, description, tags (array), keywords (array), publishedAt, updatedAt
 
 ### Available Components in MDX
 
@@ -226,6 +232,7 @@ Supported languages: javascript, typescript, python, bash, json, yaml, css, html
 2. Start dev server: `pnpm dev`
 3. Open browser to `http://localhost:3000`
 4. Changes auto-reload (hot reload enabled)
+5. Search functionality: `Cmd+K` / `Ctrl+K` activates command palette
 
 ### Adding New Features
 
@@ -254,21 +261,41 @@ pnpm lint
 
 # TypeScript type checking (no explicit script, runs during build)
 pnpm build
+
+# Manual type check without build
+npx tsc --noEmit
 ```
 
-**ESLint Configuration**: Uses Next.js recommended config (ESLint 9 flat config format)
+**ESLint Configuration**: Uses Next.js recommended config (ESLint 9 flat config format in `eslint.config.mjs`)
 
 ## Important Patterns and Best Practices
+
+### Search Implementation
+
+The search system uses client-side full-text search over MDX content:
+
+- **SearchProvider** (`app/ui/interface/search-context.tsx`): React Context loads all MDX files on mount
+- **Search component** (`app/ui/search.tsx`): Keyboard shortcut `Cmd+K`/`Ctrl+K` activates search
+- **MDX file loading**: `getMDXFiles()` in `lib/mdx-utils.ts` recursively scans `content/` directory
+- **Frontmatter parsing**: Uses `gray-matter` to extract metadata (title, description, tags, keywords)
+- **Search indexing**: Content without frontmatter is indexed for full-text search
 
 ### Server vs Client Components
 
 - **Default**: Server Components (no "use client" directive)
 - **Use "use client" when**:
   - Using React hooks (useState, useEffect, etc.)
-  - Handling browser events (onClick, onChange, etc.)
-  - Using browser APIs (window, document, etc.)
-  - Dynamic imports are used for: Footer, Analytics (performance optimization)
+  - Handling browser events (onClick,for performance optimization:
+```tsx
 
+**Key client components**: Search component (`app/ui/search.tsx`), SearchProvider context, layout-client wrapper
+const Component = dynamic(() => import("@/components/Component"), { ssr: false });
+
+// Server-side rendering enabled (default)
+const Footer = dynamic(() => import("@/components/footer"), { ssr: true });
+```
+
+**Current optimized components**: Footer (ssr: true), Analytics (ssr: true), Code (ssr: false)
 ### Dynamic Imports
 
 Heavy components use dynamic imports with ssr: false:
@@ -353,12 +380,14 @@ The Dockerfile uses a multi-stage build for optimization:
 
 ### Key Environment Variables
 - `DOCKER_BUILD=true` - Enables standalone output in `next.config.mjs`
-- `NODE_ENV=production` - Set in final stage
+- `NODE_ENV=pro (maps internal 3000 to host 3000)
+docker run -p 3000:3000 tk-docs
 
-### Build Commands
-```bash
-# Build Docker image
-docker build -t tk-docs .
+# Using docker-compose (maps internal 3000 to host 3003)
+docker compose up --build
+```
+
+**Port Mapping**: Docker Compose uses port 3003 on host → 3000 in container (see `compose.yaml`)ker build -t tk-docs .
 
 # Run container
 docker run -p 3000:3000 tk-docs
@@ -421,6 +450,19 @@ docker build --no-cache -t tk-docs .
 - **components/ui/README.md**: UI components documentation
 - **Dockerfile**: Production deployment reference
 - **config/config.local.example.ts**: Local configuration template
+
+## Context7 MCP Integration
+
+When you need library/API documentation, code generation, or configuration steps, leverage Context7 MCP for:
+
+- Next.js App Router patterns and APIs
+- Radix UI component APIs and usage
+- MDX configuration and best practices
+- Tailwind CSS utilities and patterns
+- Docker and deployment configurations
+- TypeScript patterns and type definitions
+
+Use Context7 MCP proactively for any technical assistance related to this stack.
 
 ## Notes for AI Coding Agents
 
