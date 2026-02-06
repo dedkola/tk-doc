@@ -110,16 +110,16 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const variants = cva("base-classes", {
-  variants: { ... },
-  defaultVariants: { ... }
+    variants: { ... },
+    defaultVariants: { ... }
 });
 
 export function Component({
-  className,
-  variant,
-  ...props
-}: React.ComponentProps<"element"> & VariantProps<typeof variants>) {
-  return <element className={cn(variants({ variant }), className)} {...props} />;
+                              className,
+                              variant,
+                              ...props
+                          }: React.ComponentProps<"element"> & VariantProps<typeof variants>) {
+    return <element className={cn(variants({ variant }), className)} {...props} />;
 }
 ```
 
@@ -157,18 +157,18 @@ The project uses a **three-layer configuration system** for easy customization:
 
 ```typescript
 {
-  name: string;           // Site name
-  title: string;          // Meta title
-  description: string;    // Meta description
-  url: string;            // Production URL
-  og: { ... };           // OpenGraph settings
-  twitter: { ... };      // Twitter card settings
-  analytics: {
-    googleAnalyticsId: string;  // GA tracking ID
-  };
-  debug: { ... };        // Error logging settings
-  social: { ... };       // Social media links
-  footer: { ... };       // Footer configuration
+    name: string;           // Site name
+    title: string;          // Meta title
+    description: string;    // Meta description
+    url: string;            // Production URL
+    og: { ... };           // OpenGraph settings
+    twitter: { ... };      // Twitter card settings
+    analytics: {
+        googleAnalyticsId: string;  // GA tracking ID
+    };
+    debug: { ... };        // Error logging settings
+    social: { ... };       // Social media links
+    footer: { ... };       // Footer configuration
 }
 ```
 
@@ -237,21 +237,21 @@ Supported languages: javascript, typescript, python, bash, json, yaml, css, html
 ### Adding New Features
 
 1. **New UI Component**:
-   - Create in `components/ui/[ComponentName].tsx`
-   - Use PascalCase naming
-   - Follow existing component patterns (Radix UI + cva)
-   - Export from component file
+    - Create in `components/ui/[ComponentName].tsx`
+    - Use PascalCase naming
+    - Follow existing component patterns (Radix UI + cva)
+    - Export from component file
 
 2. **New Page/Route**:
-   - Add MDX file to `content/` directory
-   - Include frontmatter (title, description, tags)
-   - Use kebab-case for file names
-   - Navigation sidebar auto-generates from folder structure
+    - Add MDX file to `content/` directory
+    - Include frontmatter (title, description, tags)
+    - Use kebab-case for file names
+    - Navigation sidebar auto-generates from folder structure
 
 3. **New Utility Function**:
-   - Add to appropriate file in `lib/`
-   - Use TypeScript with proper types
-   - Export named functions
+    - Add to appropriate file in `lib/`
+    - Use TypeScript with proper types
+    - Export named functions
 
 ### Linting and Type Checking
 
@@ -284,8 +284,8 @@ The search system uses client-side full-text search over MDX content:
 
 - **Default**: Server Components (no "use client" directive)
 - **Use "use client" when**:
-  - Using React hooks (useState, useEffect, etc.)
-  - Handling browser events (onClick,for performance optimization:
+    - Using React hooks (useState, useEffect, etc.)
+    - Handling browser events (onClick,for performance optimization:
 ```tsx
 
 **Key client components**: Search component (`app/ui/search.tsx`), SearchProvider context, layout-client wrapper
@@ -381,7 +381,7 @@ The Dockerfile uses a multi-stage build for optimization:
 ### Key Environment Variables
 - `DOCKER_BUILD=true` - Enables standalone output in `next.config.mjs`
 - `NODE_ENV=pro (maps internal 3000 to host 3000)
-docker run -p 3000:3000 tk-docs
+  docker run -p 3000:3000 tk-docs
 
 # Using docker-compose (maps internal 3000 to host 3003)
 docker compose up --build
