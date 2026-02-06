@@ -43,14 +43,24 @@ export function TableOfContents({ headings }: TOCProps) {
   useEffect(() => {
     const observer = new IntersectionObserver(
         (entries) => {
-          entries.forEach((entry) => {
-            if (entry.isIntersecting) {
-              setActiveId(entry.target.id);
-            }
-          });
+          // Find all intersecting entries (visible in viewport)
+          const intersectingEntries = entries.filter((entry) => entry.isIntersecting);
+          
+          if (intersectingEntries.length > 0) {
+            // Sort by how close they are to the top of the viewport
+            // The heading closest to (or just past) the top should be active
+            intersectingEntries.sort((a, b) => {
+              return Math.abs(a.boundingClientRect.top) - Math.abs(b.boundingClientRect.top);
+            });
+            
+            setActiveId(intersectingEntries[0].target.id);
+          }
         },
         {
-          rootMargin: "-100px 0px -80% 0px",
+          // Use top rootMargin to trigger when heading reaches near the top
+          // and bottom rootMargin to include more of the page
+          rootMargin: "-80px 0px -40% 0px",
+          threshold: 0,
         },
     );
 
