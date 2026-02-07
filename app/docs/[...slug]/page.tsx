@@ -176,21 +176,23 @@ const mdxComponents: MDXComponents = {
     const id = String(children)
         .toLowerCase()
         .replace(/[^a-z0-9\s-]/g, "")
-        .replace(/\s+/g, "-");
+        .replace(/\s+/g, "-")
+        .replace(/-+/g, "-");
     return (
         <h2
             id={id}
             className="text-3xl font-semibold tracking-tight mb-3 mt-8 pb-2 border-b border-border text-foreground scroll-mt-24"
         >
           {children}
-        </h2>
+        </h2 >
     );
   },
   h3: ({ children }) => {
     const id = String(children)
         .toLowerCase()
         .replace(/[^a-z0-9\s-]/g, "")
-        .replace(/\s+/g, "-");
+        .replace(/\s+/g, "-")
+        .replace(/-+/g, "-");
     return (
         <h3
             id={id}
@@ -204,7 +206,8 @@ const mdxComponents: MDXComponents = {
     const id = String(children)
         .toLowerCase()
         .replace(/[^a-z0-9\s-]/g, "")
-        .replace(/\s+/g, "-");
+        .replace(/\s+/g, "-")
+        .replace(/-+/g, "-");
     return (
         <h4
             id={id}

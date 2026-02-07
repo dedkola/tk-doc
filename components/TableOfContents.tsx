@@ -31,7 +31,7 @@ export function TableOfContents({ headings }: TOCProps) {
           block: "nearest",
         });
       }
-    }, 100);
+    });
 
     return () => {
       if (scrollTimeoutRef.current) {
@@ -41,6 +41,39 @@ export function TableOfContents({ headings }: TOCProps) {
   }, [activeId]);
 
   useEffect(() => {
+    // Determine active heading on mount or when headings change
+    const determineActiveHeading = () => {
+      let currentActiveId = "";
+      // Loop through all headings to find the one that is currently active
+      for (const heading of headings) {
+        const element = document.getElementById(heading.id);
+        if (element) {
+          const rect = element.getBoundingClientRect();
+          // If the element is above the 100px mark, it's a candidate for being the active section
+          if (rect.top <= 100) {
+            currentActiveId = heading.id;
+          } else {
+            // Once we find an element below the mark, we stop because subsequent headings
+            // are definitely below it (assuming sequential order)
+            break;
+          }
+        }
+      }
+
+      // If we found a candidate, set it. Otherwise if currentActiveId is empty
+      // but we have headings, it means we are at the top, so maybe set valid first one?
+      // Actually, if we are at top (rect.top > 100), no H2/H3 has passed yet.
+      // So empty string is correct OR first one if it's close.
+      // Let's stick to "last one that passed the threshold".
+      if (currentActiveId) {
+        setActiveId(currentActiveId);
+      }
+    };
+
+    determineActiveHeading();
+    // Run again after a short delay to handle browser scroll restoration
+    const timer = setTimeout(determineActiveHeading, 150);
+
     const observer = new IntersectionObserver(
         (entries) => {
           entries.forEach((entry) => {
@@ -62,6 +95,7 @@ export function TableOfContents({ headings }: TOCProps) {
 
     return () => {
       headingElements.forEach((el) => observer.unobserve(el));
+      clearTimeout(timer);
     };
   }, [headings]);
 

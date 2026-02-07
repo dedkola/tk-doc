@@ -59,8 +59,10 @@ export default function AccordionMenu({ groupedFiles }: AccordionMenuProps) {
   }, [pathname]);
 
   const activeFolderFromPath = useMemo(() => {
+    // Decode the pathname to handle encoded characters like %20 for spaces
+    const decodedPathname = decodeURIComponent(pathname || "");
     const activeEntry = Object.entries(groupedFiles).find(([, files]) =>
-        files.some((file) => `/docs/${file.slug.join("/")}` === pathname),
+        files.some((file) => `/docs/${file.slug.join("/")}` === decodedPathname),
     );
     return activeEntry ? new Set([activeEntry[0]]) : new Set<string>();
   }, [pathname, groupedFiles]);
@@ -95,8 +97,9 @@ export default function AccordionMenu({ groupedFiles }: AccordionMenuProps) {
         <nav className="px-4 pt-4 pb-16 space-y-1">
           {Object.entries(groupedFiles).map(([folderName, files]) => {
             const isOpen = openFolders.has(folderName);
+            const decodedPathname = decodeURIComponent(pathname || "");
             const hasActivePage = files.some(
-                (file) => `/docs/${file.slug.join("/")}` === pathname,
+                (file) => `/docs/${file.slug.join("/")}` === decodedPathname,
             );
             const Icon = getIconForFolder(folderName);
 
@@ -104,18 +107,16 @@ export default function AccordionMenu({ groupedFiles }: AccordionMenuProps) {
                 <div key={folderName} className="mb-1">
                   <button
                       onClick={() => toggleFolder(folderName)}
-                      className={`w-full flex items-center justify-between px-3 py-2 text-sm font-medium transition-colors group ${
-                          hasActivePage
-                              ? "text-blue-600"
-                              : "text-slate-600 hover:text-slate-900"
+                      className={`w-full flex items-center justify-between px-3 py-2 text-sm font-medium transition-colors group ${hasActivePage
+                          ? "text-blue-600"
+                          : "text-slate-600 hover:text-slate-900"
                       }`}
                   >
                     <div className="flex items-center gap-3">
                   <span
-                      className={`transition-colors ${
-                          hasActivePage
-                              ? "text-blue-600"
-                              : "text-slate-400 group-hover:text-slate-600"
+                      className={`transition-colors ${hasActivePage
+                          ? "text-blue-600"
+                          : "text-slate-400 group-hover:text-slate-600"
                       }`}
                   >
                     {Icon}
@@ -128,8 +129,7 @@ export default function AccordionMenu({ groupedFiles }: AccordionMenuProps) {
                   </span>
                       <ChevronDown
                           size={14}
-                          className={`text-slate-400 transition-transform duration-200 ${
-                              isOpen ? "rotate-0" : "-rotate-90"
+                          className={`text-slate-400 transition-transform duration-200 ${isOpen ? "rotate-0" : "-rotate-90"
                           }`}
                       />
                     </div>
@@ -137,26 +137,24 @@ export default function AccordionMenu({ groupedFiles }: AccordionMenuProps) {
 
                   {/* Submenu */}
                   <div
-                      className={`transition-[max-height,opacity] duration-300 ease-in-out ${
-                          isOpen
-                              ? "max-h-[60vh] opacity-100 overflow-y-auto"
-                              : "max-h-0 opacity-0 overflow-hidden"
+                      className={`transition-[max-height,opacity] duration-300 ease-in-out ${isOpen
+                          ? "max-h-[60vh] opacity-100 overflow-y-auto"
+                          : "max-h-0 opacity-0 overflow-hidden"
                       }`}
                   >
                     <div className="mt-1 space-y-0.5">
                       {files.map((file) => {
                         const href = `/docs/${file.slug.join("/")}`;
-                        const isActive = pathname === href;
+                        const isActive = decodeURIComponent(pathname || "") === href;
 
                         return (
                             <Link
                                 key={file.slug.join("/")}
                                 href={href}
                                 ref={isActive ? activeLinkRef : null}
-                                className={`block pl-4 pr-3 py-2 text-sm transition-colors border-l-2 ${
-                                    isActive
-                                        ? "text-blue-600 font-medium border-blue-600"
-                                        : "text-slate-500 hover:text-slate-900 border-transparent"
+                                className={`block pl-4 pr-3 py-2 text-sm transition-colors border-l-2 ${isActive
+                                    ? "text-blue-600 font-medium border-blue-600"
+                                    : "text-slate-500 hover:text-slate-900 border-transparent"
                                 }`}
                                 title={file.title}
                             >
