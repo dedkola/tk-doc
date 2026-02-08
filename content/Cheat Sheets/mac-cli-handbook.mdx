@@ -1,0 +1,1036 @@
+---
+title: macOS CLI Handbook
+description: Quick reference for essential macOS terminal commands — file management, system info, networking, disk utilities, process control, package management, and more.
+tags: [macos, terminal, cli, cheat-sheet, zsh, bash, commands]
+keywords: [macos terminal commands, mac cli reference, zsh cheat sheet, macos command line, mac terminal quick reference, homebrew]
+publishedAt: 2026-02-08
+---
+
+# macOS CLI Handbook
+
+A practical quick-reference for the most commonly used macOS terminal commands, organized by category for fast lookup. Default shell on modern macOS is **zsh**.
+
+---
+
+## Terminal Basics
+
+### Opening Terminal
+
+```bash
+# Spotlight → type "Terminal" → Enter
+# Or: Applications → Utilities → Terminal
+
+# Popular terminal alternatives:
+# iTerm2, Warp, Alacritty, Kitty, Hyper
+```
+
+### Essential Keyboard Shortcuts
+
+```bash
+Ctrl + A            # Move cursor to beginning of line
+Ctrl + E            # Move cursor to end of line
+Ctrl + U            # Delete entire line (before cursor)
+Ctrl + K            # Delete to end of line
+Ctrl + W            # Delete word before cursor
+Ctrl + R            # Reverse search command history
+Ctrl + C            # Cancel current command
+Ctrl + D            # Exit shell / EOF
+Ctrl + Z            # Suspend current process (resume with fg)
+Ctrl + L            # Clear screen (same as clear)
+Tab                 # Autocomplete file/directory names
+Tab Tab             # Show all possible completions
+```
+
+### Command History
+
+```bash
+history                         # Show command history
+history 20                      # Show last 20 commands
+!!                              # Re-run the last command
+!n                              # Run command number n from history
+!string                         # Run last command starting with "string"
+!$                              # Last argument of previous command
+Ctrl + R                        # Reverse search through history
+fc                              # Open last command in editor
+```
+
+---
+
+## Shell Configuration
+
+### Zsh Config Files (Default Shell)
+
+```bash
+~/.zshrc                        # Main zsh config (loaded for interactive shells)
+~/.zprofile                     # Login shell config (loaded once at login)
+~/.zshenv                       # Always loaded (all zsh invocations)
+~/.zsh_history                  # Command history file
+~/.zlogout                      # Executed on logout
+```
+
+### Bash Config Files (Legacy)
+
+```bash
+~/.bash_profile                 # Login shell config
+~/.bashrc                       # Interactive non-login shell config
+~/.bash_history                 # Command history
+~/.bash_logout                  # Executed on logout
+```
+
+### Useful Aliases
+
+```bash
+# Add to ~/.zshrc
+alias ll='ls -la'
+alias la='ls -A'
+alias l='ls -CF'
+alias ..='cd ..'
+alias ...='cd ../..'
+alias cls='clear'
+alias grep='grep --color=auto'
+alias rm='rm -i'                # Confirm before deleting
+alias cp='cp -i'                # Confirm before overwriting
+alias mv='mv -i'                # Confirm before overwriting
+alias ports='lsof -i -P -n | grep LISTEN'
+alias myip='curl -s ifconfig.me'
+alias flushdns='sudo dscacheutil -flushcache; sudo killall -HUP mDNSResponder'
+```
+
+### Environment Variables
+
+```bash
+echo $PATH                      # Show current PATH
+echo $HOME                      # Home directory
+echo $SHELL                     # Current shell
+echo $USER                      # Current username
+printenv                        # List all environment variables
+export VAR_NAME="value"         # Set environment variable (current session)
+# Add to ~/.zshrc for persistence:
+export PATH="$HOME/bin:$PATH"   # Prepend to PATH
+```
+
+### Change Default Shell
+
+```bash
+chsh -s /bin/zsh                # Switch to zsh
+chsh -s /bin/bash               # Switch to bash
+cat /etc/shells                 # List available shells
+echo $SHELL                     # Show current default shell
+```
+
+---
+
+## Important macOS Paths
+
+### System Directories
+
+```bash
+/                               # Root filesystem
+/System/                        # macOS system files (read-only, SIP protected)
+/Library/                       # System-wide libraries and support files
+~/Library/                      # User-specific libraries and app data
+/Applications/                  # Installed applications
+/Users/                         # User home directories
+/usr/local/                     # Homebrew (Intel Mac) and local software
+/opt/homebrew/                  # Homebrew (Apple Silicon)
+/private/var/                   # Variable data (logs, tmp, etc.)
+/private/etc/                   # System configuration files
+/tmp/                           # Temporary files (symlink to /private/tmp)
+```
+
+### Configuration & Preferences
+
+```bash
+~/Library/Preferences/          # App preference files (.plist)
+~/Library/Application Support/  # App data and configs
+~/Library/Caches/               # App cache files
+~/Library/Logs/                 # User app logs
+~/Library/LaunchAgents/         # User-level launch agents (auto-start)
+/Library/LaunchAgents/          # System-wide launch agents
+/Library/LaunchDaemons/         # System-wide launch daemons (root services)
+~/Library/Containers/           # Sandboxed app data
+~/Library/Group Containers/     # Shared data between apps
+```
+
+### Log Files
+
+```bash
+/var/log/system.log             # Main system log (legacy)
+/var/log/install.log            # Installation logs
+/var/log/wifi.log               # Wi-Fi logs
+/var/log/apache2/               # Apache web server logs
+~/Library/Logs/                 # User application logs
+~/Library/Logs/DiagnosticReports/  # Crash reports
+# Modern macOS uses unified logging:
+log show --last 1h              # Show last hour of logs
+log show --predicate 'process == "kernel"' --last 30m  # Kernel logs
+log stream                      # Live log stream
+```
+
+---
+
+## File & Directory Management
+
+### Navigation
+
+```bash
+pwd                             # Print current directory
+cd /path/to/dir                 # Change directory
+cd ~                            # Go to home directory
+cd -                            # Go to previous directory
+cd ..                           # Go up one level
+cd ../..                        # Go up two levels
+pushd /path/to/dir              # Push directory onto stack and cd
+popd                            # Pop directory from stack and cd back
+dirs -v                         # Show directory stack
+```
+
+### Listing Files
+
+```bash
+ls                              # List files
+ls -l                           # Long format (permissions, size, date)
+ls -la                          # Long format including hidden files
+ls -lh                          # Long format with human-readable sizes
+ls -lS                          # Sort by file size (largest first)
+ls -lt                          # Sort by modification time (newest first)
+ls -lR                          # List recursively
+ls -1                           # One file per line
+ls -d */                        # List only directories
+```
+
+### Creating Files & Directories
+
+```bash
+touch file.txt                  # Create empty file or update timestamp
+mkdir dirname                   # Create directory
+mkdir -p path/to/nested/dir     # Create nested directories
+mktemp                          # Create a temporary file
+mktemp -d                       # Create a temporary directory
+```
+
+### Copying, Moving & Renaming
+
+```bash
+cp source.txt dest.txt          # Copy file
+cp -r source_dir/ dest_dir/     # Copy directory recursively
+cp -i source.txt dest.txt       # Interactive (confirm overwrite)
+mv oldname.txt newname.txt      # Rename file
+mv file.txt /path/to/dest/      # Move file
+ditto source/ dest/             # macOS-native copy (preserves metadata)
+ditto -V source/ dest/          # Verbose ditto copy
+rsync -av source/ dest/         # Sync files (fast incremental copy)
+rsync -av --delete src/ dest/   # Sync and delete extra files in dest
+```
+
+### Deleting Files & Directories
+
+```bash
+rm file.txt                     # Delete file
+rm -f file.txt                  # Force delete (no confirmation)
+rm -r dirname/                  # Delete directory recursively
+rm -rf dirname/                 # Force delete directory
+rmdir dirname                   # Delete empty directory only
+trash file.txt                  # Move to Trash (if trash CLI installed)
+# macOS native: move to Trash via Finder or use `mv file ~/.Trash/`
+```
+
+### File Permissions & Ownership
+
+```bash
+chmod 755 script.sh             # Set permissions (rwxr-xr-x)
+chmod +x script.sh              # Add execute permission
+chmod -R 644 directory/         # Set permissions recursively
+chown user:group file.txt       # Change file owner and group
+chown -R user:group dir/        # Change owner recursively
+ls -l                           # View permissions
+stat -f '%A %N' file.txt        # Show octal permissions (macOS)
+```
+
+### Links
+
+```bash
+ln -s /path/to/original link    # Create symbolic link
+ln /path/to/original hardlink   # Create hard link
+readlink link_name              # Show where symlink points
+ls -la                          # Symlinks shown with -> target
+```
+
+---
+
+## Viewing & Editing Files
+
+### Viewing File Contents
+
+```bash
+cat file.txt                    # Display entire file
+less file.txt                   # View file (scrollable, press q to quit)
+more file.txt                   # View file (page by page)
+head file.txt                   # Show first 10 lines
+head -n 20 file.txt             # Show first 20 lines
+tail file.txt                   # Show last 10 lines
+tail -n 20 file.txt             # Show last 20 lines
+tail -f logfile.log             # Follow file in real-time (great for logs)
+wc file.txt                     # Count lines, words, bytes
+wc -l file.txt                  # Count lines only
+```
+
+### Text Editors (Terminal)
+
+```bash
+nano file.txt                   # Simple editor (Ctrl+O save, Ctrl+X exit)
+vi file.txt                     # Vi editor (i=insert, Esc :wq=save+quit)
+vim file.txt                    # Vim (improved vi)
+open -e file.txt                # Open in TextEdit
+code file.txt                   # Open in VS Code (if installed)
+```
+
+### File Information
+
+```bash
+file myfile                     # Detect file type
+stat file.txt                   # Detailed file info (size, dates, etc.)
+mdls file.txt                   # Spotlight metadata attributes
+xattr file.txt                  # List extended attributes
+xattr -d com.apple.quarantine file  # Remove quarantine flag
+GetFileInfo file.txt            # HFS+ attributes
+```
+
+---
+
+## Searching & Finding
+
+### Find Files
+
+```bash
+find / -name "filename"         # Find file by name (whole system)
+find . -name "*.txt"            # Find .txt files in current dir
+find . -type f -name "*.log"    # Find files only (not directories)
+find . -type d -name "src"      # Find directories only
+find . -size +100M              # Find files larger than 100MB
+find . -mtime -7                # Files modified in last 7 days
+find . -mtime +30               # Files modified more than 30 days ago
+find . -empty                   # Find empty files and directories
+find . -name "*.tmp" -delete    # Find and delete files
+find . -name "*.sh" -exec chmod +x {} \;  # Find and execute command
+```
+
+### Spotlight Search (macOS-Specific)
+
+```bash
+mdfind "search query"           # Search using Spotlight index
+mdfind -name "filename"         # Search by filename
+mdfind -onlyin ~/Documents "report"  # Search in specific directory
+mdfind "kMDItemKind == 'PDF'"   # Search by file kind
+mdls file.txt                   # Show Spotlight metadata for a file
+mdutil -s /                     # Check Spotlight indexing status
+mdutil -E /                     # Erase and rebuild Spotlight index
+```
+
+### Search Inside Files
+
+```bash
+grep "pattern" file.txt         # Search for pattern in file
+grep -r "pattern" directory/    # Search recursively in directory
+grep -i "pattern" file.txt      # Case-insensitive search
+grep -n "pattern" file.txt      # Show line numbers
+grep -l "pattern" *.txt         # List files containing pattern
+grep -c "pattern" file.txt      # Count matching lines
+grep -v "pattern" file.txt      # Show lines NOT matching
+grep -E "regex" file.txt        # Extended regex (egrep)
+```
+
+### Locate Files
+
+```bash
+locate filename                 # Fast file search using database
+sudo /usr/libexec/locate.updatedb  # Update locate database
+which command                   # Show path of a command
+whereis command                 # Show binary/man/source paths
+type command                    # Show how command would be interpreted
+```
+
+---
+
+## Text Processing
+
+### Common Tools
+
+```bash
+sort file.txt                   # Sort lines alphabetically
+sort -n file.txt                # Sort numerically
+sort -r file.txt                # Reverse sort
+sort -u file.txt                # Sort and remove duplicates
+uniq file.txt                   # Remove adjacent duplicate lines
+uniq -c file.txt                # Count occurrences of each line
+cut -d',' -f1,3 data.csv       # Extract columns 1 and 3 (comma delimited)
+cut -c1-10 file.txt             # Extract first 10 characters per line
+paste file1.txt file2.txt       # Merge lines of files side-by-side
+tr 'a-z' 'A-Z' < file.txt      # Convert to uppercase
+tr -d '\r' < file.txt           # Remove carriage returns (Windows → Unix)
+```
+
+### sed & awk
+
+```bash
+sed 's/old/new/' file.txt       # Replace first occurrence per line
+sed 's/old/new/g' file.txt      # Replace all occurrences
+sed -i '' 's/old/new/g' file    # In-place edit (macOS sed)
+sed -n '5,10p' file.txt         # Print lines 5 to 10
+awk '{print $1}' file.txt       # Print first column
+awk -F',' '{print $2}' data.csv # Print 2nd column (comma delimiter)
+awk '{sum+=$1} END {print sum}' file.txt  # Sum first column
+```
+
+### Redirection & Pipes
+
+```bash
+command > file.txt              # Redirect stdout to file (overwrite)
+command >> file.txt             # Append stdout to file
+command 2> error.log            # Redirect stderr to file
+command &> output.log           # Redirect stdout and stderr
+command 2>&1                    # Redirect stderr to stdout
+command1 | command2             # Pipe output of cmd1 to cmd2
+command | tee file.txt          # Output to screen AND file
+command | tee -a file.txt       # Append to file AND show on screen
+```
+
+---
+
+## System Information
+
+### macOS Version & Hardware
+
+```bash
+sw_vers                         # macOS version details
+sw_vers -productVersion         # Just the version number
+uname -a                        # Kernel version and architecture
+uname -m                        # CPU architecture (arm64 / x86_64)
+system_profiler SPHardwareDataType      # Detailed hardware info
+system_profiler SPSoftwareDataType      # Software overview
+sysctl -n machdep.cpu.brand_string      # CPU model name
+sysctl -n hw.memsize                    # Total memory (bytes)
+sysctl hw.ncpu                          # Number of CPUs
+arch                            # Print architecture (arm64 / i386)
+```
+
+### Disk & Storage
+
+```bash
+df -h                           # Disk space usage (human-readable)
+df -H                           # Disk space (powers of 1000)
+du -sh *                        # Size of each item in current dir
+du -sh directory/               # Total size of a directory
+du -sh * | sort -rh | head -10  # Top 10 largest items
+diskutil list                   # List all disks and partitions
+diskutil info disk0             # Info about a specific disk
+diskutil apfs list              # List APFS volumes
+diskutil eraseDisk APFS "Name" disk2    # Erase and format disk
+```
+
+### Memory & CPU
+
+```bash
+top                             # Real-time process monitor (q to quit)
+htop                            # Improved top (install via brew)
+top -l 1 -s 0 | head -n 12     # Snapshot of system stats
+vm_stat                         # Virtual memory statistics
+sysctl hw.memsize               # Total physical memory
+memory_pressure                 # Memory pressure status
+powermetrics --samplers cpu_power -n 1  # CPU power usage (sudo)
+```
+
+### Uptime & Users
+
+```bash
+uptime                          # System uptime and load average
+w                               # Who is logged in and what they're doing
+who                             # Currently logged in users
+whoami                          # Current username
+id                              # Current user ID, group ID
+last                            # List last logins
+```
+
+---
+
+## Process Management
+
+### Viewing Processes
+
+```bash
+ps aux                          # All running processes (detailed)
+ps aux | grep process_name      # Find a specific process
+pgrep -l process_name           # Find process by name (with PID)
+top                             # Real-time process viewer
+top -o cpu                      # Sort by CPU usage
+top -o mem                      # Sort by memory usage
+lsof                            # List all open files
+lsof -i :8080                   # What is using port 8080
+lsof -c process_name            # Files opened by a process
+```
+
+### Killing Processes
+
+```bash
+kill PID                        # Send TERM signal to process
+kill -9 PID                     # Force kill (SIGKILL)
+kill -HUP PID                   # Send hangup signal (reload config)
+killall process_name            # Kill all processes by name
+killall -9 process_name         # Force kill all by name
+pkill process_name              # Kill by partial name match
+pkill -f "pattern"              # Kill by full command line match
+```
+
+### Background & Foreground
+
+```bash
+command &                       # Run command in background
+jobs                            # List background jobs
+fg                              # Bring last job to foreground
+fg %1                           # Bring job 1 to foreground
+bg %1                           # Resume job 1 in background
+nohup command &                 # Run command immune to hangup (persists after logout)
+disown %1                       # Detach job from shell
+```
+
+### Launch Agents & Daemons (Startup Services)
+
+```bash
+launchctl list                          # List all loaded services
+launchctl list | grep my-service        # Find a specific service
+launchctl load ~/Library/LaunchAgents/com.my.plist    # Load/start a service
+launchctl unload ~/Library/LaunchAgents/com.my.plist  # Unload/stop a service
+launchctl start com.my.service          # Start a service by label
+launchctl stop com.my.service           # Stop a service by label
+sudo launchctl kickstart -k system/com.apple.mDNSResponder  # Restart system service
+```
+
+---
+
+## Networking
+
+### Network Information
+
+```bash
+ifconfig                        # Show network interfaces
+ifconfig en0                    # Show Wi-Fi interface details
+ipconfig getifaddr en0          # Get local IP address (Wi-Fi)
+curl -s ifconfig.me             # Get public IP address
+curl -s ipinfo.io               # Detailed public IP info (JSON)
+networksetup -listallhardwareports  # List all network ports
+networksetup -getinfo Wi-Fi     # Wi-Fi connection info
+scutil --dns                    # Show DNS configuration
+cat /etc/resolv.conf            # DNS resolver config
+hostname                        # Show hostname
+scutil --get HostName           # Get hostname
+sudo scutil --set HostName name # Set hostname
+```
+
+### Testing Connectivity
+
+```bash
+ping google.com                 # Ping a host (Ctrl+C to stop)
+ping -c 5 google.com            # Ping 5 times then stop
+traceroute google.com           # Trace route to host
+mtr google.com                  # Combined ping + traceroute (install via brew)
+curl -I https://example.com     # HTTP headers only
+curl -o file.zip https://url    # Download file
+curl -L https://url             # Follow redirects
+wget https://url                # Download file (install via brew)
+networkQuality                  # Test network quality (macOS 12+)
+networkQuality -v               # Verbose network quality test
+```
+
+### DNS
+
+```bash
+nslookup domain.com             # DNS lookup
+dig domain.com                  # Detailed DNS lookup
+dig domain.com +short           # Short DNS answer
+host domain.com                 # Simple DNS lookup
+dscacheutil -flushcache         # Flush DNS cache
+sudo killall -HUP mDNSResponder # Restart DNS resolver
+```
+
+### Ports & Connections
+
+```bash
+netstat -an                     # Show all connections
+netstat -an | grep LISTEN       # Show listening ports
+lsof -i -P -n                  # List all network connections
+lsof -i :80                    # What is using port 80
+lsof -i :8080                  # What is using port 8080
+sudo lsof -iTCP -sTCP:LISTEN -n -P  # All listening TCP ports
+```
+
+### Firewall
+
+```bash
+sudo pfctl -s info              # Packet filter info
+sudo pfctl -e                   # Enable firewall
+sudo pfctl -d                   # Disable firewall
+sudo pfctl -f /etc/pf.conf      # Reload firewall rules
+/usr/libexec/ApplicationFirewall/socketfilterfw --getglobalstate  # App firewall status
+sudo /usr/libexec/ApplicationFirewall/socketfilterfw --setglobalstate on  # Enable app firewall
+```
+
+### SSH
+
+```bash
+ssh user@hostname               # Connect to remote host
+ssh -p 2222 user@hostname       # Connect on custom port
+ssh -i ~/.ssh/key.pem user@host # Connect with specific key
+ssh-keygen -t ed25519           # Generate SSH key (recommended type)
+ssh-keygen -t rsa -b 4096      # Generate RSA SSH key
+ssh-copy-id user@hostname       # Copy public key to remote host
+scp file.txt user@host:/path/   # Secure copy file to remote
+scp user@host:/path/file.txt .  # Secure copy file from remote
+scp -r dir/ user@host:/path/    # Copy directory recursively
+```
+
+---
+
+## Package Management (Homebrew)
+
+### Install Homebrew
+
+```bash
+# Install Homebrew
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+# Verify installation
+brew --version
+```
+
+### Common Homebrew Commands
+
+```bash
+brew search package             # Search for a package
+brew install package            # Install a package
+brew uninstall package          # Uninstall a package
+brew list                       # List installed packages
+brew info package               # Show package info
+brew update                     # Update Homebrew itself
+brew upgrade                    # Upgrade all packages
+brew upgrade package            # Upgrade specific package
+brew outdated                   # List outdated packages
+brew cleanup                    # Remove old versions
+brew cleanup -s                 # Remove all cached downloads
+brew doctor                     # Diagnose issues
+brew deps package               # Show dependencies
+brew uses package --installed   # Show what depends on a package
+```
+
+### Homebrew Casks (GUI Applications)
+
+```bash
+brew install --cask app-name    # Install GUI application
+brew uninstall --cask app-name  # Uninstall GUI application
+brew list --cask                # List installed casks
+brew outdated --cask            # List outdated casks
+brew upgrade --cask             # Upgrade all casks
+
+# Common casks:
+brew install --cask google-chrome
+brew install --cask visual-studio-code
+brew install --cask iterm2
+brew install --cask docker
+brew install --cask rectangle   # Window management
+```
+
+### Homebrew Services
+
+```bash
+brew services list              # List all services
+brew services start service     # Start a service
+brew services stop service      # Stop a service
+brew services restart service   # Restart a service
+brew services run service       # Run without auto-start on login
+```
+
+---
+
+## Disk & Volume Management
+
+### Disk Utility CLI
+
+```bash
+diskutil list                   # List all disks and partitions
+diskutil info /dev/disk0        # Info about a specific disk
+diskutil mountDisk /dev/disk2   # Mount a disk
+diskutil unmountDisk /dev/disk2 # Unmount a disk
+diskutil eject /dev/disk2       # Eject external disk
+diskutil mount /dev/disk2s1     # Mount a specific partition
+diskutil unmount /dev/disk2s1   # Unmount a specific partition
+diskutil verifyVolume /         # Verify boot volume
+diskutil repairVolume /         # Repair boot volume
+diskutil apfs list              # List APFS containers and volumes
+```
+
+### Mounts & Filesystems
+
+```bash
+mount                           # Show all mounted filesystems
+mount | grep -i "disk"          # Show disk mounts
+mount_smbfs //user@server/share /mnt  # Mount SMB share
+umount /mnt/point               # Unmount a filesystem
+hdiutil attach disk-image.dmg   # Mount a DMG image
+hdiutil detach /dev/disk2       # Unmount a DMG image
+hdiutil create -size 1g -fs APFS -volname "MyDisk" my.dmg  # Create DMG
+```
+
+---
+
+## Compression & Archives
+
+### Common Commands
+
+```bash
+# ZIP
+zip archive.zip file1 file2     # Create zip archive
+zip -r archive.zip directory/   # Zip a directory recursively
+unzip archive.zip               # Extract zip
+unzip -l archive.zip            # List contents without extracting
+
+# TAR
+tar -czf archive.tar.gz dir/    # Create gzipped tarball
+tar -cjf archive.tar.bz2 dir/  # Create bzip2 tarball
+tar -xzf archive.tar.gz        # Extract gzipped tarball
+tar -xjf archive.tar.bz2       # Extract bzip2 tarball
+tar -tf archive.tar.gz          # List contents of tarball
+tar -xzf archive.tar.gz -C /dest/  # Extract to specific directory
+
+# GZIP
+gzip file.txt                   # Compress (replaces original)
+gzip -k file.txt                # Compress (keep original)
+gunzip file.txt.gz              # Decompress
+```
+
+---
+
+## User & Permissions Management
+
+### User Information
+
+```bash
+whoami                          # Current username
+id                              # User ID, group ID, groups
+id -un                          # Username only
+groups                          # List groups for current user
+dscl . list /Users              # List all local users
+dscl . list /Groups             # List all local groups
+dscl . read /Users/username     # User details
+finger username                 # User info
+```
+
+### Sudo & Privileges
+
+```bash
+sudo command                    # Run command as root
+sudo -s                         # Open root shell
+sudo -u user command            # Run command as another user
+sudo !!                         # Re-run last command with sudo
+visudo                          # Edit sudoers file safely
+```
+
+---
+
+## macOS-Specific Commands
+
+### System Preferences & Defaults
+
+```bash
+# Show hidden files in Finder
+defaults write com.apple.finder AppleShowAllFiles -bool true
+killall Finder
+
+# Hide hidden files again
+defaults write com.apple.finder AppleShowAllFiles -bool false
+killall Finder
+
+# Show full path in Finder title bar
+defaults write com.apple.finder _FNDShowPathbar -bool true
+
+# Screenshot location
+defaults write com.apple.screencapture location ~/Desktop/Screenshots
+killall SystemUIServer
+
+# Screenshot format (png, jpg, pdf, tiff)
+defaults write com.apple.screencapture type png
+
+# Disable screenshot shadow
+defaults write com.apple.screencapture disable-shadow -bool true
+
+# Show all file extensions
+defaults write NSGlobalDomain AppleShowAllExtensions -bool true
+
+# Disable auto-correct
+defaults write NSGlobalDomain NSAutomaticSpellingCorrectionEnabled -bool false
+
+# Key repeat speed (lower = faster)
+defaults write NSGlobalDomain KeyRepeat -int 2
+defaults write NSGlobalDomain InitialKeyRepeat -int 15
+
+# Read current default
+defaults read com.apple.finder AppleShowAllFiles
+```
+
+### Open Command
+
+```bash
+open .                          # Open current directory in Finder
+open file.txt                   # Open file with default app
+open -a "Safari" https://url    # Open URL in Safari
+open -a "Visual Studio Code" .  # Open current dir in VS Code
+open -R file.txt                # Reveal file in Finder
+open /Applications/             # Open Applications folder
+open -e file.txt                # Open in TextEdit
+```
+
+### Screenshots
+
+```bash
+screencapture screen.png                # Full screen capture
+screencapture -i region.png             # Interactive region capture
+screencapture -w window.png             # Capture specific window
+screencapture -c                        # Capture to clipboard
+screencapture -T 5 delayed.png          # Capture after 5-second delay
+screencapture -x silent.png             # Capture without sound
+```
+
+### Clipboard
+
+```bash
+echo "text" | pbcopy            # Copy text to clipboard
+pbpaste                         # Paste from clipboard
+pbpaste > file.txt              # Paste clipboard to file
+cat file.txt | pbcopy           # Copy file contents to clipboard
+pbpaste | sort | pbcopy         # Sort clipboard contents
+```
+
+### Say (Text to Speech)
+
+```bash
+say "Hello World"               # Read text aloud
+say -f file.txt                 # Read file aloud
+say -v ?                        # List available voices
+say -v Samantha "Hello"         # Use specific voice
+say -o output.aiff "Hello"     # Save speech to audio file
+```
+
+### System Control
+
+```bash
+sudo shutdown -h now            # Shutdown immediately
+sudo shutdown -h +30            # Shutdown in 30 minutes
+sudo shutdown -r now            # Restart immediately
+sudo reboot                     # Restart
+pmset sleepnow                  # Put Mac to sleep
+caffeinate                      # Prevent sleep (Ctrl+C to stop)
+caffeinate -t 3600              # Prevent sleep for 1 hour
+caffeinate -s                   # Prevent sleep while on AC power
+osascript -e 'tell app "System Events" to log out'  # Log out
+```
+
+### Software Updates
+
+```bash
+softwareupdate -l               # List available updates
+softwareupdate -ia              # Install all available updates
+softwareupdate -ir              # Install recommended updates
+softwareupdate --history        # Show update history
+```
+
+### Spotlight
+
+```bash
+mdutil -s /                     # Check Spotlight indexing status
+mdutil -i on /                  # Enable Spotlight indexing
+mdutil -i off /                 # Disable Spotlight indexing
+mdutil -E /                     # Erase and rebuild index
+mdfind "search term"            # Search via Spotlight
+mdfind -name "filename"         # Search files by name
+```
+
+### Security & Privacy
+
+```bash
+# System Integrity Protection (SIP)
+csrutil status                  # Check SIP status
+# To enable/disable SIP, boot into Recovery Mode (Cmd+R)
+
+# Gatekeeper
+spctl --status                  # Check Gatekeeper status
+sudo spctl --master-disable     # Disable Gatekeeper
+sudo spctl --master-enable      # Enable Gatekeeper
+
+# Keychain
+security find-generic-password -a "account" -s "service"  # Find password
+security list-keychains         # List keychains
+
+# FileVault (disk encryption)
+fdesetup status                 # Check FileVault status
+sudo fdesetup enable            # Enable FileVault
+```
+
+---
+
+## Git Quick Reference
+
+### Basic Commands
+
+```bash
+git init                        # Initialize repository
+git clone url                   # Clone repository
+git status                      # Check status
+git add .                       # Stage all changes
+git add file.txt                # Stage specific file
+git commit -m "message"         # Commit with message
+git push                        # Push to remote
+git pull                        # Pull from remote
+```
+
+### Branching
+
+```bash
+git branch                      # List branches
+git branch new-branch           # Create branch
+git checkout branch-name        # Switch branch
+git checkout -b new-branch      # Create and switch
+git merge branch-name           # Merge branch
+git branch -d branch-name       # Delete branch
+```
+
+### Useful Git Commands
+
+```bash
+git log --oneline               # Compact log
+git log --graph --oneline       # Visual branch log
+git diff                        # Show unstaged changes
+git stash                       # Stash changes
+git stash pop                   # Apply stashed changes
+git remote -v                   # Show remotes
+git reset --hard HEAD           # Discard all changes
+```
+
+---
+
+## Cron & Scheduling
+
+### Crontab
+
+```bash
+crontab -l                      # List cron jobs
+crontab -e                      # Edit cron jobs
+crontab -r                      # Remove all cron jobs
+```
+
+### Cron Syntax
+
+```bash
+# ┌───────── minute (0 - 59)
+# │ ┌─────── hour (0 - 23)
+# │ │ ┌───── day of month (1 - 31)
+# │ │ │ ┌─── month (1 - 12)
+# │ │ │ │ ┌─ day of week (0 - 7, 0 and 7 = Sunday)
+# │ │ │ │ │
+# * * * * * command
+
+# Examples:
+0 * * * *     command           # Every hour
+*/15 * * * *  command           # Every 15 minutes
+0 9 * * 1-5  command            # Weekdays at 9 AM
+0 0 * * *    command            # Daily at midnight
+0 0 1 * *   command             # First of every month
+@reboot      command            # At startup
+```
+
+---
+
+## Useful One-Liners
+
+### File Operations
+
+```bash
+# Find and delete .DS_Store files
+find . -name ".DS_Store" -delete
+
+# Find large files (>100MB)
+find / -type f -size +100M 2>/dev/null
+
+# Count files in directory
+find . -type f | wc -l
+
+# Compare two directories
+diff -rq dir1/ dir2/
+
+# Generate a file checksum
+shasum -a 256 file.txt
+md5 file.txt
+```
+
+### System Maintenance
+
+```bash
+# Free up disk space
+brew cleanup && rm -rf ~/Library/Caches/*
+
+# Show top 20 largest files
+find / -type f -exec du -h {} + 2>/dev/null | sort -rh | head -20
+
+# List all listening ports with process names
+sudo lsof -iTCP -sTCP:LISTEN -n -P
+
+# Kill process on a specific port
+lsof -ti :3000 | xargs kill -9
+
+# Watch a command run every 2 seconds
+watch -n 2 'kubectl get pods'   # (install via brew)
+```
+
+### Text & Data
+
+```bash
+# Count lines in all .py files
+find . -name "*.py" -exec cat {} + | wc -l
+
+# Remove duplicate lines from a file
+sort file.txt | uniq > cleaned.txt
+
+# Generate a random password
+openssl rand -base64 24
+
+# Generate UUID
+uuidgen
+
+# Encode/decode base64
+echo "text" | base64             # Encode
+echo "dGV4dAo=" | base64 -d     # Decode
+
+# JSON pretty print
+cat file.json | python3 -m json.tool
+echo '{"key":"val"}' | jq .     # Using jq (install via brew)
+```
+
+---
+
+## Common Shortnames & Aliases
+
+| Abbreviation | Full Form |
+|---|---|
+| `~` | Home directory (`/Users/username`) |
+| `.` | Current directory |
+| `..` | Parent directory |
+| `-` | Previous directory (for `cd`) |
+| `/` | Root directory |
+| `*` | Wildcard (matches any characters) |
+| `?` | Wildcard (matches single character) |
+| `>` | Redirect output (overwrite) |
+| `>>` | Redirect output (append) |
+| `|` | Pipe output to another command |
+| `&` | Run command in background |
+| `&&` | Run next command if previous succeeds |
+| `||` | Run next command if previous fails |
+| `;` | Run next command regardless |
+| `!!` | Repeat last command |
+| `!$` | Last argument of previous command |
