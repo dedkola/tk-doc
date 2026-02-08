@@ -1,0 +1,639 @@
+---
+title: Ansible CLI Handbook
+description: Quick reference for essential Ansible commands — ad-hoc tasks, playbooks, inventory, vault, galaxy, configuration, debugging, and more.
+tags: [ansible, automation, devops, cheat-sheet, configuration-management, infrastructure]
+keywords: [ansible commands, ansible cheat sheet, ansible cli reference, ansible quick reference, ansible playbook, ansible-vault, ansible-galaxy]
+publishedAt: 2026-02-08
+---
+
+# Ansible CLI Handbook
+
+A practical quick-reference for the most commonly used Ansible commands, organized by category for fast lookup. Based on the official Ansible documentation.
+
+---
+
+## Installation & Setup
+
+### Install Ansible
+
+```bash
+# macOS (Homebrew)
+brew install ansible
+
+# Ubuntu / Debian (apt)
+sudo apt update && sudo apt install -y ansible
+
+# Fedora / RHEL (dnf)
+sudo dnf install -y ansible
+
+# Python (pip — universal)
+pip install ansible
+
+# Verify installation
+ansible --version
+```
+
+### Shell Autocomplete
+
+```bash
+# Bash — install argcomplete
+pip install argcomplete
+
+# Activate globally (requires root)
+activate-global-python-argcomplete
+
+# Or activate per session
+eval "$(register-python-argcomplete ansible)"
+eval "$(register-python-argcomplete ansible-playbook)"
+eval "$(register-python-argcomplete ansible-galaxy)"
+```
+
+### Useful Aliases
+
+```bash
+alias ap='ansible-playbook'
+alias av='ansible-vault'
+alias ag='ansible-galaxy'
+alias ai='ansible-inventory'
+alias ad='ansible-doc'
+```
+
+---
+
+## Important Paths & Config Files
+
+### Configuration File Lookup Order
+
+Ansible searches for its configuration file in the following order (first found wins):
+
+```bash
+$ANSIBLE_CONFIG                 # 1. Environment variable (highest priority)
+./ansible.cfg                   # 2. Current directory
+~/.ansible.cfg                  # 3. Home directory (hidden file)
+/etc/ansible/ansible.cfg        # 4. System-wide default (lowest priority)
+```
+
+### Key Directories & Files
+
+```bash
+/etc/ansible/                   # Default Ansible config directory
+/etc/ansible/ansible.cfg        # System-wide config file
+/etc/ansible/hosts              # Default inventory file
+/etc/ansible/roles/             # System-wide roles directory
+
+~/.ansible/                     # User Ansible data directory
+~/.ansible.cfg                  # User config file
+~/.ansible/galaxy_token         # Galaxy API token
+~/.ansible/tmp/                 # Temporary files
+~/.ansible/cp/                  # SSH connection persistence (ControlPath)
+~/.ansible/collections/         # User-installed collections
+~/.ansible/roles/               # User-installed roles
+```
+
+### Log Files
+
+```bash
+# Logging is disabled by default. Enable in ansible.cfg:
+# [defaults]
+# log_path = /var/log/ansible.log
+
+/var/log/ansible.log            # Common log location (if configured)
+~/.ansible/ansible.log          # Alternative user-level log location
+```
+
+### Environment Variables
+
+```bash
+ANSIBLE_CONFIG=/path/to/ansible.cfg       # Override config file location
+ANSIBLE_INVENTORY=/path/to/hosts          # Override default inventory
+ANSIBLE_ROLES_PATH=/path/to/roles         # Override roles search path
+ANSIBLE_COLLECTIONS_PATH=/path/to/colls   # Override collections search path
+ANSIBLE_LOG_PATH=/var/log/ansible.log     # Enable and set log file path
+ANSIBLE_VAULT_PASSWORD_FILE=~/.vault_pass # Auto-use vault password file
+ANSIBLE_HOST_KEY_CHECKING=False           # Disable SSH host key checking
+ANSIBLE_REMOTE_USER=deploy               # Default remote user
+ANSIBLE_BECOME=True                       # Always use privilege escalation
+ANSIBLE_BECOME_METHOD=sudo               # Default become method
+ANSIBLE_FORKS=20                          # Number of parallel processes
+ANSIBLE_TIMEOUT=30                        # SSH connection timeout
+```
+
+---
+
+## Inventory Management
+
+### Inventory Basics
+
+```bash
+ansible-inventory --list                        # Show full inventory as JSON
+ansible-inventory --list -y                     # Show full inventory as YAML
+ansible-inventory --graph                       # Show inventory tree/graph
+ansible-inventory --graph --vars                # Graph with variables
+ansible-inventory --host myserver               # Show variables for a specific host
+ansible-inventory -i custom_hosts --list        # Use custom inventory file
+```
+
+### Inventory File Formats
+
+```ini
+# INI format — /etc/ansible/hosts or inventory.ini
+[webservers]
+web1.example.com
+web2.example.com ansible_port=2222
+
+[dbservers]
+db1.example.com ansible_user=admin
+db2.example.com
+
+[all:vars]
+ansible_user=deploy
+ansible_python_interpreter=/usr/bin/python3
+
+[webservers:vars]
+http_port=80
+```
+
+```yaml
+# YAML format — inventory.yml
+all:
+  hosts:
+    mail.example.com:
+  children:
+    webservers:
+      hosts:
+        web1.example.com:
+        web2.example.com:
+          ansible_port: 2222
+    dbservers:
+      hosts:
+        db1.example.com:
+          ansible_user: admin
+```
+
+### Host Patterns
+
+```bash
+ansible all -m ping                    # All hosts
+ansible webservers -m ping             # Specific group
+ansible web1.example.com -m ping       # Single host
+ansible 'webservers:dbservers' -m ping # Multiple groups (union)
+ansible 'webservers:&staging' -m ping  # Intersection
+ansible 'webservers:!db1' -m ping      # Exclusion
+ansible '*.example.com' -m ping        # Wildcard
+ansible 'webservers[0]' -m ping        # First host in group
+ansible 'webservers[0:2]' -m ping      # Range of hosts
+```
+
+---
+
+## Ad-Hoc Commands
+
+### Syntax
+
+```bash
+ansible <host-pattern> -m <module> -a "<arguments>" [options]
+```
+
+### Connectivity & Info
+
+```bash
+ansible all -m ping                             # Test connectivity to all hosts
+ansible all -m setup                            # Gather all facts from hosts
+ansible all -m setup -a "filter=ansible_os_family"  # Filter specific facts
+ansible all --list-hosts                        # List matched hosts
+ansible all -m debug -a "msg={{ inventory_hostname }}"  # Show hostname
+```
+
+### Command Execution
+
+```bash
+ansible all -m command -a "uptime"              # Run command (default module)
+ansible all -a "uptime"                         # Same — command is default
+ansible all -m shell -a "echo $HOME"            # Shell module (supports pipes, env vars)
+ansible all -m raw -a "uptime"                  # Raw command (no Python required)
+ansible all -m script -a "/tmp/myscript.sh"     # Run local script on remote hosts
+```
+
+### File Operations
+
+```bash
+# Copy file to remote hosts
+ansible all -m copy -a "src=/local/file.txt dest=/remote/file.txt mode=0644"
+
+# Fetch file from remote hosts to local
+ansible all -m fetch -a "src=/remote/file.txt dest=/local/ flat=yes"
+
+# Create a directory
+ansible all -m file -a "path=/tmp/mydir state=directory mode=0755"
+
+# Create a symlink
+ansible all -m file -a "src=/file.conf dest=/etc/file.conf state=link"
+
+# Delete a file
+ansible all -m file -a "path=/tmp/oldfile state=absent"
+
+# Change file ownership
+ansible all -m file -a "path=/tmp/file owner=www-data group=www-data mode=0644"
+```
+
+### Package Management
+
+```bash
+# APT (Debian/Ubuntu)
+ansible all -m apt -a "name=nginx state=present" -b
+ansible all -m apt -a "name=nginx state=latest" -b
+ansible all -m apt -a "name=nginx state=absent" -b
+ansible all -m apt -a "update_cache=yes" -b
+
+# YUM / DNF (RHEL/Fedora)
+ansible all -m yum -a "name=httpd state=present" -b
+ansible all -m dnf -a "name=httpd state=latest" -b
+```
+
+### Service Management
+
+```bash
+ansible all -m service -a "name=nginx state=started" -b
+ansible all -m service -a "name=nginx state=stopped" -b
+ansible all -m service -a "name=nginx state=restarted" -b
+ansible all -m service -a "name=nginx enabled=yes" -b
+
+# Systemd-specific
+ansible all -m systemd -a "name=nginx state=reloaded daemon_reload=yes" -b
+```
+
+### User & Group Management
+
+```bash
+# Create a user
+ansible all -m user -a "name=deploy shell=/bin/bash create_home=yes" -b
+
+# Add user to groups
+ansible all -m user -a "name=deploy groups=sudo append=yes" -b
+
+# Remove a user
+ansible all -m user -a "name=olduser state=absent remove=yes" -b
+
+# Create a group
+ansible all -m group -a "name=developers state=present" -b
+```
+
+### Cron Jobs
+
+```bash
+# Create a cron job
+ansible all -m cron -a "name='daily backup' hour=2 minute=0 job='/opt/backup.sh'" -b
+
+# Remove a cron job
+ansible all -m cron -a "name='daily backup' state=absent" -b
+```
+
+---
+
+## Common Ad-Hoc Flags
+
+```bash
+-i INVENTORY          # Specify inventory file or path
+-m MODULE             # Module to run (default: command)
+-a "ARGS"             # Module arguments
+-b, --become          # Run with privilege escalation (sudo)
+-K, --ask-become-pass # Prompt for sudo password
+-k, --ask-pass        # Prompt for SSH password
+-u USER               # Remote user
+-f FORKS              # Number of parallel processes (default: 5)
+-v, -vv, -vvv, -vvvv  # Increasing verbosity levels
+--limit HOST          # Restrict to specific host(s)
+-e "key=value"        # Extra variables
+-C, --check           # Dry run (no changes)
+-D, --diff            # Show file diffs
+--private-key FILE    # SSH private key file
+-t TAGS               # Run only tagged tasks
+--skip-tags TAGS      # Skip tagged tasks
+```
+
+---
+
+## Playbook Execution
+
+### Running Playbooks
+
+```bash
+ansible-playbook playbook.yml                           # Run a playbook
+ansible-playbook playbook.yml -i inventory.yml          # With custom inventory
+ansible-playbook playbook.yml -i staging -i production  # Multiple inventories
+ansible-playbook playbook.yml -l webservers             # Limit to group/host
+ansible-playbook playbook.yml -b                        # With sudo
+ansible-playbook playbook.yml -b -K                     # With sudo, prompt password
+ansible-playbook playbook.yml -u deploy                 # As specific user
+ansible-playbook playbook.yml -e "env=staging version=2.1"  # Extra variables
+ansible-playbook playbook.yml -e @vars.yml              # Extra variables from file
+```
+
+### Execution Control
+
+```bash
+ansible-playbook playbook.yml -C                        # Dry run (check mode)
+ansible-playbook playbook.yml -D                        # Show diffs for file changes
+ansible-playbook playbook.yml -C -D                     # Dry run with diffs
+ansible-playbook playbook.yml --step                    # Step through tasks one by one
+ansible-playbook playbook.yml --start-at-task="Install nginx"  # Start at specific task
+ansible-playbook playbook.yml -t deploy                 # Run only tagged tasks
+ansible-playbook playbook.yml --skip-tags tests         # Skip tagged tasks
+ansible-playbook playbook.yml -f 20                     # Run with 20 forks
+```
+
+### Syntax & Debugging
+
+```bash
+ansible-playbook playbook.yml --syntax-check            # Validate playbook syntax
+ansible-playbook playbook.yml --list-tasks              # List all tasks
+ansible-playbook playbook.yml --list-hosts              # List targeted hosts
+ansible-playbook playbook.yml --list-tags               # List all tags
+ansible-playbook playbook.yml -v                        # Verbose output
+ansible-playbook playbook.yml -vvv                      # Very verbose (connection debug)
+ansible-playbook playbook.yml -vvvv                     # Max verbosity (includes SSH)
+```
+
+---
+
+## Ansible Vault (Secrets Management)
+
+### Managing Encrypted Files
+
+```bash
+ansible-vault create secrets.yml                # Create new encrypted file
+ansible-vault edit secrets.yml                  # Edit encrypted file in-place
+ansible-vault view secrets.yml                  # View encrypted file contents
+ansible-vault encrypt existing.yml              # Encrypt an existing file
+ansible-vault decrypt secrets.yml               # Decrypt a file permanently
+ansible-vault rekey secrets.yml                 # Change encryption password
+```
+
+### Encrypting Strings
+
+```bash
+# Encrypt a single variable value
+ansible-vault encrypt_string 'SuperSecret123' --name 'db_password'
+
+# Encrypt from stdin
+echo -n 'SuperSecret123' | ansible-vault encrypt_string --stdin-name 'db_password'
+```
+
+### Using Vault with Playbooks
+
+```bash
+# Prompt for vault password
+ansible-playbook playbook.yml --ask-vault-pass
+
+# Use vault password file
+ansible-playbook playbook.yml --vault-password-file ~/.vault_pass
+
+# Use vault ID (multiple vaults)
+ansible-playbook playbook.yml --vault-id dev@~/.vault_pass_dev
+ansible-playbook playbook.yml --vault-id prod@prompt
+```
+
+---
+
+## Ansible Galaxy (Roles & Collections)
+
+### Roles
+
+```bash
+ansible-galaxy role init my_role                 # Create role skeleton
+ansible-galaxy role install geerlingguy.nginx     # Install role from Galaxy
+ansible-galaxy role install -r requirements.yml   # Install roles from file
+ansible-galaxy role list                          # List installed roles
+ansible-galaxy role search elasticsearch          # Search for roles
+ansible-galaxy role search elasticsearch --author geerlingguy  # Search by author
+ansible-galaxy role remove geerlingguy.nginx      # Remove installed role
+ansible-galaxy role info geerlingguy.nginx        # Show role info
+```
+
+### Collections
+
+```bash
+ansible-galaxy collection init mynamespace.mycollection   # Create collection skeleton
+ansible-galaxy collection build                            # Build a collection tarball
+ansible-galaxy collection install community.general        # Install a collection
+ansible-galaxy collection install -r requirements.yml      # Install from requirements
+ansible-galaxy collection list                             # List installed collections
+ansible-galaxy collection verify community.general         # Verify collection integrity
+ansible-galaxy collection download community.general -p ./downloads  # Download for offline install
+```
+
+### Requirements File
+
+```yaml
+# requirements.yml — define roles and collections to install
+roles:
+  - name: geerlingguy.nginx
+    version: "3.2.0"
+  - name: geerlingguy.docker
+  - src: https://github.com/user/custom-role.git
+    name: custom-role
+
+collections:
+  - name: community.general
+    version: ">=5.0.0"
+  - name: ansible.posix
+```
+
+```bash
+# Install all from requirements file
+ansible-galaxy install -r requirements.yml
+ansible-galaxy collection install -r requirements.yml
+```
+
+---
+
+## Module Documentation
+
+### Browse Module Docs
+
+```bash
+ansible-doc -l                                  # List all available modules
+ansible-doc -l | grep aws                       # Search module names
+ansible-doc copy                                # Show full docs for a module
+ansible-doc -s copy                             # Show snippet/example for a module
+ansible-doc -t connection -l                    # List connection plugins
+ansible-doc -t callback -l                      # List callback plugins
+ansible-doc -t inventory -l                     # List inventory plugins
+ansible-doc -t lookup -l                        # List lookup plugins
+```
+
+---
+
+## Configuration Management
+
+### View & Manage Config
+
+```bash
+ansible-config view                             # Show current ansible.cfg contents
+ansible-config dump                             # Dump all resolved settings (with sources)
+ansible-config dump --only-changed              # Show only non-default settings
+ansible-config list                             # List all configurable settings with descriptions
+ansible-config init --disabled > ansible.cfg    # Generate sample config with all options commented
+ansible-config init --disabled -t all > ansible.cfg  # Include plugin-level settings
+```
+
+### Common ansible.cfg Settings
+
+```ini
+[defaults]
+inventory = ./inventory
+remote_user = deploy
+private_key_file = ~/.ssh/id_ed25519
+host_key_checking = False
+retry_files_enabled = False
+forks = 20
+timeout = 30
+log_path = /var/log/ansible.log
+roles_path = ./roles:/etc/ansible/roles
+collections_path = ./collections
+stdout_callback = yaml
+callbacks_enabled = timer, profile_tasks
+interpreter_python = auto_silent
+
+[privilege_escalation]
+become = True
+become_method = sudo
+become_user = root
+become_ask_pass = False
+
+[ssh_connection]
+ssh_args = -o ControlMaster=auto -o ControlPersist=60s
+pipelining = True
+control_path_dir = ~/.ansible/cp
+
+[inventory]
+enable_plugins = host_list, script, auto, yaml, ini, toml
+```
+
+---
+
+## Debugging & Troubleshooting
+
+### Connectivity Testing
+
+```bash
+ansible all -m ping                             # Basic SSH + Python check
+ansible all -m ping -vvvv                       # Debug connection issues
+ansible all -m raw -a "hostname"                # Test without Python on remote
+ansible all -m setup -a "filter=ansible_distribution"  # Check remote OS info
+```
+
+### Common Debug Commands
+
+```bash
+# Check which hosts match a pattern
+ansible webservers --list-hosts
+
+# Test playbook without making changes
+ansible-playbook playbook.yml -C -D
+
+# Run with maximum verbosity
+ansible-playbook playbook.yml -vvvv
+
+# Check playbook syntax
+ansible-playbook playbook.yml --syntax-check
+
+# Show facts for a host
+ansible myhost -m setup
+ansible myhost -m setup -a "filter=ansible_memory_mb"
+ansible myhost -m setup --tree /tmp/facts/      # Save facts to files
+```
+
+### Troubleshooting Checklist
+
+```bash
+# SSH connection failing?
+ansible all -m ping -vvvv                       # Check SSH error details
+ssh -o StrictHostKeyChecking=no user@host       # Test SSH manually
+
+# Module not found?
+ansible-doc -l | grep <module_name>             # Verify module exists
+ansible --version                               # Check Ansible version
+
+# Privilege escalation issues?
+ansible all -m command -a "whoami" -b           # Test sudo access
+ansible all -m command -a "sudo -l" -b          # Check sudo permissions
+
+# Slow execution?
+# Enable pipelining in ansible.cfg:
+# [ssh_connection]
+# pipelining = True
+
+# Python not found on remote?
+ansible all -m raw -a "which python3"           # Locate Python
+# Set in inventory: ansible_python_interpreter=/usr/bin/python3
+```
+
+---
+
+## Ansible Pull
+
+```bash
+# Pull and run playbook from a git repository
+ansible-pull -U https://github.com/user/repo.git playbook.yml
+
+# With checkout branch and inventory
+ansible-pull -U https://github.com/user/repo.git -C main -i localhost, playbook.yml
+
+# Run on a schedule via cron
+ansible-pull -U https://github.com/user/repo.git -o -s 60 playbook.yml
+# -o = only run if repo has changed, -s = random sleep before execution
+```
+
+---
+
+## Ansible Console (Interactive REPL)
+
+```bash
+ansible-console all -i inventory.yml            # Start interactive console
+ansible-console webservers -b                   # Console with sudo
+
+# Inside the console:
+# cd webservers                                 # Switch to a group
+# ping                                          # Run ping module
+# command uptime                                # Run command
+# copy src=/tmp/file dest=/tmp/file             # Copy a file
+# shell df -h                                   # Run shell command
+# exit                                          # Quit console
+```
+
+---
+
+## Useful One-Liners
+
+```bash
+# Check disk space on all servers
+ansible all -a "df -h" -b
+
+# Check uptime on all servers
+ansible all -a "uptime"
+
+# Check memory usage
+ansible all -m shell -a "free -m"
+
+# Reboot all webservers
+ansible webservers -m reboot -b
+
+# Kill a process on all hosts
+ansible all -m shell -a "pkill -f my_process" -b
+
+# Check if a service is running
+ansible all -m shell -a "systemctl is-active nginx"
+
+# Gather hostnames of all machines
+ansible all -m command -a "hostname -f"
+
+# Check which hosts are reachable
+ansible all -m ping --one-line
+
+# Deploy SSH key to all hosts
+ansible all -m authorized_key -a "user=deploy key='{{ lookup('file','~/.ssh/id_ed25519.pub') }}'" -b
+
+# Sync a directory
+ansible all -m synchronize -a "src=/local/dir/ dest=/remote/dir/"
+```

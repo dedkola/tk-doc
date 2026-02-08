@@ -1,0 +1,716 @@
+---
+title: Terraform CLI Handbook
+description: Quick reference for essential Terraform commands — init, plan, apply, destroy, state management, workspaces, debugging, backends, and more.
+tags: [terraform, iac, infrastructure, cheat-sheet, devops, hashicorp, hcl]
+keywords: [terraform commands, terraform cheat sheet, terraform cli reference, terraform quick reference, infrastructure as code]
+publishedAt: 2026-02-08
+---
+
+# Terraform CLI Handbook
+
+A practical quick-reference for the most commonly used Terraform CLI commands, organized by category for fast lookup. Based on Terraform v1.x documentation.
+
+---
+
+## Installation & Setup
+
+### Install Terraform
+
+```bash
+# macOS (Homebrew)
+brew tap hashicorp/tap
+brew install hashicorp/tap/terraform
+
+# Linux (apt — Debian/Ubuntu)
+wget -O- https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
+echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
+sudo apt update && sudo apt install terraform
+
+# Linux (yum — RHEL/Fedora)
+sudo yum install -y yum-utils
+sudo yum-config-manager --add-repo https://rpm.releases.hashicorp.com/RHEL/hashicorp.repo
+sudo yum install terraform
+
+# Verify installation
+terraform -version
+```
+
+### Enable Autocomplete
+
+```bash
+# Install autocomplete (bash/zsh)
+terraform -install-autocomplete
+
+# Restart shell or source config
+source ~/.bashrc    # Bash
+source ~/.zshrc     # Zsh
+```
+
+### Useful Aliases
+
+```bash
+alias tf=terraform
+alias tfi='terraform init'
+alias tfp='terraform plan'
+alias tfa='terraform apply'
+alias tfd='terraform destroy'
+alias tff='terraform fmt'
+alias tfv='terraform validate'
+alias tfs='terraform state list'
+alias tfw='terraform workspace list'
+```
+
+---
+
+## Important Paths & Config Files
+
+### Project Structure
+
+```bash
+project/
+├── main.tf                 # Primary resource definitions
+├── variables.tf            # Input variable declarations
+├── outputs.tf              # Output value definitions
+├── providers.tf            # Provider configuration
+├── terraform.tfvars        # Variable values (auto-loaded)
+├── terraform.tfvars.json   # Variable values in JSON (auto-loaded)
+├── *.auto.tfvars           # Additional auto-loaded variable files
+├── backend.tf              # Backend configuration (state storage)
+├── versions.tf             # Required provider/terraform versions
+├── locals.tf               # Local values
+├── data.tf                 # Data source definitions
+└── modules/                # Local module directory
+    └── vpc/
+        ├── main.tf
+        ├── variables.tf
+        └── outputs.tf
+```
+
+### Generated Files & Directories
+
+```bash
+.terraform/                 # Working directory (providers, modules, plugins)
+.terraform/providers/       # Downloaded provider plugins
+.terraform/modules/         # Downloaded modules
+.terraform.lock.hcl         # Dependency lock file (commit to VCS)
+terraform.tfstate           # Local state file (DO NOT commit if using remote backend)
+terraform.tfstate.backup    # Previous state backup
+crash.log                   # Crash log (generated on Terraform panic)
+```
+
+### Environment Variables
+
+```bash
+TF_LOG=TRACE                          # Enable debug logging (TRACE, DEBUG, INFO, WARN, ERROR)
+TF_LOG_PATH=./terraform.log           # Write logs to file
+TF_VAR_region="us-west-2"             # Set input variable via env var (TF_VAR_<name>)
+TF_CLI_ARGS="-input=false"            # Default CLI arguments
+TF_CLI_ARGS_plan="-out=tfplan"        # Default arguments for specific subcommand
+TF_DATA_DIR=.terraform                # Set working directory location
+TF_PLUGIN_CACHE_DIR="$HOME/.terraform.d/plugin-cache"  # Plugin cache directory
+TF_IN_AUTOMATION=true                 # Adjust output for CI/CD environments
+TF_INPUT=0                            # Disable interactive prompts
+```
+
+---
+
+## Core Workflow
+
+### Initialize Project
+
+```bash
+terraform init                              # Initialize working directory, download providers
+terraform init -upgrade                     # Upgrade providers/modules to latest allowed versions
+terraform init -reconfigure                 # Reconfigure backend, ignoring saved config
+terraform init -migrate-state               # Migrate state to new backend
+terraform init -backend=false               # Skip backend initialization
+terraform init -backend-config="bucket=my-bucket"          # Partial backend config
+terraform init -backend-config=backend.hcl  # Backend config from file
+terraform init -get=false                   # Skip module downloads
+```
+
+### Format & Validate
+
+```bash
+terraform fmt                               # Auto-format .tf files to canonical style
+terraform fmt -check                        # Check formatting (return non-zero if changes needed)
+terraform fmt -diff                         # Show formatting differences
+terraform fmt -recursive                    # Format files in subdirectories too
+
+terraform validate                          # Check configuration syntax & internal consistency
+terraform validate -json                    # Output validation results as JSON
+```
+
+### Plan Changes
+
+```bash
+terraform plan                              # Preview changes without applying
+terraform plan -out=tfplan                  # Save plan to file for later apply
+terraform plan -var="region=us-west-2"      # Set variable inline
+terraform plan -var-file="prod.tfvars"      # Load variables from file
+terraform plan -target=aws_instance.web     # Plan only specific resource
+terraform plan -destroy                     # Preview what would be destroyed
+terraform plan -refresh-only                # Only refresh state, no changes
+terraform plan -replace=aws_instance.web    # Plan replacement of specific resource
+terraform plan -detailed-exitcode           # Exit 0=no changes, 1=error, 2=changes present
+terraform plan -parallelism=20              # Limit concurrent operations (default: 10)
+terraform plan -compact-warnings            # Show warnings in compact format
+```
+
+### Apply Changes
+
+```bash
+terraform apply                             # Apply changes (interactive approval)
+terraform apply -auto-approve               # Apply without confirmation prompt
+terraform apply tfplan                      # Apply a saved plan file
+terraform apply -var="env=production"       # Set variable inline
+terraform apply -var-file="prod.tfvars"     # Load variables from file
+terraform apply -target=aws_instance.web    # Apply only specific resource
+terraform apply -replace=aws_instance.web   # Force replacement of a resource
+terraform apply -parallelism=20             # Limit concurrent operations
+terraform apply -refresh=false              # Skip state refresh before apply
+terraform apply -lock=false                 # Don't hold state lock during apply
+```
+
+### Destroy Infrastructure
+
+```bash
+terraform destroy                           # Destroy all managed resources
+terraform destroy -auto-approve             # Destroy without confirmation
+terraform destroy -target=aws_instance.web  # Destroy only specific resource
+terraform plan -destroy                     # Preview what will be destroyed
+terraform plan -destroy -out=destroy.tfplan # Save destroy plan
+terraform apply destroy.tfplan              # Apply saved destroy plan
+```
+
+---
+
+## State Management
+
+### Inspect State
+
+```bash
+terraform show                              # Show current state in human-readable format
+terraform show tfplan                       # Show saved plan in human-readable format
+terraform show -json                        # Output state as JSON
+terraform show -json tfplan                 # Output saved plan as JSON
+
+terraform state list                        # List all resources in state
+terraform state list module.vpc             # List resources in a module
+terraform state show aws_instance.web       # Show details of a specific resource
+```
+
+### Modify State
+
+```bash
+terraform state mv aws_instance.old aws_instance.new       # Rename resource in state
+terraform state mv aws_instance.web module.web.aws_instance.main  # Move resource into module
+terraform state mv -state-out=other.tfstate aws_instance.web aws_instance.web  # Move to another state
+
+terraform state rm aws_instance.web         # Remove resource from state (does NOT destroy)
+terraform state rm module.vpc               # Remove entire module from state
+
+terraform state replace-provider hashicorp/aws registry.example.com/aws  # Replace provider in state
+```
+
+### Pull & Push State
+
+```bash
+terraform state pull                        # Download remote state to stdout
+terraform state pull > backup.tfstate       # Backup remote state to file
+terraform state push terraform.tfstate      # Upload local state to remote backend
+terraform state push -force state.tfstate   # Force push (use with extreme caution)
+```
+
+### Import Existing Resources
+
+```bash
+terraform import aws_instance.web i-0abc123def456           # Import existing resource into state
+terraform import module.vpc.aws_vpc.main vpc-0123456789     # Import into a module
+terraform import -var-file="prod.tfvars" aws_instance.web i-0abc123  # Import with variables
+
+# Import block (Terraform 1.5+ — declarative, recommended)
+# Add to .tf file:
+# import {
+#   to = aws_instance.web
+#   id = "i-0abc123def456"
+# }
+# Then run: terraform plan -generate-config-out=generated.tf
+```
+
+### State Locking
+
+```bash
+terraform force-unlock LOCK_ID              # Manually unlock state (use with caution)
+terraform force-unlock -force LOCK_ID       # Force unlock without confirmation
+terraform plan -lock=false                  # Run without state locking
+terraform apply -lock-timeout=5m            # Wait up to 5 minutes for lock
+```
+
+---
+
+## Workspaces
+
+### Manage Workspaces
+
+```bash
+terraform workspace list                    # List all workspaces
+terraform workspace show                    # Show current workspace name
+terraform workspace new staging             # Create and switch to new workspace
+terraform workspace select production       # Switch to existing workspace
+terraform workspace delete staging          # Delete a workspace (must be empty)
+terraform workspace delete -force staging   # Force delete workspace even with resources
+```
+
+### Workspace Usage in Config
+
+```hcl
+# Reference current workspace in configuration
+resource "aws_instance" "web" {
+  tags = {
+    Environment = terraform.workspace
+  }
+}
+
+# Conditional logic based on workspace
+locals {
+  instance_type = terraform.workspace == "production" ? "m5.large" : "t3.micro"
+}
+```
+
+---
+
+## Outputs & Expressions
+
+### View Outputs
+
+```bash
+terraform output                            # Show all outputs
+terraform output -json                      # Show all outputs as JSON
+terraform output instance_ip                # Show specific output
+terraform output -raw instance_ip           # Show raw value (no quotes, useful for scripting)
+```
+
+### Interactive Console
+
+```bash
+terraform console                           # Launch interactive expression console
+
+# Example session:
+# > var.region
+# "us-west-2"
+# > aws_instance.web.public_ip
+# "54.183.22.100"
+# > length(var.availability_zones)
+# 3
+# > cidrsubnet("10.0.0.0/16", 8, 1)
+# "10.0.1.0/24"
+# > exit
+```
+
+---
+
+## Providers
+
+### Manage Providers
+
+```bash
+terraform providers                         # Show providers required by configuration
+terraform providers mirror /path/to/dir     # Mirror providers to local directory
+terraform providers lock                    # Update dependency lock file
+terraform providers lock -platform=linux_amd64 -platform=darwin_amd64  # Lock for specific platforms
+terraform providers schema -json            # Output provider schemas as JSON
+
+terraform version                           # Show Terraform and provider versions
+```
+
+### Provider Configuration
+
+```hcl
+# Require specific provider versions
+terraform {
+  required_version = ">= 1.5.0"
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+    azurerm = {
+      source  = "hashicorp/azurerm"
+      version = ">= 3.0, < 4.0"
+    }
+  }
+}
+
+provider "aws" {
+  region  = var.region
+  profile = var.aws_profile
+}
+```
+
+---
+
+## Backend Configuration
+
+### Local Backend (Default)
+
+```hcl
+terraform {
+  backend "local" {
+    path = "terraform.tfstate"
+  }
+}
+```
+
+### S3 Backend (AWS)
+
+```hcl
+terraform {
+  backend "s3" {
+    bucket         = "my-terraform-state"
+    key            = "production/terraform.tfstate"
+    region         = "us-west-2"
+    encrypt        = true
+    dynamodb_table = "terraform-locks"
+  }
+}
+```
+
+### Consul Backend
+
+```hcl
+terraform {
+  backend "consul" {
+    address = "consul.example.com:8500"
+    scheme  = "https"
+    path    = "terraform/production"
+  }
+}
+```
+
+### Azure Blob Backend
+
+```hcl
+terraform {
+  backend "azurerm" {
+    resource_group_name  = "tfstate-rg"
+    storage_account_name = "tfstate12345"
+    container_name       = "tfstate"
+    key                  = "production.terraform.tfstate"
+  }
+}
+```
+
+### GCS Backend (Google Cloud)
+
+```hcl
+terraform {
+  backend "gcs" {
+    bucket = "my-terraform-state"
+    prefix = "terraform/state"
+  }
+}
+```
+
+---
+
+## Debugging & Troubleshooting
+
+### Enable Logging
+
+```bash
+# Set log level (TRACE, DEBUG, INFO, WARN, ERROR)
+export TF_LOG=DEBUG
+terraform plan
+
+# Write logs to file
+export TF_LOG=TRACE
+export TF_LOG_PATH=./terraform.log
+terraform apply
+
+# Disable logging
+unset TF_LOG
+unset TF_LOG_PATH
+```
+
+### Inspect & Debug
+
+```bash
+terraform graph                             # Generate visual dependency graph (DOT format)
+terraform graph | dot -Tpng > graph.png     # Render graph as PNG (requires graphviz)
+
+terraform state list                        # List all tracked resources
+terraform state show aws_instance.web       # Show resource details from state
+
+terraform refresh                           # Reconcile state with real infrastructure (deprecated, use plan -refresh-only)
+terraform plan -refresh-only                # Detect drift without making changes
+```
+
+### Common Issues
+
+```bash
+# State locked?
+terraform force-unlock LOCK_ID
+
+# Provider version conflict?
+terraform init -upgrade
+
+# Corrupted state?
+terraform state pull > backup.tfstate       # Backup first
+terraform state push fixed.tfstate          # Push corrected state
+
+# Plugin cache issues?
+rm -rf .terraform/                          # Clear providers/modules
+terraform init                              # Re-download everything
+
+# Crash log generated?
+cat crash.log                               # Review crash details
+```
+
+---
+
+## Resource Targeting & Lifecycle
+
+### Target Specific Resources
+
+```bash
+terraform plan -target=aws_instance.web              # Plan for one resource
+terraform plan -target=module.vpc                     # Plan for entire module
+terraform apply -target=aws_instance.web              # Apply only one resource
+terraform destroy -target=aws_instance.web             # Destroy only one resource
+```
+
+### Replace Resources
+
+```bash
+terraform apply -replace=aws_instance.web             # Force recreation (Terraform 1.0+)
+terraform taint aws_instance.web                      # Mark for recreation (deprecated)
+terraform untaint aws_instance.web                    # Unmark for recreation
+```
+
+---
+
+## Variables
+
+### Setting Variables
+
+```bash
+# Command line
+terraform plan -var="region=us-west-2"
+terraform plan -var='tags={"env":"prod","team":"ops"}'
+
+# Variable files
+terraform plan -var-file="production.tfvars"
+terraform plan -var-file="secrets.tfvars"
+
+# Environment variables (prefix with TF_VAR_)
+export TF_VAR_region="us-west-2"
+export TF_VAR_instance_type="t3.micro"
+terraform plan
+```
+
+### Variable Precedence (Lowest → Highest)
+
+| Priority | Source |
+|----------|--------|
+| 1 (lowest) | Default values in `variables.tf` |
+| 2 | `terraform.tfvars` or `terraform.tfvars.json` |
+| 3 | `*.auto.tfvars` or `*.auto.tfvars.json` (alphabetical) |
+| 4 | `-var-file` flag |
+| 5 (highest) | `-var` flag or `TF_VAR_` environment variables |
+
+---
+
+## Modules
+
+### Use Modules
+
+```bash
+terraform get                               # Download modules only (without init)
+terraform get -update                       # Update modules to latest versions
+terraform init                              # Download modules + providers
+```
+
+### Module Sources
+
+```hcl
+# Local path
+module "vpc" {
+  source = "./modules/vpc"
+}
+
+# Terraform Registry
+module "vpc" {
+  source  = "terraform-aws-modules/vpc/aws"
+  version = "5.0.0"
+}
+
+# GitHub
+module "vpc" {
+  source = "github.com/org/repo//modules/vpc?ref=v1.0.0"
+}
+
+# S3 bucket
+module "vpc" {
+  source = "s3::https://bucket.s3.amazonaws.com/modules/vpc.zip"
+}
+```
+
+---
+
+## Terraform Cloud & Login
+
+### Authentication
+
+```bash
+terraform login                             # Authenticate with Terraform Cloud / HCP Terraform
+terraform logout                            # Remove stored credentials
+```
+
+### Cloud Configuration
+
+```hcl
+terraform {
+  cloud {
+    organization = "my-org"
+    workspaces {
+      name = "my-workspace"
+    }
+  }
+}
+```
+
+---
+
+## Testing
+
+### Terraform Test (1.6+)
+
+```bash
+terraform test                              # Run all tests in tests/ directory
+terraform test -filter=tests/vpc.tftest.hcl # Run specific test file
+terraform test -verbose                     # Show detailed test output
+```
+
+### Test File Example
+
+```hcl
+# tests/main.tftest.hcl
+run "verify_instance" {
+  command = plan
+
+  assert {
+    condition     = aws_instance.web.instance_type == "t3.micro"
+    error_message = "Instance type must be t3.micro"
+  }
+}
+
+run "verify_tags" {
+  command = apply
+
+  assert {
+    condition     = aws_instance.web.tags["Environment"] == "production"
+    error_message = "Environment tag must be production"
+  }
+}
+```
+
+---
+
+## Output Formatting
+
+### Common Flags
+
+| Flag | Description |
+|------|-------------|
+| `-json` | Output in JSON format |
+| `-no-color` | Disable colored output |
+| `-input=false` | Disable interactive prompts |
+| `-auto-approve` | Skip approval prompt |
+| `-compact-warnings` | Show warnings in compact form |
+| `-parallelism=N` | Limit concurrent operations (default: 10) |
+| `-lock=false` | Don't hold state lock |
+| `-lock-timeout=Ns` | Wait N seconds for state lock |
+| `-target=RESOURCE` | Target specific resource |
+| `-var="key=value"` | Set variable value |
+| `-var-file=FILE` | Load variable values from file |
+
+---
+
+## HCL Quick Reference
+
+### Common Functions
+
+```hcl
+# String
+upper("hello")                    # "HELLO"
+lower("HELLO")                    # "hello"
+format("Hello, %s!", "world")     # "Hello, world!"
+join(", ", ["a", "b", "c"])       # "a, b, c"
+split(",", "a,b,c")              # ["a", "b", "c"]
+replace("hello", "l", "L")       # "heLLo"
+trimspace("  hello  ")           # "hello"
+
+# Numeric
+min(1, 2, 3)                     # 1
+max(1, 2, 3)                     # 3
+ceil(4.2)                        # 5
+floor(4.8)                       # 4
+
+# Collection
+length(["a", "b", "c"])          # 3
+contains(["a", "b"], "a")        # true
+merge({a=1}, {b=2})              # {a=1, b=2}
+lookup({a=1}, "a", "default")    # 1
+keys({a=1, b=2})                 # ["a", "b"]
+values({a=1, b=2})               # [1, 2]
+flatten([[1,2],[3,4]])           # [1, 2, 3, 4]
+distinct([1, 2, 2, 3])          # [1, 2, 3]
+element(["a","b","c"], 1)        # "b"
+
+# Filesystem
+file("path/to/file")             # Read file contents
+fileexists("path/to/file")       # Check if file exists
+templatefile("tpl.tftpl", {v=1}) # Render template file
+
+# Encoding
+base64encode("hello")            # "aGVsbG8="
+base64decode("aGVsbG8=")         # "hello"
+jsonencode({a = 1})              # '{"a":1}'
+jsondecode('{"a":1}')            # {a = 1}
+yamlencode({a = 1})              # "a: 1\n"
+
+# Network
+cidrsubnet("10.0.0.0/16", 8, 1)  # "10.0.1.0/24"
+cidrhost("10.0.1.0/24", 5)       # "10.0.1.5"
+
+# Type conversion
+tostring(42)                     # "42"
+tonumber("42")                   # 42
+tolist(["a", "b"])               # ["a", "b"]
+toset(["a", "b", "a"])           # ["a", "b"]
+tomap({a = 1})                   # {a = 1}
+```
+
+---
+
+## Common Resource Shortnames
+
+| Provider | Resource | Common Usage |
+|----------|----------|-------------|
+| AWS | `aws_instance` | EC2 instances |
+| AWS | `aws_vpc` | Virtual Private Cloud |
+| AWS | `aws_subnet` | VPC subnets |
+| AWS | `aws_security_group` | Security groups |
+| AWS | `aws_s3_bucket` | S3 storage buckets |
+| AWS | `aws_iam_role` | IAM roles |
+| AWS | `aws_lambda_function` | Lambda functions |
+| AWS | `aws_rds_instance` | RDS databases |
+| Azure | `azurerm_resource_group` | Resource groups |
+| Azure | `azurerm_virtual_network` | Virtual networks |
+| Azure | `azurerm_virtual_machine` | Virtual machines |
+| GCP | `google_compute_instance` | Compute instances |
+| GCP | `google_storage_bucket` | Storage buckets |
+| K8s | `kubernetes_deployment` | K8s deployments |
+| Docker | `docker_container` | Docker containers |

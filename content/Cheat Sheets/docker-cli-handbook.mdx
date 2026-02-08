@@ -1,0 +1,759 @@
+---
+title: Docker CLI Handbook
+description: Quick reference for essential Docker commands — container lifecycle, image management, volumes, networks, Docker Compose, logs, debugging, and more.
+tags: [docker, cli, containers, devops, cheat-sheet, docker-compose]
+keywords: [docker commands, docker cheat sheet, docker cli reference, docker quick reference, container management, docker compose commands]
+publishedAt: 2026-02-08
+---
+
+# Docker CLI Handbook
+
+A practical quick-reference for the most commonly used Docker CLI commands, organized by category for fast lookup. Based on the official Docker documentation.
+
+---
+
+## Installation & Setup
+
+### Install Docker Engine
+
+```bash
+# Ubuntu / Debian
+sudo apt update
+sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+# Fedora
+sudo dnf install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+# macOS (Homebrew cask)
+brew install --cask docker
+
+# Verify installation
+docker --version
+docker compose version
+```
+
+### Post-Install (Linux — Run Docker Without sudo)
+
+```bash
+sudo groupadd docker
+sudo usermod -aG docker $USER
+newgrp docker                        # Apply group membership without logout
+docker run hello-world               # Test without sudo
+```
+
+### Shell Autocomplete
+
+```bash
+# Bash
+mkdir -p ~/.local/share/bash-completion/completions
+docker completion bash > ~/.local/share/bash-completion/completions/docker
+
+# Zsh
+mkdir -p ~/.docker/completions
+docker completion zsh > ~/.docker/completions/_docker
+echo 'fpath=(~/.docker/completions $fpath)' >> ~/.zshrc
+echo 'autoload -Uz compinit && compinit' >> ~/.zshrc
+
+# Fish
+mkdir -p ~/.config/fish/completions
+docker completion fish > ~/.config/fish/completions/docker.fish
+```
+
+### Useful Aliases
+
+```bash
+alias d=docker
+alias dc='docker compose'
+alias dps='docker ps'
+alias dpsa='docker ps -a'
+alias di='docker images'
+alias dex='docker exec -it'
+alias dlogs='docker logs -f'
+alias drm='docker rm'
+alias drmi='docker rmi'
+```
+
+---
+
+## Important Paths & Config Files
+
+### Docker Daemon Configuration
+
+#### Linux
+
+```bash
+/etc/docker/daemon.json              # Daemon config (create if missing)
+~/.docker/config.json                # Client config (auth, proxies, plugins)
+~/.docker/                           # Client config directory
+```
+
+#### macOS (Docker Desktop)
+
+```bash
+~/.docker/daemon.json                # Daemon config (also editable via Docker Desktop → Settings → Docker Engine)
+~/.docker/config.json                # Client config (auth, proxies, plugins)
+~/Library/Group Containers/group.com.docker/settings-store.json  # Docker Desktop settings
+~/Library/Containers/com.docker.docker/Data/  # Docker Desktop application data
+```
+
+### Data & Storage Paths
+
+#### Linux
+
+```bash
+/var/lib/docker/                     # Docker root directory (images, containers, volumes)
+/var/lib/docker/containers/          # Container metadata and per-container logs
+/var/lib/docker/image/               # Image layer metadata
+/var/lib/docker/volumes/             # Named volumes data
+/var/lib/docker/overlay2/            # OverlayFS storage driver layers (default)
+/var/lib/docker/network/             # Network configuration files
+/var/lib/docker/buildkit/            # BuildKit build cache
+/var/lib/docker/tmp/                 # Temporary files during builds/pulls
+```
+
+#### macOS (Docker Desktop)
+
+```bash
+# Docker Desktop runs a Linux VM — data is stored inside the VM's virtual disk:
+~/Library/Containers/com.docker.docker/Data/vms/0/data/  # VM virtual disk image
+# Named volumes, images, containers are all inside this VM disk.
+# You access them via Docker CLI, not filesystem paths.
+
+# Docker Desktop disk image location:
+~/Library/Containers/com.docker.docker/Data/vms/0/data/Docker.raw  # Raw disk format (default)
+```
+
+### Log Locations
+
+#### Linux
+
+```bash
+# Container logs (json-file driver — default)
+/var/lib/docker/containers/<container-id>/<container-id>-json.log
+
+# Docker daemon logs
+journalctl -xu docker.service        # systemd (Ubuntu 16.04+, Fedora, RHEL 7+)
+/var/log/syslog                      # Debian / Ubuntu (fallback / non-systemd)
+/var/log/messages                    # RHEL / Fedora / CentOS (fallback / non-systemd)
+```
+
+#### macOS (Docker Desktop)
+
+```bash
+# Docker daemon logs
+~/Library/Containers/com.docker.docker/Data/log/vm/dockerd.log
+
+# Containerd logs
+~/Library/Containers/com.docker.docker/Data/log/vm/containerd.log
+
+# Docker Desktop application logs
+~/Library/Containers/com.docker.docker/Data/log/host/
+
+# Container logs — access via CLI only:
+docker logs <container>              # Container logs live inside the Linux VM
+```
+
+### Environment Variables
+
+```bash
+DOCKER_HOST=tcp://192.168.1.10:2376  # Connect to remote Docker daemon
+DOCKER_HOST=unix:///var/run/docker.sock  # Default socket (Linux)
+DOCKER_HOST=unix://$HOME/.docker/run/docker.sock  # Default socket (macOS Docker Desktop)
+DOCKER_TLS_VERIFY=1                  # Enable TLS verification
+DOCKER_CERT_PATH=~/.docker/certs     # Path to TLS certificates
+DOCKER_CONFIG=~/.docker              # Client config directory
+DOCKER_BUILDKIT=1                    # Enable BuildKit (default in modern Docker)
+COMPOSE_FILE=compose.yaml            # Compose file path
+COMPOSE_PROJECT_NAME=myproject       # Override project name
+```
+
+---
+
+## System & Info
+
+### Docker System Commands
+
+```bash
+docker version                       # Client and server version details
+docker info                          # System-wide information (containers, images, storage)
+docker system df                     # Show disk usage by Docker objects
+docker system df -v                  # Verbose disk usage (per image/container/volume)
+docker system events                 # Real-time events from daemon
+docker system events --since=1h      # Events from the last hour
+docker system prune                  # Remove all unused data (containers, networks, images)
+docker system prune -a               # Also remove unused images (not just dangling)
+docker system prune -a --volumes     # Remove everything including volumes
+```
+
+---
+
+## Container Lifecycle
+
+### Run Containers
+
+```bash
+docker run nginx                                  # Run container (foreground)
+docker run -d nginx                               # Run in detached (background) mode
+docker run -d --name my-nginx nginx               # Run with custom name
+docker run -d -p 8080:80 nginx                    # Map host port 8080 → container port 80
+docker run -d -p 127.0.0.1:8080:80 nginx          # Bind to specific host interface
+docker run -d -P nginx                            # Map all exposed ports to random host ports
+docker run -it ubuntu /bin/bash                   # Interactive shell
+docker run --rm alpine echo "hello"               # Remove container after exit
+docker run -d --restart=unless-stopped nginx       # Restart policy
+docker run -d -e MY_VAR=value nginx               # Set environment variable
+docker run -d --env-file .env nginx               # Load env vars from file
+docker run -d -v mydata:/data nginx               # Mount named volume
+docker run -d -v $(pwd):/app nginx                # Bind mount current directory
+docker run -d --network my-net nginx              # Connect to specific network
+docker run --memory=512m --cpus=1.5 nginx         # Set resource limits
+docker run -d -w /app node:20 npm start           # Set working directory
+docker run -d --user 1000:1000 nginx              # Run as specific user/group
+docker run -d --read-only nginx                   # Read-only root filesystem
+docker run -d --pid=host nginx                    # Share host PID namespace
+```
+
+### List Containers
+
+```bash
+docker ps                            # List running containers
+docker ps -a                         # List all containers (including stopped)
+docker ps -q                         # List only container IDs
+docker ps -aq                        # All container IDs (useful for batch operations)
+docker ps -s                         # Show container sizes
+docker ps -l                         # Show last created container
+docker ps --format "table {{.ID}}\t{{.Names}}\t{{.Status}}\t{{.Ports}}"  # Custom format
+docker ps -f status=exited           # Filter by status
+docker ps -f name=my-app             # Filter by name
+docker ps -f ancestor=nginx          # Filter by image
+docker container ls                  # Same as docker ps
+```
+
+### Start / Stop / Restart
+
+```bash
+docker start my-container            # Start a stopped container
+docker start -ai my-container        # Start and attach with interactive TTY
+docker stop my-container             # Graceful stop (SIGTERM → SIGKILL after 10s)
+docker stop -t 30 my-container       # Custom grace period (30 seconds)
+docker restart my-container          # Restart container
+docker pause my-container            # Pause all processes (freeze)
+docker unpause my-container          # Unpause container
+docker kill my-container             # Force stop (SIGKILL)
+docker kill -s SIGHUP my-container   # Send specific signal
+docker wait my-container             # Block until container stops, print exit code
+```
+
+### Remove Containers
+
+```bash
+docker rm my-container               # Remove a stopped container
+docker rm -f my-container            # Force remove (even if running)
+docker rm -v my-container            # Remove with associated anonymous volumes
+docker rm $(docker ps -aq)           # Remove all stopped containers
+docker rm $(docker ps -aq -f status=exited)  # Remove all exited containers
+docker container prune               # Remove all stopped containers
+docker container prune -f            # Remove without confirmation
+```
+
+### Execute Commands in Running Containers
+
+```bash
+docker exec my-container ls /        # Run command in container
+docker exec -it my-container /bin/sh        # Interactive shell
+docker exec -it my-container /bin/bash      # Interactive bash
+docker exec -it -u root my-container sh     # Exec as root
+docker exec -e MY_VAR=value my-container env  # With environment variable
+docker exec -w /app my-container pwd        # With working directory
+```
+
+### Inspect Containers
+
+```bash
+docker inspect my-container                             # Full container details (JSON)
+docker inspect -f '{{.State.Status}}' my-container      # Get specific field
+docker inspect -f '{{.NetworkSettings.IPAddress}}' my-container   # Get container IP
+docker inspect -f '{{.HostConfig.RestartPolicy.Name}}' my-container  # Get restart policy
+docker inspect -f '{{json .Mounts}}' my-container       # Volume mounts (JSON)
+docker stats                         # Live resource usage (CPU, memory, I/O)
+docker stats --no-stream             # One-time snapshot of stats
+docker stats my-container            # Stats for specific container
+docker top my-container              # Running processes inside container
+docker diff my-container             # Changed files in container filesystem
+docker port my-container             # Show port mappings
+```
+
+### Copy Files
+
+```bash
+docker cp file.txt my-container:/tmp/file.txt   # Host → Container
+docker cp my-container:/tmp/file.txt ./file.txt  # Container → Host
+docker cp my-container:/var/log/ ./logs/         # Copy directory
+```
+
+---
+
+## Image Management
+
+### List & Search Images
+
+```bash
+docker images                        # List local images
+docker images -a                     # Include intermediate images
+docker images -q                     # IDs only
+docker images --digests              # Show digests
+docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}"  # Custom format
+docker images --filter dangling=true           # Show dangling images
+docker images --filter reference=nginx         # Filter by name
+docker search nginx                  # Search Docker Hub
+docker search --limit 5 nginx       # Limit search results
+docker search --filter is-official=true nginx   # Official images only
+```
+
+### Pull & Push Images
+
+```bash
+docker pull nginx                    # Pull latest tag
+docker pull nginx:1.27               # Pull specific tag
+docker pull nginx:1.27@sha256:abc... # Pull by digest
+docker pull --all-tags nginx         # Pull all tags
+docker push myuser/myimage:latest    # Push to registry
+docker push myuser/myimage:v1.0      # Push specific tag
+```
+
+### Build Images
+
+```bash
+docker build -t myapp:latest .                   # Build from Dockerfile in current dir
+docker build -t myapp:v1.0 -f Dockerfile.prod .  # Use specific Dockerfile
+docker build --no-cache -t myapp .               # Build without cache
+docker build --build-arg VERSION=1.0 -t myapp .  # Pass build argument
+docker build --target builder -t myapp .         # Multi-stage: build specific target
+docker build --platform linux/amd64 -t myapp .   # Build for specific platform
+docker buildx build --push -t myuser/myapp .     # Build and push (BuildKit)
+docker buildx build --platform linux/amd64,linux/arm64 -t myuser/myapp --push .  # Multi-arch
+```
+
+### Tag & Remove Images
+
+```bash
+docker tag myapp:latest myuser/myapp:v1.0        # Tag an image
+docker tag myapp:latest registry.example.com/myapp:v1.0  # Tag for private registry
+docker rmi myapp:latest              # Remove an image
+docker rmi $(docker images -q)       # Remove all images
+docker rmi $(docker images -f dangling=true -q)  # Remove dangling images
+docker image prune                   # Remove dangling images
+docker image prune -a                # Remove all unused images
+```
+
+### Save & Load Images (Offline Transfer)
+
+```bash
+docker save -o myapp.tar myapp:latest            # Export image to tar file
+docker save myapp:latest | gzip > myapp.tar.gz   # Export compressed
+docker load -i myapp.tar             # Import image from tar file
+docker load < myapp.tar.gz           # Import compressed
+docker export my-container > container.tar       # Export container filesystem
+docker import container.tar myimage:latest       # Import as image
+```
+
+### Image History & Layers
+
+```bash
+docker history myapp:latest          # Show image layers and commands
+docker history --no-trunc myapp      # Full command output (not truncated)
+docker manifest inspect nginx:latest # Inspect image manifest (multi-arch info)
+```
+
+---
+
+## Volumes
+
+### Manage Volumes
+
+```bash
+docker volume create mydata          # Create a named volume
+docker volume ls                     # List all volumes
+docker volume inspect mydata         # Show volume details (mountpoint, driver)
+docker volume rm mydata              # Remove a volume
+docker volume rm $(docker volume ls -q)  # Remove all volumes
+docker volume prune                  # Remove all unused volumes
+docker volume prune -f               # Remove without confirmation
+```
+
+### Using Volumes with Containers
+
+```bash
+# Named volume
+docker run -d -v mydata:/var/lib/data postgres
+
+# Bind mount (host directory)
+docker run -d -v /host/path:/container/path nginx
+
+# Read-only mount
+docker run -d -v mydata:/data:ro nginx
+
+# tmpfs mount (in-memory, Linux only)
+docker run -d --tmpfs /tmp:rw,size=100m nginx
+
+# Mount syntax (modern — preferred)
+docker run -d --mount source=mydata,target=/data nginx
+docker run -d --mount type=bind,source=$(pwd),target=/app nginx
+docker run -d --mount type=tmpfs,target=/tmp,tmpfs-size=100m nginx
+```
+
+---
+
+## Networks
+
+### Manage Networks
+
+```bash
+docker network create my-net                     # Create bridge network (default driver)
+docker network create --driver bridge my-net      # Explicit bridge driver
+docker network create --driver overlay my-net     # Overlay network (Swarm)
+docker network create --subnet=172.20.0.0/16 my-net  # Custom subnet
+docker network ls                    # List all networks
+docker network inspect my-net        # Show network details
+docker network rm my-net             # Remove a network
+docker network prune                 # Remove all unused networks
+```
+
+### Connect & Disconnect Containers
+
+```bash
+docker network connect my-net my-container       # Add container to network
+docker network disconnect my-net my-container    # Remove container from network
+
+# Run container on specific network
+docker run -d --network my-net --name app1 nginx
+
+# Container DNS — containers on same user-defined network resolve each other by name
+docker run -d --network my-net --name db postgres
+docker run -d --network my-net --name app nginx
+# Inside "app": ping db  → resolves to the db container's IP
+```
+
+### Default Network Drivers
+
+| Driver | Description |
+|--------|-------------|
+| `bridge` | Default. Isolated network on a single host |
+| `host` | Container shares host network (no isolation) |
+| `none` | No networking |
+| `overlay` | Multi-host networking (Docker Swarm) |
+| `macvlan` | Assign MAC address, appear as physical device |
+
+---
+
+## Logs & Debugging
+
+### Container Logs
+
+```bash
+docker logs my-container             # Show all logs (stdout + stderr)
+docker logs -f my-container          # Follow/stream logs
+docker logs --tail 100 my-container  # Last 100 lines
+docker logs --since 1h my-container  # Logs from last hour
+docker logs --since 30m my-container # Logs from last 30 minutes
+docker logs --until 2h my-container  # Logs up to 2 hours ago
+docker logs -t my-container          # Show timestamps
+docker logs --details my-container   # Show extra attributes (log tags)
+docker logs my-container 2>&1 | grep "error"  # Filter logs with grep
+```
+
+### Debugging Containers
+
+```bash
+# Inspect container state
+docker inspect my-container
+docker inspect -f '{{.State.ExitCode}}' my-container    # Check exit code
+docker inspect -f '{{.State.OOMKilled}}' my-container   # Check if OOM killed
+
+# Check events
+docker events                        # Real-time events from daemon
+docker events --filter container=my-container   # Events for specific container
+docker events --filter type=container           # Container events only
+docker events --filter event=die                # Only "die" events
+
+# Resource usage
+docker stats                         # Live CPU, memory, I/O for all containers
+docker top my-container              # Show running processes
+docker diff my-container             # Show filesystem changes
+
+# Debug with temporary container
+docker run --rm -it --network container:my-container nicolaka/netshoot  # Network debugging
+docker run --rm -it --pid container:my-container busybox ps aux         # Process debugging
+```
+
+### Troubleshooting Checklist
+
+```bash
+# Container won't start?
+docker logs my-container             # Check application logs
+docker inspect my-container          # Check State.Error and State.ExitCode
+
+# Container keeps restarting?
+docker inspect -f '{{.RestartCount}}' my-container      # Check restart count
+docker logs --tail 50 my-container                       # Check recent logs
+
+# Can't connect to container?
+docker port my-container             # Verify port mappings
+docker inspect -f '{{.NetworkSettings.IPAddress}}' my-container  # Get container IP
+docker network inspect bridge        # Check network config
+
+# Disk space issues?
+docker system df                     # Check Docker disk usage
+docker system prune -a --volumes     # Clean up everything unused
+
+# Docker daemon issues?
+journalctl -xu docker.service        # Check daemon logs (Linux)
+sudo systemctl status docker         # Check daemon status
+sudo systemctl restart docker        # Restart daemon
+```
+
+---
+
+## Docker Compose
+
+### Basic Commands
+
+```bash
+docker compose up                    # Start all services (foreground)
+docker compose up -d                 # Start in detached mode
+docker compose up -d --build         # Build images before starting
+docker compose up -d --force-recreate  # Recreate containers even if unchanged
+docker compose up -d --no-deps web   # Start specific service without dependencies
+docker compose down                  # Stop and remove containers, networks
+docker compose down -v               # Also remove volumes
+docker compose down --rmi all        # Also remove images
+docker compose stop                  # Stop services (don't remove)
+docker compose start                 # Start stopped services
+docker compose restart               # Restart all services
+docker compose restart web           # Restart specific service
+```
+
+### Build & Images
+
+```bash
+docker compose build                 # Build all services
+docker compose build web             # Build specific service
+docker compose build --no-cache      # Build without cache
+docker compose pull                  # Pull all service images
+docker compose push                  # Push all service images
+```
+
+### Status & Logs
+
+```bash
+docker compose ps                    # List running services
+docker compose ps -a                 # List all services (including stopped)
+docker compose logs                  # View logs from all services
+docker compose logs -f               # Follow logs
+docker compose logs web              # Logs for specific service
+docker compose logs --tail 50 web    # Last 50 lines
+docker compose logs --since 1h       # Logs from last hour
+docker compose top                   # Show running processes
+```
+
+### Execute & Run
+
+```bash
+docker compose exec web sh           # Shell into running service
+docker compose exec web bash         # Bash into running service
+docker compose exec -u root web sh   # Shell as root
+docker compose run web npm test      # Run one-off command in new container
+docker compose run --rm web npm test # Run and remove after
+```
+
+### Scaling & Config
+
+```bash
+docker compose up -d --scale web=3   # Scale service to 3 instances
+docker compose config                # Validate and show resolved config
+docker compose config --services     # List service names
+docker compose config --volumes      # List volume names
+docker compose convert               # Convert compose file to canonical format
+```
+
+### Compose File Reference
+
+```bash
+docker compose -f compose.prod.yaml up -d          # Use specific compose file
+docker compose -f compose.yaml -f compose.override.yaml up -d  # Merge multiple files
+docker compose --env-file .env.prod up -d           # Use specific env file
+docker compose -p myproject up -d                   # Set project name
+```
+
+---
+
+## Docker Registry & Login
+
+### Authentication
+
+```bash
+docker login                         # Login to Docker Hub (interactive)
+docker login -u myuser               # Login with username
+docker login registry.example.com    # Login to private registry
+docker logout                        # Logout from Docker Hub
+docker logout registry.example.com   # Logout from private registry
+```
+
+### Working with Registries
+
+```bash
+# Docker Hub
+docker pull nginx:latest
+docker push myuser/myapp:v1.0
+
+# Private registry
+docker pull registry.example.com/myapp:latest
+docker push registry.example.com/myapp:latest
+
+# Run a local registry
+docker run -d -p 5000:5000 --name registry registry:2
+docker tag myapp localhost:5000/myapp:latest
+docker push localhost:5000/myapp:latest
+```
+
+---
+
+## Dockerfile Quick Reference
+
+### Common Instructions
+
+| Instruction | Description |
+|------------|-------------|
+| `FROM` | Base image |
+| `WORKDIR` | Set working directory |
+| `COPY` | Copy files from host to image |
+| `ADD` | Copy files (supports URLs and tar extraction) |
+| `RUN` | Execute command during build |
+| `CMD` | Default command when container starts |
+| `ENTRYPOINT` | Main executable (CMD becomes arguments) |
+| `ENV` | Set environment variable |
+| `ARG` | Build-time variable |
+| `EXPOSE` | Document which ports the container listens on |
+| `VOLUME` | Create mount point for volumes |
+| `USER` | Set user for subsequent instructions |
+| `LABEL` | Add metadata to image |
+| `HEALTHCHECK` | Define health check command |
+| `.dockerignore` | Exclude files from build context |
+
+### Example Multi-Stage Dockerfile
+
+```dockerfile
+# Build stage
+FROM node:20-alpine AS builder
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+RUN npm run build
+
+# Production stage
+FROM node:20-alpine
+WORKDIR /app
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/node_modules ./node_modules
+EXPOSE 3000
+USER node
+CMD ["node", "dist/index.js"]
+```
+
+---
+
+## Cleanup & Maintenance
+
+### Prune Commands
+
+```bash
+docker container prune               # Remove stopped containers
+docker image prune                   # Remove dangling images
+docker image prune -a                # Remove all unused images
+docker volume prune                  # Remove unused volumes
+docker network prune                 # Remove unused networks
+docker builder prune                 # Remove BuildKit cache
+docker system prune                  # Remove all unused objects
+docker system prune -a --volumes     # Nuclear option — remove everything unused
+```
+
+### Disk Usage
+
+```bash
+docker system df                     # Summary of disk usage
+docker system df -v                  # Detailed disk usage per object
+```
+
+---
+
+## Useful Patterns
+
+### Health Checks
+
+```bash
+# In Dockerfile
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+  CMD curl -f http://localhost/ || exit 1
+
+# In docker run
+docker run -d --health-cmd="curl -f http://localhost/ || exit 1" \
+  --health-interval=30s --health-timeout=5s --health-retries=3 nginx
+
+# Check health status
+docker inspect -f '{{.State.Health.Status}}' my-container
+```
+
+### Resource Limits
+
+```bash
+docker run -d --memory=256m nginx                # Memory limit
+docker run -d --memory=256m --memory-swap=512m nginx  # Memory + swap
+docker run -d --cpus=1.5 nginx                   # CPU limit (1.5 cores)
+docker run -d --cpu-shares=512 nginx             # Relative CPU weight
+docker run -d --pids-limit=100 nginx             # Process count limit
+```
+
+### Restart Policies
+
+| Policy | Description |
+|--------|-------------|
+| `no` | Never restart (default) |
+| `on-failure[:max]` | Restart on non-zero exit code |
+| `always` | Always restart |
+| `unless-stopped` | Always restart unless manually stopped |
+
+```bash
+docker run -d --restart=unless-stopped nginx
+docker update --restart=always my-container      # Update running container
+```
+
+---
+
+## Output Formatting
+
+### Common Format Options
+
+| Flag | Description |
+|------|-------------|
+| `--format "table ..."` | Table with custom columns |
+| `--format "{{json .}}"` | JSON output |
+| `--format "{{.ID}}"` | Specific field |
+| `-q` / `--quiet` | IDs only |
+| `--no-trunc` | Don't truncate output |
+
+### Format Examples
+
+```bash
+# Custom container list
+docker ps --format "table {{.ID}}\t{{.Names}}\t{{.Status}}\t{{.Ports}}"
+
+# Get all container IPs
+docker inspect -f '{{.Name}} - {{.NetworkSettings.IPAddress}}' $(docker ps -q)
+
+# Image sizes sorted
+docker images --format "{{.Repository}}:{{.Tag}} {{.Size}}" | sort -k2 -h
+
+# JSON output for scripting
+docker inspect --format '{{json .Config.Env}}' my-container | jq .
+```
