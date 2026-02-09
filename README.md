@@ -6,11 +6,20 @@
 
 **A modern, high-performance documentation platform built with Next.js 16 and MDX**
 
-[![Next.js](https://img.shields.io/badge/Next.js-16-black)](https://nextjs.org/)
-[![React](https://img.shields.io/badge/React-19-blue)](https://react.dev/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)](https://www.typescriptlang.org/)
-[![Tailwind CSS](https://img.shields.io/badge/Tailwind-4-38bdf8)](https://tailwindcss.com/)
-[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+
+
+
+[![Next.js](https://img.shields.io/badge/Next.js-16.1-black?logo=next.js)](https://nextjs.org/)
+[![React](https://img.shields.io/badge/React-19-61dafb?logo=react&logoColor=white)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178c6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-38bdf8?logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
+[![Docker](https://img.shields.io/badge/Docker-ready-2496ed?logo=docker&logoColor=white)](Dockerfile)
+[![pnpm](https://img.shields.io/badge/pnpm-fast-f69220?logo=pnpm&logoColor=white)](https://pnpm.io/)
+
+[![Website](https://img.shields.io/website?url=https%3A%2F%2Fdoc.tkweb.site&label=demo)](https://doc.tkweb.site)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen?style=flat)](https://github.com/dedkola/tk-docs-template/pulls)
+[![GitHub last commit](https://img.shields.io/github/last-commit/dedkola/tk-docs-template?style=flat&logo=github)](https://github.com/dedkola/tk-docs-template/commits/main)
+[![GitHub license](https://img.shields.io/github/license/dedkola/tk-docs-template?style=flat)](LICENSE)
 
 [Features](#-features) • [Quick Start](#-quick-start) • [Documentation](#-documentation) • [Project Structure](#-project-structure) • [Contributing](#-contributing)
 
@@ -78,8 +87,8 @@ Perfect for technical documentation, API references, knowledge bases, and develo
 1. **Use this template or clone:**
 
    ```bash
-   git clone https://github.com/dedkola/tk-docs.git
-   cd tk-docs
+   git clone https://github.com/dedkola/tk-docs-template.git
+   cd tk-docs-template
    ```
 
 2. **Install dependencies:**
