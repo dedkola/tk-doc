@@ -1,0 +1,302 @@
+---
+title: Flux CD + Next.js — Step-by-Step Integration Guide
+description: step-by-step checklist for adding Flux CD GitOps to any Next.js app, including Dockerization, Kubernetes manifests, CI pipeline, and Flux setup.
+
+tags: [flux, gitops, kubernetes, nextjs, docker, ci-cd]
+---
+
+Checklist for adding Flux CD GitOps to any Next.js app.
+Replace `APP_NAME` with your app name (e.g. `chat2md`, `my-dashboard`).
+Replace `GITHUB_USER` with your GitHub username.
+
+## Phase 1: Prerequisites
+
+- [ ] Kubernetes cluster (k3s or similar) with kubectl access
+- [ ] Flux CLI installed: `brew install fluxcd/tap/flux`
+- [ ] GitHub account with a repo for the app
+- [ ] GitHub PAT or SSH key for Flux to access the repo
+- [ ] Docker installed for local testing
+
+## Phase 2: Dockerize the App
+
+Create `Dockerfile` in the repo root:
+
+```dockerfile title="Dockerfile"
+FROM node:22-alpine AS deps
+WORKDIR /app
+COPY package.json package-lock.json* pnpm-lock.yaml* ./
+RUN corepack enable
+RUN if [ -f pnpm-lock.yaml ]; then pnpm install --frozen-lockfile; \
+    elif [ -f package-lock.json ]; then npm ci; \
+    else npm install; fi
+
+FROM node:22-alpine AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+RUN npm run build
+
+FROM node:22-alpine AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/next.config.ts ./next.config.ts
+COPY --from=builder /app/node_modules ./node_modules
+EXPOSE 3000
+CMD ["npm", "start"]
+```
+
+Test locally:
+
+```bash title="Terminal"
+docker build -t APP_NAME .
+docker run -p 3000:3000 APP_NAME
+```
+
+## Phase 3: Kubernetes Manifests
+
+Create `k8s/` directory with 4 files:
+
+### k8s/deployment.yaml
+
+```yaml title="k8s/deployment.yaml"
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: APP_NAME
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: APP_NAME
+  template:
+    metadata:
+      labels:
+        app: APP_NAME
+    spec:
+      containers:
+        - name: APP_NAME
+          image: ghcr.io/GITHUB_USER/APP_NAME:latest
+          ports:
+            - containerPort: 3000
+```
+
+### k8s/service.yaml
+
+```yaml title="k8s/service.yaml"
+apiVersion: v1
+kind: Service
+metadata:
+  name: APP_NAME
+spec:
+  selector:
+    app: APP_NAME
+  ports:
+    - port: 80
+      targetPort: 3000
+  type: ClusterIP
+```
+
+### k8s/ingress.yaml
+
+```yaml title="k8s/ingress.yaml"
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: APP_NAME
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+spec:
+  rules:
+    - host: APP_NAME.tk.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: APP_NAME
+                port:
+                  number: 80
+```
+
+### k8s/kustomization.yaml
+
+> **CRITICAL:** Flux does nothing without this file!
+
+```yaml title="k8s/kustomization.yaml"
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - deployment.yaml
+  - service.yaml
+  - ingress.yaml
+```
+
+## Phase 4: CI Pipeline (GitHub Actions)
+
+> **Note:** Replace `GITHUB_USER/APP_NAME` in the sed command with actual values (lowercase).
+
+```yaml title=".github/workflows/docker-build.yml"
+name: Build and Push Docker Image
+
+on:
+  push:
+    branches: [main]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,prefix=
+            type=raw,value=latest
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.meta.outputs.tags }}
+
+      - name: Update k8s deployment image tag
+        run: |
+          SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
+          sed -i "s|image: ghcr.io/GITHUB_USER/APP_NAME:.*|image: ghcr.io/GITHUB_USER/APP_NAME:${SHORT_SHA}|" k8s/deployment.yaml
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add k8s/deployment.yaml
+          git commit -m "Update image tag to ${SHORT_SHA}" || echo "No changes"
+          git push
+```
+
+## Phase 5: Flux Setup
+
+### 5A: First-Time Bootstrap (once per cluster)
+
+Run this from your machine with kubectl access:
+
+```bash title="Terminal — Bootstrap Flux"
+flux bootstrap github \
+  --owner=GITHUB_USER \
+  --repository=APP_NAME \
+  --path=clusters/my-cluster \
+  --branch=main \
+  --personal
+```
+
+This creates:
+
+- `clusters/my-cluster/flux-system/gotk-components.yaml`
+- `clusters/my-cluster/flux-system/gotk-sync.yaml`
+
+Then create the cluster-level kustomization:
+
+```yaml title="clusters/my-cluster/kustomization.yaml"
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - flux-system/gotk-components.yaml
+  - flux-system/gotk-sync.yaml
+```
+
+### 5B: Add App to Flux (repeat for each new app)
+
+Create the Flux Kustomization resource for the app:
+
+```yaml title="clusters/my-cluster/flux-system/kustomization-APP_NAME.yaml"
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: APP_NAME
+  namespace: flux-system
+spec:
+  interval: 5m
+  targetNamespace: default
+  path: "./k8s"
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+```
+
+Then register it in the cluster kustomization:
+
+```yaml title="clusters/my-cluster/kustomization.yaml (updated)"
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - flux-system/gotk-components.yaml
+  - flux-system/gotk-sync.yaml
+  - flux-system/kustomization-APP_NAME.yaml
+```
+
+Commit and push to main. Flux picks it up automatically.
+
+## Phase 6: Verification
+
+```bash title="Check git source is connected"
+flux get sources git -A
+```
+
+```bash title="Check kustomizations are reconciling"
+flux get kustomizations -A
+```
+
+```bash title="Check resources are deployed"
+kubectl get deployment,service,ingress
+```
+
+```bash title="Force immediate reconciliation"
+flux reconcile kustomization APP_NAME -n flux-system
+```
+
+## Common Gotchas
+
+| #   | Issue                          | Details                                                             |
+| --- | ------------------------------ | ------------------------------------------------------------------- |
+| 1   | **Missing kustomization.yaml** | Flux silently does nothing without it in each target directory      |
+| 2   | **API version mismatch**       | Use `kustomize.toolkit.fluxcd.io/v1` (not `v1beta1`)                |
+| 3   | **Missing targetNamespace**    | Flux can't apply resources without knowing the namespace            |
+| 4   | **Branch mismatch**            | CI and Flux must watch the same branch (`main`)                     |
+| 5   | **SSH key not configured**     | `flux bootstrap` creates a deploy key; make sure it has repo access |
+
+## Flow Summary
+
+Push code to main
+→ GitHub Actions builds Docker image → pushes to GHCR
+→ CI updates k8s/deployment.yaml with new SHA tag → commits to main
+→ Flux detects new commit → applies k8s manifests to cluster
+→ App is live
