@@ -1,0 +1,397 @@
+---
+title: Prometheus + Grafana Setup on Kubernetes
+description: Step-by-step guide to set up Kubernetes monitoring with Prometheus and Grafana on Docker Desktop's built-in Kubernetes cluster, including Helm installation, configuration, and dashboard setup.
+tags: [kubernetes, monitoring, prometheus, grafana, docker-desktop, helm]
+---
+
+## Prerequisites
+
+- Docker Desktop with Kubernetes enabled
+- kubectl configured and working
+- Helm 3 installed
+- At least 4-6 GB RAM allocated to Docker Desktop (Settings → Resources)
+
+### Verify your cluster
+
+```bash
+kubectl cluster-info
+kubectl get nodes
+helm version
+```
+
+---
+
+## Step 1: Add Helm Repository
+
+```bash
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo update
+```
+
+---
+
+## Step 2: Create Values File
+
+Save this as `monitoring-values.yaml`:
+
+```yaml
+# ============================================
+# kube-prometheus-stack — Full Monitoring Setup
+# Docker Desktop Local Development
+# ============================================
+
+# --- Prometheus ---
+prometheus:
+  prometheusSpec:
+    retention: 72h
+    resources:
+      requests:
+        memory: 512Mi
+        cpu: 250m
+      limits:
+        memory: 2Gi
+    # Scrape all ServiceMonitors across all namespaces
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+  service:
+    type: NodePort
+    nodePort: 30090
+
+# --- Grafana ---
+grafana:
+  adminPassword: "admin"   # Change this!
+  service:
+    type: NodePort
+    nodePort: 30300
+  # Enable persistence so dashboards survive restarts
+  persistence:
+    enabled: true
+    size: 1Gi
+  # Additional dashboard providers
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - name: 'grafana-dashboards-kubernetes'
+          orgId: 1
+          folder: 'Kubernetes Views'
+          type: file
+          disableDeletion: true
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/grafana-dashboards-kubernetes
+  # Community dashboards (dotdc set — best for K8s)
+  dashboards:
+    grafana-dashboards-kubernetes:
+      k8s-views-global:
+        url: https://raw.githubusercontent.com/dotdc/grafana-dashboards-kubernetes/master/dashboards/k8s-views-global.json
+        datasource: Prometheus
+      k8s-views-namespaces:
+        url: https://raw.githubusercontent.com/dotdc/grafana-dashboards-kubernetes/master/dashboards/k8s-views-namespaces.json
+        datasource: Prometheus
+      k8s-views-nodes:
+        url: https://raw.githubusercontent.com/dotdc/grafana-dashboards-kubernetes/master/dashboards/k8s-views-nodes.json
+        datasource: Prometheus
+      k8s-views-pods:
+        url: https://raw.githubusercontent.com/dotdc/grafana-dashboards-kubernetes/master/dashboards/k8s-views-pods.json
+        datasource: Prometheus
+      k8s-system-api-server:
+        url: https://raw.githubusercontent.com/dotdc/grafana-dashboards-kubernetes/master/dashboards/k8s-system-api-server.json
+        datasource: Prometheus
+      k8s-system-coredns:
+        url: https://raw.githubusercontent.com/dotdc/grafana-dashboards-kubernetes/master/dashboards/k8s-system-coredns.json
+        datasource: Prometheus
+
+# --- Alertmanager ---
+alertmanager:
+  service:
+    type: NodePort
+    nodePort: 30093
+
+# --- Node Exporter (host-level metrics) ---
+# FIX for Docker Desktop: disable hostRootFsMount to avoid
+# "path / is mounted on / but it is not a shared or slave mount" error
+prometheus-node-exporter:
+  hostRootFsMount:
+    enabled: false
+nodeExporter:
+  enabled: true
+
+# --- kube-state-metrics (K8s object metrics) ---
+kubeStateMetrics:
+  enabled: true
+
+# --- Scrape targets ---
+kubelet:
+  enabled: true
+kubeApiServer:
+  enabled: true
+kubeControllerManager:
+  enabled: true
+kubeScheduler:
+  enabled: true
+kubeProxy:
+  enabled: true
+kubeEtcd:
+  enabled: true
+coreDns:
+  enabled: true
+prometheus-node-exporter:
+  hostRootFsMount:
+    enabled: false
+
+```
+
+---
+
+## Step 3: Install the Stack
+
+```bash
+helm install monitoring prometheus-community/kube-prometheus-stack \
+  --namespace monitoring \
+  --create-namespace \
+  -f monitoring-values.yaml
+```
+
+Wait for all pods to be ready:
+
+```bash
+kubectl -n monitoring get pods -w
+```
+
+Expected pods (all should be Running):
+
+- monitoring-grafana-\*
+- monitoring-kube-prometheus-operator-\*
+- monitoring-kube-prometheus-prometheus-\*
+- monitoring-kube-prometheus-alertmanager-\*
+- monitoring-kube-state-metrics-\*
+- monitoring-prometheus-node-exporter-\*
+
+---
+
+## Step 4: Access the UIs
+
+| Service      | URL                    | Credentials   |
+| ------------ | ---------------------- | ------------- |
+| Grafana      | http://localhost:30300 | admin / admin |
+| Prometheus   | http://localhost:30090 | (no auth)     |
+| Alertmanager | http://localhost:30093 | (no auth)     |
+
+If NodePort doesn't work, use port-forward:
+
+```bash
+kubectl port-forward svc/monitoring-grafana 3000:80 -n monitoring
+kubectl port-forward svc/monitoring-kube-prometheus-prometheus 9090:9090 -n monitoring
+kubectl port-forward svc/monitoring-kube-prometheus-alertmanager 9093:9093 -n monitoring
+```
+
+---
+
+## Step 5: Verify Prometheus Targets
+
+1. Open Prometheus: http://localhost:30090
+2. Go to Status → Targets
+3. Verify these targets are UP:
+   - kubernetes-apiservers
+   - kubernetes-nodes
+   - kubernetes-nodes-cadvisor
+   - kubernetes-service-endpoints
+   - kube-state-metrics
+   - node-exporter
+   - prometheus
+   - alertmanager
+   - grafana
+
+---
+
+## Step 6: Explore Grafana Dashboards
+
+### Built-in Dashboards (auto-installed)
+
+Navigate to Grafana → Dashboards. You'll find these folders:
+
+**Default folder** — kubernetes-mixin dashboards:
+
+- Kubernetes / Compute Resources / Cluster
+- Kubernetes / Compute Resources / Namespace (Pods)
+- Kubernetes / Compute Resources / Namespace (Workloads)
+- Kubernetes / Compute Resources / Node (Pods)
+- Kubernetes / Compute Resources / Pod
+- Kubernetes / Compute Resources / Workload
+- Kubernetes / Networking / Cluster
+- Kubernetes / Networking / Namespace (Pods)
+- Kubernetes / Networking / Namespace (Workload)
+- Kubernetes / Networking / Pod
+- Kubernetes / API Server
+- CoreDNS
+- Node Exporter / Nodes
+- Node Exporter / USE Method / Cluster
+- Node Exporter / USE Method / Node
+- Alertmanager Overview
+- Prometheus Overview
+
+**Kubernetes Views folder** — dotdc community dashboards:
+
+- k8s-views-global (cluster overview)
+- k8s-views-namespaces
+- k8s-views-nodes
+- k8s-views-pods
+- k8s-system-api-server
+- k8s-system-coredns
+
+### Optional: Import More Dashboards Manually
+
+In Grafana → Dashboards → Import → enter dashboard ID:
+
+| ID    | Name                          | Focus                |
+| ----- | ----------------------------- | -------------------- |
+| 315   | Kubernetes Cluster Monitoring | Classic cluster view |
+| 6336  | Kubernetes Pods               | Pod-level detail     |
+| 11802 | K8s Cluster with SLO views    | SLO / error budgets  |
+| 17375 | K8s Resource Monitoring       | Requests vs limits   |
+
+---
+
+## What Metrics You Get
+
+### From node-exporter (host-level):
+
+- CPU usage per core
+- Memory usage / available / cached
+- Disk I/O (reads, writes, latency)
+- Network traffic (bytes in/out per interface)
+- Filesystem usage
+- System load averages
+
+### From kube-state-metrics (K8s objects):
+
+- Pod status (running, pending, failed, restarts)
+- Deployment replicas (desired vs available)
+- Container resource requests and limits
+- Job/CronJob status and duration
+- PVC status and capacity
+- Node conditions and allocatable resources
+- Namespace resource quotas
+
+### From kubelet/cAdvisor:
+
+- Container CPU usage (actual vs requested)
+- Container memory usage (RSS, cache, working set)
+- Container network I/O
+- Container filesystem reads/writes
+- Pod CPU/memory throttling
+
+### From API server:
+
+- Request rate and latency by verb/resource
+- Request error rate
+- Etcd request duration
+- Workqueue depth and processing time
+
+### From CoreDNS:
+
+- DNS query rate by type
+- DNS response codes
+- DNS latency histogram
+
+---
+
+## Useful PromQL Queries
+
+Try these in Prometheus (http://localhost:30090/graph):
+
+```promql
+# CPU usage by pod
+sum(rate(container_cpu_usage_seconds_total{namespace!=""}[5m])) by (namespace, pod)
+
+# Memory usage by pod
+sum(container_memory_working_set_bytes{namespace!=""}) by (namespace, pod)
+
+# Pod restart count
+kube_pod_container_status_restarts_total
+
+# Node CPU usage %
+100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)
+
+# Node memory usage %
+(1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100
+
+# Network receive rate by pod
+sum(rate(container_network_receive_bytes_total[5m])) by (namespace, pod)
+
+# Disk I/O
+rate(node_disk_read_bytes_total[5m])
+rate(node_disk_written_bytes_total[5m])
+
+# API server request rate
+sum(rate(apiserver_request_total[5m])) by (verb, resource)
+
+# Top 10 pods by CPU
+topk(10, sum(rate(container_cpu_usage_seconds_total[5m])) by (namespace, pod))
+```
+
+---
+
+## Troubleshooting
+
+### Pods stuck in Pending
+
+```bash
+kubectl -n monitoring describe pod <pod-name>
+# Usually a resource issue — increase Docker Desktop RAM
+```
+
+### Targets showing as DOWN in Prometheus
+
+```bash
+# Check if kube-proxy metrics are exposed
+# On Docker Desktop, some control plane targets may be unreachable
+# This is normal — kube-scheduler, kube-controller-manager, and etcd
+# may not expose metrics by default on Docker Desktop
+```
+
+### Grafana shows "No Data"
+
+1. Check that Prometheus datasource is configured (Grafana → Connections → Data Sources)
+2. The datasource URL should be: http://monitoring-kube-prometheus-prometheus.monitoring:9090
+3. Verify the dashboard variable selectors (namespace, pod) have values
+
+### Reset everything
+
+```bash
+helm uninstall monitoring -n monitoring
+kubectl delete namespace monitoring
+# Then reinstall from Step 3
+```
+
+---
+
+## Upgrade the Stack
+
+```bash
+helm repo update
+helm upgrade monitoring prometheus-community/kube-prometheus-stack \
+  --namespace monitoring \
+  -f monitoring-values.yaml
+```
+
+---
+
+## Summary
+
+After completing this guide you have:
+
+- Prometheus scraping all cluster metrics
+- Grafana with 20+ pre-built dashboards
+- Alertmanager for alert routing
+- node-exporter for host metrics
+- kube-state-metrics for Kubernetes object metrics
+- Full coverage: CPU, memory, disk, network, pods, nodes, API server, DNS
+
+All accessible locally:
+
+- Grafana: http://localhost:30300
+- Prometheus: http://localhost:30090
+- Alertmanager: http://localhost:30093
