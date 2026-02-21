@@ -1,4 +1,5 @@
 import { MetadataRoute } from "next";
+export const dynamic = "force-static";
 import { getAllMDXFiles } from "@/lib/mdx-utils";
 import { siteConfig } from "@/config/site";
 

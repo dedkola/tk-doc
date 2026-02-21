@@ -168,114 +168,114 @@ import { extractHeadings } from "@/lib/extract-headings";
 // Define MDX components using design system
 const mdxComponents: MDXComponents = {
   h1: ({ children }) => (
-      <h1 className="text-4xl font-bold tracking-tight mb-4 mt-8 text-foreground">
-        {children}
-      </h1>
+    <h1 className="text-4xl font-bold tracking-tight mb-4 mt-8 text-foreground">
+      {children}
+    </h1>
   ),
   h2: ({ children }) => {
     const id = String(children)
-        .toLowerCase()
-        .replace(/[^a-z0-9\s-]/g, "")
-        .replace(/\s+/g, "-")
-        .replace(/-+/g, "-");
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, "")
+      .replace(/\s+/g, "-")
+      .replace(/-+/g, "-");
     return (
-        <h2
-            id={id}
-            className="text-3xl font-semibold tracking-tight mb-3 mt-8 pb-2 border-b border-border text-foreground scroll-mt-24"
-        >
-          {children}
-        </h2 >
+      <h2
+        id={id}
+        className="text-3xl font-semibold tracking-tight mb-3 mt-8 pb-2 border-b border-border text-foreground scroll-mt-24"
+      >
+        {children}
+      </h2 >
     );
   },
   h3: ({ children }) => {
     const id = String(children)
-        .toLowerCase()
-        .replace(/[^a-z0-9\s-]/g, "")
-        .replace(/\s+/g, "-")
-        .replace(/-+/g, "-");
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, "")
+      .replace(/\s+/g, "-")
+      .replace(/-+/g, "-");
     return (
-        <h3
-            id={id}
-            className="text-2xl font-semibold tracking-tight mb-2 mt-6 text-foreground scroll-mt-24"
-        >
-          {children}
-        </h3>
+      <h3
+        id={id}
+        className="text-2xl font-semibold tracking-tight mb-2 mt-6 text-foreground scroll-mt-24"
+      >
+        {children}
+      </h3>
     );
   },
   h4: ({ children }) => {
     const id = String(children)
-        .toLowerCase()
-        .replace(/[^a-z0-9\s-]/g, "")
-        .replace(/\s+/g, "-")
-        .replace(/-+/g, "-");
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, "")
+      .replace(/\s+/g, "-")
+      .replace(/-+/g, "-");
     return (
-        <h4
-            id={id}
-            className="text-xl font-semibold mb-2 mt-4 text-foreground scroll-mt-24"
-        >
-          {children}
-        </h4>
+      <h4
+        id={id}
+        className="text-xl font-semibold mb-2 mt-4 text-foreground scroll-mt-24"
+      >
+        {children}
+      </h4>
     );
   },
   p: ({ children }) => (
-      <p className="leading-7 mb-4 text-foreground">{children}</p>
+    <p className="leading-7 mb-4 text-foreground">{children}</p>
   ),
   ul: ({ children }) => (
-      <ul className="mb-4 ml-6 list-disc space-y-2">{children}</ul>
+    <ul className="mb-4 ml-6 list-disc space-y-2">{children}</ul>
   ),
   ol: ({ children }) => (
-      <ol className="mb-4 ml-6 list-decimal space-y-2">{children}</ol>
+    <ol className="mb-4 ml-6 list-decimal space-y-2">{children}</ol>
   ),
   li: ({ children }) => <li className="mb-2 leading-7">{children}</li>,
   a: ({ href, children }) => (
-      <a
-          href={href}
-          className="text-primary underline underline-offset-4 hover:text-primary/80 transition-colors"
-          target={href?.startsWith("http") ? "_blank" : undefined}
-          rel={href?.startsWith("http") ? "noopener noreferrer" : undefined}
-      >
-        {children}
-      </a>
+    <a
+      href={href}
+      className="text-primary underline underline-offset-4 hover:text-primary/80 transition-colors"
+      target={href?.startsWith("http") ? "_blank" : undefined}
+      rel={href?.startsWith("http") ? "noopener noreferrer" : undefined}
+    >
+      {children}
+    </a>
   ),
   code: ({ children, className }) => {
     const isInline = !className;
     if (isInline) {
       return (
-          <code className="bg-muted px-1.5 py-0.5 rounded text-sm font-mono text-foreground">
-            {children}
-          </code>
+        <code className="bg-muted px-1.5 py-0.5 rounded text-sm font-mono text-foreground">
+          {children}
+        </code>
       );
     }
     return <Code className={className}>{children}</Code>;
   },
   pre: ({ children }) => <>{children}</>,
   blockquote: ({ children }) => (
-      <blockquote className="border-l-4 border-border pl-4 italic my-4 text-muted-foreground">
-        {children}
-      </blockquote>
+    <blockquote className="border-l-4 border-border pl-4 italic my-4 text-muted-foreground">
+      {children}
+    </blockquote>
   ),
   // Markdown table elements (from remark-gfm)
   table: ({ children }) => (
-      <div className="my-6 w-full overflow-x-auto">
-        <table className="w-full border-collapse text-sm">
-          {children}
-        </table>
-      </div>
+    <div className="my-6 w-full overflow-x-auto">
+      <table className="w-full border-collapse text-sm">
+        {children}
+      </table>
+    </div>
   ),
   thead: ({ children }) => (
-      <thead className="border-b bg-muted/50">{children}</thead>
+    <thead className="border-b bg-muted/50">{children}</thead>
   ),
   tbody: ({ children }) => <tbody>{children}</tbody>,
   tr: ({ children }) => (
-      <tr className="border-b transition-colors hover:bg-muted/50">{children}</tr>
+    <tr className="border-b transition-colors hover:bg-muted/50">{children}</tr>
   ),
   th: ({ children }) => (
-      <th className="h-10 px-4 text-left align-middle font-medium text-muted-foreground">
-        {children}
-      </th>
+    <th className="h-10 px-4 text-left align-middle font-medium text-muted-foreground">
+      {children}
+    </th>
   ),
   td: ({ children }) => (
-      <td className="p-4 align-middle text-foreground">{children}</td>
+    <td className="p-4 align-middle text-foreground">{children}</td>
   ),
   // UI Components - Cards
   Card,
@@ -422,8 +422,8 @@ const mdxComponents: MDXComponents = {
 
 // Generate metadata for each page
 export async function generateMetadata({
-                                         params,
-                                       }: {
+  params,
+}: {
   params: Promise<{ slug: string[] }>;
 }) {
   const { slug } = await params;
@@ -443,7 +443,7 @@ export async function generateMetadata({
 
   const title = frontmatter.title || "Documentation";
   const description =
-      frontmatter.description || `${siteConfig.name} - Documentation`;
+    frontmatter.description || `${siteConfig.name} - Documentation`;
 
   return {
     title: `${title} | ${siteConfig.name}`,
@@ -458,10 +458,10 @@ export async function generateMetadata({
     },
     twitter: {
       card: siteConfig.twitter.card as
-          | "summary"
-          | "summary_large_image"
-          | "app"
-          | "player",
+        | "summary"
+        | "summary_large_image"
+        | "app"
+        | "player",
       title: `${title} | ${siteConfig.name}`,
       description: description,
     },
@@ -469,8 +469,8 @@ export async function generateMetadata({
 }
 
 export default async function Page({
-                                     params,
-                                   }: {
+  params,
+}: {
   params: Promise<{ slug: string[] }>;
 }) {
   const { slug } = await params;
@@ -497,19 +497,19 @@ export default async function Page({
   // Handle keywords as either string or array
   const rawKeywords = frontmatter.keywords;
   const keywords: string[] = rawKeywords
-      ? Array.isArray(rawKeywords)
-          ? rawKeywords
-          : String(rawKeywords).split(",").map((k: string) => k.trim())
-      : [];
+    ? Array.isArray(rawKeywords)
+      ? rawKeywords
+      : String(rawKeywords).split(",").map((k: string) => k.trim())
+    : [];
   const headings = extractHeadings(content);
 
   // Date handling for structured data
   const publishedAt = frontmatter.publishedAt
-      ? new Date(frontmatter.publishedAt).toISOString()
-      : undefined;
+    ? new Date(frontmatter.publishedAt).toISOString()
+    : undefined;
   const updatedAt = frontmatter.updatedAt
-      ? new Date(frontmatter.updatedAt).toISOString()
-      : stats.mtime.toISOString();
+    ? new Date(frontmatter.updatedAt).toISOString()
+    : stats.mtime.toISOString();
 
   // Build breadcrumb items
   const breadcrumbItems = [
@@ -563,64 +563,64 @@ export default async function Page({
   };
 
   return (
-      <div className="mx-auto w-full max-w-5xl px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
-        {/* JSON-LD Structured Data */}
-        <script
-            type="application/ld+json"
-            dangerouslySetInnerHTML={{
-              __html: JSON.stringify(articleSchema),
-            }}
-        />
-        <script
-            type="application/ld+json"
-            dangerouslySetInnerHTML={{
-              __html: JSON.stringify(breadcrumbSchema),
-            }}
-        />
-        <div className="flex flex-col xl:flex-row xl:items-start gap-8">
-          <div className="w-full max-w-3xl flex-1 min-w-0 overflow-hidden">
-            <h1 className="mb-4 text-3xl sm:text-4xl font-bold text-foreground">
-              {title}
-            </h1>
-            {description && (
-                <p className="mb-4 text-base sm:text-lg text-muted-foreground">
-                  {description}
-                </p>
-            )}
-            {tags.length > 0 && (
-                <div className="mb-6 sm:mb-8 flex flex-wrap gap-2">
-                  {tags.map((tag: string, index: number) => (
-                      <Link
-                          key={`${tag}-${index}`}
-                          href={`/?tag=${encodeURIComponent(tag)}`}
-                      >
-                        <Badge
-                            variant="secondary"
-                            className="bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors cursor-pointer"
-                        >
-                          {tag}
-                        </Badge>
-                      </Link>
-                  ))}
-                </div>
-            )}
-            <article className="prose prose-foreground w-full max-w-none">
-              <MDXRemote
-                  source={content}
-                  components={mdxComponents}
-                  options={{
-                    mdxOptions: {
-                      remarkPlugins: [remarkGfm],
-                    },
-                  }}
-              />
-            </article>
-          </div>
-          <aside className="w-full xl:w-64 xl:sticky xl:top-28 shrink-0">
-            <TableOfContents headings={headings} />
-          </aside>
+    <div className="mx-auto w-full max-w-5xl px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+      {/* JSON-LD Structured Data */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(articleSchema),
+        }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(breadcrumbSchema),
+        }}
+      />
+      <div className="flex flex-col xl:flex-row xl:items-start gap-8">
+        <div className="w-full max-w-3xl flex-1 min-w-0 overflow-hidden">
+          <h1 className="mb-4 text-3xl sm:text-4xl font-bold text-foreground">
+            {title}
+          </h1>
+          {description && (
+            <p className="mb-4 text-base sm:text-lg text-muted-foreground">
+              {description}
+            </p>
+          )}
+          {tags.length > 0 && (
+            <div className="mb-6 sm:mb-8 flex flex-wrap gap-2">
+              {tags.map((tag: string, index: number) => (
+                <Link
+                  key={`${tag}-${index}`}
+                  href={`/?tag=${encodeURIComponent(tag)}`}
+                >
+                  <Badge
+                    variant="secondary"
+                    className="bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors cursor-pointer"
+                  >
+                    {tag}
+                  </Badge>
+                </Link>
+              ))}
+            </div>
+          )}
+          <article className="prose prose-foreground w-full max-w-none">
+            <MDXRemote
+              source={content}
+              components={mdxComponents}
+              options={{
+                mdxOptions: {
+                  remarkPlugins: [remarkGfm],
+                },
+              }}
+            />
+          </article>
         </div>
+        <aside className="w-full xl:w-64 xl:sticky xl:top-28 shrink-0">
+          <TableOfContents headings={headings} />
+        </aside>
       </div>
+    </div>
   );
 }
 function getMDXFiles(dir: string, baseDir: string = dir): string[][] {
@@ -649,4 +649,4 @@ export function generateStaticParams() {
   return mdxFiles.map((slug) => ({ slug }));
 }
 
-export const dynamicParams = true;
+export const dynamicParams = false;
