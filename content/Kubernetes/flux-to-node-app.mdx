@@ -279,6 +279,22 @@ resources:
 
 Commit and push to main. Flux picks it up automatically.
 
+
+### Add git key
+```bash copy
+
+kubectl create secrekubectl create secret generic flux-system \
+    --namespace=flux-system \
+    --from-literal=username=git \
+    --from-literal=password=<GIT-REPO_TOKEN>
+```
+then reconfigure
+
+```bash copy
+flux reconcile source git flux-system
+flux get all
+```
+
 ## Phase 6: Verification
 
 ```bash title="Check git source is connected"
