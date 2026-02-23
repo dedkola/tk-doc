@@ -138,6 +138,7 @@ resources:
 ## Phase 4: CI Pipeline (GitHub Actions)
 
 > **Note:** Replace `GITHUB_USER/APP_NAME` in the sed command with actual values (lowercase).
+Create .github/workflows/docker-build.yml
 
 ```yaml title=".github/workflows/docker-build.yml"
 name: Build and Push Docker Image
@@ -215,6 +216,19 @@ flux bootstrap github \
   --path=clusters/my-cluster \
   --branch=main \
   --personal
+```
+
+### Use HTTPS sync and private repo with auth key
+
+```bash copy
+flux bootstrap github \
+  --owner=USERNAME \
+  --repository=REPO_NAME \
+  --path=clusters/my-cluster \
+  --branch=main \
+  --personal \
+  --private \
+  --token-auth
 ```
 
 This creates:
