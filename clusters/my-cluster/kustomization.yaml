@@ -3,4 +3,4 @@ kind: Kustomization
 resources:
   - flux-system/gotk-components.yaml
   - flux-system/gotk-sync.yaml
-  - flux-system/kustomization-tk-docs.yaml
+  - flux-system/kustomization-tk-doc.yaml
