@@ -1,0 +1,398 @@
+---
+title: FluxCD App Onboarding Guide
+description: Step-by-step instructions to add a new application to your FluxCD fleet repo.
+tags: [fluxcd, gitops, kubernetes, onboarding]
+---
+
+How to add any new application to your FluxCD fleet repo — step by step.
+
+## Overview
+
+You have one **fleet repo** that acts as the control center for all your apps.
+Each app lives in its own **independent repo** and is registered in the fleet repo via a dedicated folder.
+
+```text
+fleet/
+  clusters/my-cluster/
+    flux-system/          ← Flux itself (DO NOT TOUCH)
+    app1/                 ← Registration for App 1
+    app2/                 ← Registration for App 2
+    your-new-app/         ← Add new apps here
+```
+
+---
+
+## Prerequisites
+
+- FluxCD bootstrapped (`flux bootstrap` already run once)
+- `kubectl` and `flux` CLI installed
+- Your app has a GitHub repo with k8s manifests inside a `/k8s` folder
+
+---
+
+## Part 1 — Prepare your App Repo
+
+Your app repo only needs standard Kubernetes manifest files plus one `kustomization.yaml` that lists them.
+
+### App repo structure
+
+```text
+your-app-repo/
+  k8s/
+    kustomization.yaml     ← lists all k8s files below
+    deployment.yaml
+    service.yaml
+    ingress.yaml           ← optional
+```
+
+### `k8s/kustomization.yaml`
+
+```yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - deployment.yaml
+  - service.yaml
+  - ingress.yaml
+```
+
+> ⚠️ This file is **not** a Flux Kustomization — it's a plain kustomize resource list.
+> No `spec:` field here.
+
+### `k8s/deployment.yaml` (example)
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: your-app
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: your-app
+  template:
+    metadata:
+      labels:
+        app: your-app
+    spec:
+      containers:
+        - name: your-app
+          image: ghcr.io/yourorg/your-app:latest
+          ports:
+            - containerPort: 3000
+```
+
+### `k8s/service.yaml` (example)
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: your-app
+  namespace: default
+spec:
+  selector:
+    app: your-app
+  ports:
+    - port: 80
+      targetPort: 3000
+  type: ClusterIP
+```
+
+---
+
+## Part 2 — Register the App in Your Fleet Repo
+
+In your **fleet repo**, create a folder for the app under `clusters/my-cluster/`.
+Each folder needs exactly **3 files**.
+
+### Fleet repo structure for the app
+
+```text
+clusters/my-cluster/your-app/
+  kustomization.yaml        ← lists the other two files (native kustomize)
+  gitrepository.yaml        ← tells Flux where the app repo is
+  flux-kustomization.yaml   ← tells Flux how to deploy from that repo
+```
+
+---
+
+### File 1 — `kustomization.yaml`
+
+> This is the **native kustomize** file. It just lists the other two files so Flux can find them.
+
+```yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - gitrepository.yaml
+  - flux-kustomization.yaml
+```
+
+> ✅ Make sure the filename is spelled correctly: `kustomization.yaml` (not `kustomizaton.yaml`)
+
+---
+
+### File 2 — `gitrepository.yaml`
+
+> Tells Flux which Git repo to watch and how to authenticate.
+
+```yaml
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: your-app # must be unique across all apps
+  namespace: flux-system
+spec:
+  interval: 1m0s
+  ref:
+    branch: main
+  secretRef:
+    name: flux-system # reuse the bootstrap secret for GitHub access
+  url: https://github.com/yourorg/your-app-repo.git
+```
+
+> 💡 `secretRef.name: flux-system` reuses the SSH/PAT key that was created during bootstrap.
+> All your private repos under the same GitHub account can use this secret.
+
+---
+
+### File 3 — `flux-kustomization.yaml`
+
+> Tells Flux where inside the app repo to find k8s manifests, and how to apply them.
+
+```yaml
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: your-app # must match the GitRepository name above
+  namespace: flux-system
+spec:
+  interval: 10m
+  path: ./k8s # path inside your app repo where k8s files live
+  prune: true # delete resources removed from git
+  targetNamespace: default # namespace to deploy into
+  sourceRef:
+    kind: GitRepository
+    name: your-app # must match GitRepository metadata.name
+```
+
+> ⚠️ `prune: true` means if you delete a file from Git, Flux will delete it from the cluster too.
+
+---
+
+## Part 3 — Push and Verify
+
+### 1. Push to fleet repo
+
+```bash
+cd fleet
+git add clusters/my-cluster/your-app/
+git commit -m "Add your-app to fleet"
+git push
+```
+
+### 2. Force reconcile (optional, skips the wait interval)
+
+```bash
+flux reconcile source git flux-system
+flux reconcile kustomization flux-system
+```
+
+### 3. Check status
+
+```bash
+# See all Flux resources
+flux get all
+
+# Check your specific app
+flux get kustomization your-app
+flux get source git your-app
+
+# If something is wrong, check logs
+flux logs --level=error
+kubectl describe kustomization your-app -n flux-system
+```
+
+---
+
+## Real Examples
+
+### Example: `chat2md` app
+
+**`clusters/my-cluster/chat2md/gitrepository.yaml`**
+
+```yaml
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: chat2md
+  namespace: flux-system
+spec:
+  interval: 1m0s
+  ref:
+    branch: main
+  secretRef:
+    name: flux-system
+  url: https://github.com/dedkola/chat2MD.git
+```
+
+**`clusters/my-cluster/chat2md/flux-kustomization.yaml`**
+
+```yaml
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: chat2md
+  namespace: flux-system
+spec:
+  interval: 10m
+  path: ./k8s
+  prune: true
+  targetNamespace: default
+  sourceRef:
+    kind: GitRepository
+    name: chat2md
+```
+
+**`clusters/my-cluster/chat2md/kustomization.yaml`**
+
+```yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - gitrepository.yaml
+  - flux-kustomization.yaml
+```
+
+---
+
+### Example: `tk-doc` app
+
+**`clusters/my-cluster/tk-doc/gitrepository.yaml`**
+
+```yaml
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: tk-doc
+  namespace: flux-system
+spec:
+  interval: 1m0s
+  ref:
+    branch: main
+  secretRef:
+    name: flux-system
+  url: https://github.com/dedkola/tk-doc.git
+```
+
+**`clusters/my-cluster/tk-doc/flux-kustomization.yaml`**
+
+```yaml
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: tk-doc
+  namespace: flux-system
+spec:
+  interval: 5m
+  path: ./k8s
+  prune: true
+  targetNamespace: default
+  sourceRef:
+    kind: GitRepository
+    name: tk-doc
+```
+
+**`clusters/my-cluster/tk-doc/kustomization.yaml`**
+
+```yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - gitrepository.yaml
+  - flux-kustomization.yaml
+```
+
+---
+
+## Quick Reference
+
+### Adding a new app checklist
+
+```text
+[ ] App repo has /k8s folder with manifests
+[ ] App repo has /k8s/kustomization.yaml listing all manifest files
+[ ] Fleet repo: create clusters/my-cluster/<app-name>/ folder
+[ ] Fleet repo: add kustomization.yaml  (lists the other two files)
+[ ] Fleet repo: add gitrepository.yaml  (points to app repo)
+[ ] Fleet repo: add flux-kustomization.yaml  (deployment config)
+[ ] Push to fleet repo
+[ ] Run flux reconcile source git flux-system
+[ ] Verify with flux get all
+```
+
+### Common mistakes
+
+| Mistake                                                      | Symptom                        | Fix                                               |
+| ------------------------------------------------------------ | ------------------------------ | ------------------------------------------------- |
+| `kustomizaton.yaml` (typo)                                   | Flux ignores the folder        | Rename to `kustomization.yaml`                    |
+| Wrong `path:` in flux-kustomization                          | `kustomize build failed`       | Check where your k8s files actually are           |
+| `sourceRef.name` doesn't match `GitRepository.metadata.name` | `not found` error              | Make sure both names are identical                |
+| Re-running `flux bootstrap`                                  | Other apps disappear           | Never re-run bootstrap; just add folders          |
+| `prune: true` + deleted file                                 | Resources deleted from cluster | Intentional — keep files in git to keep resources |
+
+### Useful commands
+
+```bash
+# Watch all Flux resources live
+flux get all --watch
+
+# Force sync a specific app
+flux reconcile kustomization your-app
+
+# Force sync the app's git source
+flux reconcile source git your-app
+
+# See what Flux deployed for an app
+kubectl get all -n default -l app=your-app
+
+# Debug a failing kustomization
+kubectl describe kustomization your-app -n flux-system
+
+# See recent Flux events
+flux events
+```
+
+---
+
+## Fleet Repo Final Structure
+
+After adding multiple apps, your fleet repo should look like this:
+
+```text
+fleet/
+  clusters/
+    my-cluster/
+      flux-system/
+        gotk-components.yaml    ← auto-generated, DO NOT EDIT
+        gotk-sync.yaml          ← auto-generated, DO NOT EDIT
+        kustomization.yaml      ← auto-generated, DO NOT EDIT
+      chat2md/
+        kustomization.yaml
+        gitrepository.yaml
+        flux-kustomization.yaml
+      tk-doc/
+        kustomization.yaml
+        gitrepository.yaml
+        flux-kustomization.yaml
+      new-app/                  ← just add a new folder, nothing else needed
+        kustomization.yaml
+        gitrepository.yaml
+        flux-kustomization.yaml
+```
+
+> 🎯 **Golden rule:** To add a new app — create a folder, add 3 files, push. That's it.
+> Nobody needs to touch any other app's files.
