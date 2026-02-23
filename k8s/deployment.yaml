@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: tk-docs
-          image: dedkola/tk-docs:dev
+          image: dedkola/tk-docs:latest
           imagePullPolicy: IfNotPresent # Use 'Always' for remote registries
           ports:
             - containerPort: 3000
