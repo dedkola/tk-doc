@@ -16,8 +16,8 @@ spec:
     spec:
       containers:
         - name: tk-docs
-          image: dedkola/tk-docs:latest
-          imagePullPolicy: IfNotPresent # Use 'Always' for remote registries
+          image: ghcr.io/dedkola/tk-doc:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 3000
               name: http
