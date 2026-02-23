@@ -12,7 +12,7 @@ metadata:
 spec:
   ingressClassName: nginx # Change based on your ingress controller (nginx, traefik, etc.)
   rules:
-    - host: dd.tkweb.site # Change to your domain
+    - host: doc.tk.com # Change to your domain
       http:
         paths:
           - path: /
