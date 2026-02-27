@@ -6,12 +6,12 @@
 
 # Want to help us make this template better? Share your feedback here: https://forms.gle/ybq9Krt8jtBL3iCk7
 
-ARG NODE_VERSION=20.19.4
-ARG PNPM_VERSION=10.23.0
+ARG NODE_VERSION=22
+ARG PNPM_VERSION=10.30.2
 
 ################################################################################
 # Use node image for base image for all stages.
-FROM node:${NODE_VERSION}-alpine as base
+FROM node:${NODE_VERSION}-alpine AS base
 
 # Set working directory for all build stages.
 WORKDIR /usr/src/app
@@ -22,7 +22,7 @@ RUN --mount=type=cache,target=/root/.npm \
 
 ################################################################################
 # Create a stage for installing production dependecies.
-FROM base as deps
+FROM base AS deps
 
 # Download dependencies as a separate step to take advantage of Docker's caching.
 # Leverage a cache mount to /root/.local/share/pnpm/store to speed up subsequent builds.
@@ -54,8 +54,7 @@ RUN pnpm run build
 ################################################################################
 # Create a new stage to run the application with minimal runtime dependencies
 # where the necessary files are copied from the build stage.
-FROM base as final
-
+FROM node:${NODE_VERSION}-alpine AS final
 # Use production node environment by default.
 ENV NODE_ENV production
 
@@ -69,9 +68,8 @@ COPY --from=build /usr/src/app/.next/static ./.next/static
 COPY --from=build /usr/src/app/public ./public
 COPY --from=build /usr/src/app/content ./content
 
-
 # Expose the port that the application listens on.
-EXPOSE 3003
+EXPOSE 3000
 
 # Run the application.
 CMD node server.js
