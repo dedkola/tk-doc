@@ -455,6 +455,9 @@ export async function generateMetadata({
       siteName: siteConfig.name,
       locale: "en_US",
       type: "article",
+      images: siteConfig.og.image
+        ? [{ url: siteConfig.og.image, width: siteConfig.og.imageWidth, height: siteConfig.og.imageHeight, alt: siteConfig.title }]
+        : undefined,
     },
     twitter: {
       card: siteConfig.twitter.card as
@@ -464,6 +467,7 @@ export async function generateMetadata({
         | "player",
       title: `${title} | ${siteConfig.name}`,
       description: description,
+      images: siteConfig.og.image ? [siteConfig.og.image] : undefined,
     },
   };
 }
