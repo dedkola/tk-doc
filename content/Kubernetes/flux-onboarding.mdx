@@ -185,6 +185,30 @@ spec:
 
 ## Part 3 — Push and Verify
 
+### Initialize Flux (only needed once, skip if already done)
+
+```bash
+
+flux bootstrap github \
+  --owner=dedkola \
+  --repository=fleet \
+  --path=clusters/my-cluster \
+  --branch=main \
+  --personal \
+  --private \
+  --token-auth
+```
+
+### Add to K8s secret (only needed once, skip if already done)
+
+```bash
+  kubectl create secret docker-registry ghcr-secret \
+    --docker-server=ghcr.io \
+    --docker-username=dedkola \
+    --docker-password=GITHUB_TOKEN \
+    --docker-email=maiden.tech@gmail.com
+```
+
 ### 1. Push to fleet repo
 
 ```bash
@@ -199,6 +223,21 @@ git push
 ```bash
 flux reconcile source git flux-system
 flux reconcile kustomization flux-system
+```
+
+### For private repo
+
+```bash
+kubectl create secret generic tk-doc \
+  --namespace=flux-system \
+  --from-literal=username=git \
+  --from-literal=password=<YOUR_GITHUB_TOKEN>
+```
+
+Verify
+
+```bash
+kubectl get secret tk-doc -n flux-system
 ```
 
 ### 3. Check status
