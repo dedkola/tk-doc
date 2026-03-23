@@ -16,7 +16,6 @@ const Code = dynamic(
         Loading code...
       </div>
     ),
-    ssr: false, // Syntax highlighting is client-side heavy, we can skip SSR for it
   },
 );
 
