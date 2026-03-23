@@ -14,6 +14,7 @@ export interface MDXFile {
   lastModified: Date;
 }
 
+import { cache } from "react";
 import matter from "gray-matter";
 
 function getServerModules() {
@@ -134,8 +135,8 @@ export function groupByFolder(files: MDXFile[]) {
   return grouped;
 }
 
-export function getAllMDXFiles() {
+export const getAllMDXFiles = cache((): MDXFile[] => {
   const { path } = getServerModules();
   const contentDir = path.join(process.cwd(), "content");
   return getMDXFiles(contentDir);
-}
+});

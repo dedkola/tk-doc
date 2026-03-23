@@ -56,13 +56,15 @@ export const metadata: Metadata = {
     creator: siteConfig.twitter.creator,
     images: siteConfig.og.image ? [siteConfig.og.image] : undefined,
   },
+  alternates: {
+    canonical: siteConfig.url,
+  },
 };
 
 // Ensure proper mobile scaling and prevent desktop-width layout on phones
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
   viewportFit: "cover",
 };
 
@@ -87,7 +89,6 @@ export default function RootLayout({
             footer={<Footer />}
           >
             {children}
-            <Analytics />
           </LayoutClient>
         </SearchProvider>
       </body>
