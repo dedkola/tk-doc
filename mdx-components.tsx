@@ -31,6 +31,7 @@ function getTextContent(node: ReactNode): string {
 
 function slugify(text: string): string {
   return text
+    .trim()
     .toLowerCase()
     .replace(/[^a-z0-9\s-]/g, "")
     .replace(/\s+/g, "-")
