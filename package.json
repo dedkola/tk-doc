@@ -47,7 +47,7 @@
     "overrides": {
       "minimatch": ">=10.2.1",
       "webpack": ">=5.104.1",
-      "ajv": "^6.14.0"
+      "ajv": "^8.0.0"
     }
   },
   "devDependencies": {
