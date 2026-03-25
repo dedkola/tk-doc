@@ -13,7 +13,7 @@ export const metadata: Metadata = {
   },
 };
 
-export default function BlogIndexPage() {
+export default function DocsIndexPage() {
   const allMDXFiles = getAllMDXFiles();
   const groupedFiles = groupByFolder(allMDXFiles);
 
