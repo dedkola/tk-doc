@@ -127,7 +127,9 @@ export default async function Page({
     : undefined;
   const updatedAt = frontmatter.updatedAt
     ? new Date(frontmatter.updatedAt).toISOString()
-    : stats.mtime.toISOString();
+    : undefined;
+  // For structured data only: always provide a dateModified
+  const dateModified = updatedAt ?? publishedAt ?? stats.mtime.toISOString();
 
   // Build breadcrumb items
   const breadcrumbItems = [
@@ -176,7 +178,7 @@ export default async function Page({
     description: description,
     url: `${siteConfig.url}/docs/${filePath}`,
     ...(publishedAt && { datePublished: publishedAt }),
-    dateModified: updatedAt,
+    dateModified: dateModified,
     publisher: {
       "@type": "Organization",
       name: siteConfig.name,
