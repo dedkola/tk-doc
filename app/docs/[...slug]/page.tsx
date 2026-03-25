@@ -8,9 +8,19 @@ import remarkGfm from "remark-gfm";
 import { siteConfig } from "@/config/site";
 import { Badge } from "@/components/ui/Badge";
 import { TableOfContents } from "@/components/TableOfContents";
+import { RelatedArticles } from "@/components/RelatedArticles";
 import { extractHeadings } from "@/lib/extract-headings";
 import { mdxComponents } from "@/lib/mdx-page-components";
 import { getAllMDXFiles } from "@/lib/mdx-utils";
+import {
+  Breadcrumb,
+  BreadcrumbList,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/Breadcrumb";
+import { Calendar, Clock, Pencil } from "lucide-react";
 
 // Generate metadata for each page
 export async function generateMetadata({
@@ -48,7 +58,14 @@ export async function generateMetadata({
       locale: "en_US",
       type: "article",
       images: siteConfig.og.image
-        ? [{ url: siteConfig.og.image, width: siteConfig.og.imageWidth, height: siteConfig.og.imageHeight, alt: siteConfig.title }]
+        ? [
+            {
+              url: siteConfig.og.image,
+              width: siteConfig.og.imageWidth,
+              height: siteConfig.og.imageHeight,
+              alt: siteConfig.title,
+            },
+          ]
         : undefined,
     },
     twitter: {
@@ -98,7 +115,9 @@ export default async function Page({
   const keywords: string[] = rawKeywords
     ? Array.isArray(rawKeywords)
       ? rawKeywords
-      : String(rawKeywords).split(",").map((k: string) => k.trim())
+      : String(rawKeywords)
+          .split(",")
+          .map((k: string) => k.trim())
     : [];
   const headings = extractHeadings(content);
 
@@ -117,7 +136,8 @@ export default async function Page({
   ];
   if (decodedSlug.length > 1) {
     // Add category
-    const category = decodedSlug[0].charAt(0).toUpperCase() + decodedSlug[0].slice(1);
+    const category =
+      decodedSlug[0].charAt(0).toUpperCase() + decodedSlug[0].slice(1);
     breadcrumbItems.push({
       name: category,
       url: `${siteConfig.url}/docs/${encodeURIComponent(decodedSlug[0])}`,
@@ -127,6 +147,26 @@ export default async function Page({
     name: title,
     url: `${siteConfig.url}/docs/${filePath}`,
   });
+
+  // Calculate reading time (~200 words per minute)
+  const wordCount = content.trim().split(/\s+/).length;
+  const readingTime = Math.max(1, Math.ceil(wordCount / 200));
+
+  // Format dates for display
+  const formatDate = (iso: string) =>
+    new Date(iso).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+
+  // Edit on GitHub link
+  const editUrl = siteConfig.social.github
+    ? `${siteConfig.social.github.replace(/\/$/, "")}/tk-doc/edit/main/content/${filePath}.mdx`
+    : null;
+
+  // Get all files for related articles
+  const allFiles = getAllMDXFiles();
 
   // JSON-LD Structured Data
   const articleSchema = {
@@ -176,6 +216,36 @@ export default async function Page({
           __html: JSON.stringify(breadcrumbSchema),
         }}
       />
+
+      {/* Visual Breadcrumb Navigation */}
+      <Breadcrumb className="mb-6">
+        <BreadcrumbList>
+          <BreadcrumbItem>
+            <BreadcrumbLink href="/">Home</BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbLink href="/docs">Docs</BreadcrumbLink>
+          </BreadcrumbItem>
+          {decodedSlug.length > 1 && (
+            <>
+              <BreadcrumbSeparator />
+              <BreadcrumbItem>
+                <BreadcrumbLink
+                  href={`/docs?folder=${encodeURIComponent(decodedSlug[0])}`}
+                >
+                  {decodedSlug[0]}
+                </BreadcrumbLink>
+              </BreadcrumbItem>
+            </>
+          )}
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbPage>{title}</BreadcrumbPage>
+          </BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
+
       <div className="flex flex-col xl:flex-row xl:items-start gap-8">
         <div className="w-full max-w-3xl flex-1 min-w-0 overflow-hidden">
           <h1 className="mb-4 text-3xl sm:text-4xl font-bold text-foreground">
@@ -186,6 +256,27 @@ export default async function Page({
               {description}
             </p>
           )}
+
+          {/* Article meta: dates + reading time */}
+          <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
+            {publishedAt && (
+              <span className="flex items-center gap-1">
+                <Calendar size={14} />
+                {formatDate(publishedAt)}
+              </span>
+            )}
+            {updatedAt && (
+              <span className="flex items-center gap-1">
+                <Pencil size={14} />
+                Updated {formatDate(updatedAt)}
+              </span>
+            )}
+            <span className="flex items-center gap-1">
+              <Clock size={14} />
+              {readingTime} min read
+            </span>
+          </div>
+
           {tags.length > 0 && (
             <div className="mb-6 sm:mb-8 flex flex-wrap gap-2">
               {tags.map((tag: string, index: number) => (
@@ -195,7 +286,7 @@ export default async function Page({
                 >
                   <Badge
                     variant="secondary"
-                    className="bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors cursor-pointer"
+                    className="bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700 transition-colors cursor-pointer"
                   >
                     {tag}
                   </Badge>
@@ -214,6 +305,28 @@ export default async function Page({
               }}
             />
           </article>
+
+          {/* Edit on GitHub */}
+          {editUrl && (
+            <div className="mt-8 pt-4 border-t border-border">
+              <a
+                href={editUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <Pencil size={14} />
+                Edit this page on GitHub
+              </a>
+            </div>
+          )}
+
+          {/* Related Articles */}
+          <RelatedArticles
+            currentSlug={decodedSlug}
+            currentTags={tags}
+            allFiles={allFiles}
+          />
         </div>
         <aside className="w-full xl:w-64 xl:sticky xl:top-28 shrink-0">
           <TableOfContents headings={headings} />

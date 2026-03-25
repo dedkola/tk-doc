@@ -34,6 +34,7 @@
     "lucide-react": "^0.577.0",
     "next": "16.2.1",
     "next-mdx-remote": "^6.0.0",
+    "next-themes": "^0.4.6",
     "prism-react-renderer": "^2.4.1",
     "prismjs": "^1.30.0",
     "react": "19.2.4",
@@ -46,8 +47,7 @@
   "pnpm": {
     "overrides": {
       "minimatch": ">=10.2.1",
-      "webpack": ">=5.104.1",
-      "ajv": "^8.0.0"
+      "webpack": ">=5.104.1"
     }
   },
   "devDependencies": {

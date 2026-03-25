@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { ShareButtons } from "./ShareButtons";
+import { ChevronDown } from "lucide-react";
 
 interface Heading {
   id: string;
@@ -16,6 +17,7 @@ interface TOCProps {
 
 export function TableOfContents({ headings }: TOCProps) {
   const [activeId, setActiveId] = useState<string>("");
+  const [mobileOpen, setMobileOpen] = useState(false);
   const activeItemRef = useRef<HTMLAnchorElement>(null);
   const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -74,6 +76,10 @@ export function TableOfContents({ headings }: TOCProps) {
     // Run again after a short delay to handle browser scroll restoration
     const timer = setTimeout(determineActiveHeading, 150);
 
+    // Get actual header height for threshold calculation
+    const header = document.querySelector("header");
+    const headerHeight = header ? header.offsetHeight + 16 : 100;
+
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
@@ -83,7 +89,7 @@ export function TableOfContents({ headings }: TOCProps) {
         });
       },
       {
-        rootMargin: "-100px 0px -80% 0px",
+        rootMargin: `-${headerHeight}px 0px -80% 0px`,
       },
     );
 
@@ -103,42 +109,71 @@ export function TableOfContents({ headings }: TOCProps) {
     return null;
   }
 
+  const tocList = (
+    <ul className="space-y-2 text-sm">
+      {headings.map((heading) => (
+        <li
+          key={heading.id}
+          style={{ paddingLeft: `${(heading.level - 2) * 0.75}rem` }}
+        >
+          <a
+            ref={activeId === heading.id ? activeItemRef : null}
+            href={`#${heading.id}`}
+            onClick={(e) => {
+              e.preventDefault();
+              document.getElementById(heading.id)?.scrollIntoView({
+                behavior: "smooth",
+                block: "start",
+              });
+              setMobileOpen(false);
+            }}
+            className={cn(
+              "block py-1 text-muted-foreground hover:text-foreground transition-colors border-l-2 pl-3",
+              activeId === heading.id
+                ? "border-primary text-primary font-medium"
+                : "border-transparent",
+            )}
+          >
+            {heading.text}
+          </a>
+        </li>
+      ))}
+    </ul>
+  );
+
   return (
-    <nav className="hidden xl:block max-h-[calc(100vh-8rem)] overflow-auto">
-      <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
-        <h2 className="text-sm font-semibold mb-3 text-foreground">
+    <>
+      {/* Desktop TOC */}
+      <nav className="hidden xl:block max-h-[calc(100vh-8rem)] overflow-auto">
+        <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
+          <h2 className="text-sm font-semibold mb-3 text-foreground">
+            On This Page
+          </h2>
+          {tocList}
+          <ShareButtons />
+        </div>
+      </nav>
+
+      {/* Mobile/Tablet TOC (below xl) */}
+      <div className="xl:hidden rounded-lg border border-border bg-card shadow-sm">
+        <button
+          onClick={() => setMobileOpen(!mobileOpen)}
+          className="flex items-center justify-between w-full p-4 text-sm font-semibold text-foreground"
+          aria-expanded={mobileOpen}
+        >
           On This Page
-        </h2>
-        <ul className="space-y-2 text-sm">
-          {headings.map((heading) => (
-            <li
-              key={heading.id}
-              style={{ paddingLeft: `${(heading.level - 2) * 0.75}rem` }}
-            >
-              <a
-                ref={activeId === heading.id ? activeItemRef : null}
-                href={`#${heading.id}`}
-                onClick={(e) => {
-                  e.preventDefault();
-                  document.getElementById(heading.id)?.scrollIntoView({
-                    behavior: "smooth",
-                    block: "start",
-                  });
-                }}
-                className={cn(
-                  "block py-1 text-muted-foreground hover:text-foreground transition-colors border-l-2 pl-3",
-                  activeId === heading.id
-                    ? "border-primary text-primary font-medium"
-                    : "border-transparent",
-                )}
-              >
-                {heading.text}
-              </a>
-            </li>
-          ))}
-        </ul>
-        <ShareButtons />
+          <ChevronDown
+            size={16}
+            className={cn("transition-transform", mobileOpen && "rotate-180")}
+          />
+        </button>
+        {mobileOpen && (
+          <div className="px-4 pb-4">
+            {tocList}
+            <ShareButtons />
+          </div>
+        )}
       </div>
-    </nav>
+    </>
   );
 }

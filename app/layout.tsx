@@ -4,6 +4,9 @@ import LayoutClient from "@app/ui/interface/layout-client";
 import { getAllMDXFiles, groupByFolder } from "@/lib/mdx-utils";
 import Header from "@/components/header";
 import { SearchProvider } from "@/app/ui/interface/search-context";
+import { ThemeProvider } from "@/components/ThemeProvider";
+import { BackToTop } from "@/components/BackToTop";
+import { KeyboardShortcutsHelp } from "@/components/KeyboardShortcutsHelp";
 import { siteConfig } from "@/config/site";
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
@@ -77,20 +80,31 @@ export default function RootLayout({
   const groupedFiles = groupByFolder(allMDXFiles);
 
   return (
-    <html lang="en">
-      <head />
-      <body className="bg-white text-slate-800 antialiased selection:bg-blue-100 selection:text-blue-700 flex min-h-screen flex-col">
-        <Analytics />
-        <SearchProvider>
-          <Header />
-          <LayoutClient
-            sideNav={<SideNav />}
-            groupedFiles={groupedFiles}
-            footer={<Footer />}
-          >
-            {children}
-          </LayoutClient>
-        </SearchProvider>
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <link
+          rel="alternate"
+          type="application/rss+xml"
+          title={siteConfig.name}
+          href="/feed.xml"
+        />
+      </head>
+      <body className="bg-background text-foreground antialiased selection:bg-blue-100 selection:text-blue-700 dark:selection:bg-blue-900 dark:selection:text-blue-200 flex min-h-screen flex-col">
+        <ThemeProvider>
+          <Analytics />
+          <SearchProvider>
+            <Header />
+            <LayoutClient
+              sideNav={<SideNav />}
+              groupedFiles={groupedFiles}
+              footer={<Footer />}
+            >
+              {children}
+            </LayoutClient>
+          </SearchProvider>
+          <BackToTop />
+          <KeyboardShortcutsHelp />
+        </ThemeProvider>
       </body>
     </html>
   );
