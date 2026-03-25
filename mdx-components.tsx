@@ -1,12 +1,8 @@
 import type { MDXComponents } from "mdx/types";
+import type { ReactNode } from "react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
-import {
-  Tabs,
-  TabsList,
-  TabsTrigger,
-  TabsContent,
-} from "@/components/ui/Tabs";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
 // Lazy load the Code component to reduce initial bundle size
 const Code = dynamic(
   () => import("./components/Code").then((mod) => mod.Code),
@@ -19,19 +15,56 @@ const Code = dynamic(
   },
 );
 
+/** Extract plain text from React children to generate heading IDs.
+ *  Must match the algorithm in lib/extract-headings.ts exactly. */
+function getTextContent(node: ReactNode): string {
+  if (typeof node === "string") return node;
+  if (typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(getTextContent).join("");
+  if (node && typeof node === "object" && "props" in node) {
+    return getTextContent(
+      (node as { props: { children?: ReactNode } }).props.children,
+    );
+  }
+  return "";
+}
+
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-");
+}
+
 const components: MDXComponents = {
   h1: ({ children }) => (
     <h1 className="mb-4 mt-8 text-4xl font-bold">{children}</h1>
   ),
-  h2: ({ children }) => (
-    <h2 className="mb-3 mt-6 text-3xl font-light">{children}</h2>
-  ),
-  h3: ({ children }) => (
-    <h3 className="mb-2 mt-5 text-2xl font-semibold">{children}</h3>
-  ),
-  h4: ({ children }) => (
-    <h4 className="mb-2 mt-4 text-xl font-semibold">{children}</h4>
-  ),
+  h2: ({ children }) => {
+    const id = slugify(getTextContent(children));
+    return (
+      <h2 id={id} className="mb-3 mt-6 text-3xl font-light scroll-mt-20">
+        {children}
+      </h2>
+    );
+  },
+  h3: ({ children }) => {
+    const id = slugify(getTextContent(children));
+    return (
+      <h3 id={id} className="mb-2 mt-5 text-2xl font-semibold scroll-mt-20">
+        {children}
+      </h3>
+    );
+  },
+  h4: ({ children }) => {
+    const id = slugify(getTextContent(children));
+    return (
+      <h4 id={id} className="mb-2 mt-4 text-xl font-semibold scroll-mt-20">
+        {children}
+      </h4>
+    );
+  },
   p: ({ children }) => <p className="mb-4 leading-7">{children}</p>,
   ul: ({ children }) => (
     <ul className="mb-4 ml-6 list-disc space-y-2">{children}</ul>
@@ -112,8 +145,8 @@ const components: MDXComponents = {
       );
     }
     // Fallback for weird cases
-    // eslint-disable-next-line @next/next/no-img-element
     return (
+      // eslint-disable-next-line @next/next/no-img-element
       <img
         {...props}
         alt={props.alt || ""}

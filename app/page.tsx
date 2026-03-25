@@ -1,4 +1,14 @@
 import { Card, CardHeader, CardDescription } from "@/components/ui/Card";
+import { siteConfig } from "@/config/site";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: `Home | ${siteConfig.name}`,
+  description: siteConfig.description,
+  alternates: {
+    canonical: siteConfig.url,
+  },
+};
 
 export default function Home() {
   return (

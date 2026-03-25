@@ -21,10 +21,8 @@ interface CodeProps {
 
 export function Code({ children = "", className = "" }: CodeProps) {
   const [copied, setCopied] = useState(false);
-  const [prismLoaded, setPrismLoaded] = useState(false);
   // Load Prism language definitions only on the client after Prism is set globally
   useEffect(() => {
-    let mounted = true;
     if (typeof window === "undefined") return;
     globalThis.Prism = PrismLib;
     // Dynamically import language components
@@ -41,20 +39,9 @@ export function Code({ children = "", className = "" }: CodeProps) {
       import("prismjs/components/prism-hcl"),
       import("prismjs/components/prism-markup-templating"),
       import("prismjs/components/prism-php"),
-    ])
-      .then(() => {
-        if (mounted) {
-          setPrismLoaded(true);
-        }
-      })
-      .catch((e) => {
-        if (mounted) {
-          console.warn("Failed to load Prism language components", e);
-        }
-      });
-    return () => {
-      mounted = false;
-    };
+    ]).catch((e) => {
+      console.warn("Failed to load Prism language components", e);
+    });
   }, []);
   const language =
     className

@@ -2,6 +2,16 @@ import Link from "next/link";
 import { getAllMDXFiles, groupByFolder } from "@/lib/mdx-utils";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { siteConfig } from "@/config/site";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: `Documentation | ${siteConfig.name}`,
+  description: `Browse all documentation topics on ${siteConfig.name}.`,
+  alternates: {
+    canonical: `${siteConfig.url}/docs`,
+  },
+};
 
 export default function BlogIndexPage() {
   const allMDXFiles = getAllMDXFiles();

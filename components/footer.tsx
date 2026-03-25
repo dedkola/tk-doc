@@ -28,26 +28,18 @@ export default function Footer() {
             <ul className="space-y-2 text-sm">
               <li>
                 <Link
-                  href="/"
+                  href="/docs"
                   className="text-slate-600 hover:text-blue-600 transition-colors"
                 >
-                  Getting Started
+                  Browse Docs
                 </Link>
               </li>
               <li>
                 <Link
-                  href="/"
+                  href="/docs/component-examples"
                   className="text-slate-600 hover:text-blue-600 transition-colors"
                 >
                   Components
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/"
-                  className="text-slate-600 hover:text-blue-600 transition-colors"
-                >
-                  API Reference
                 </Link>
               </li>
             </ul>
@@ -57,30 +49,18 @@ export default function Footer() {
           <div className="space-y-4">
             <h3 className="font-semibold text-slate-900">Resources</h3>
             <ul className="space-y-2 text-sm">
-              <li>
-                <Link
-                  href="/"
-                  className="text-slate-600 hover:text-blue-600 transition-colors"
-                >
-                  Blog
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/"
-                  className="text-slate-600 hover:text-blue-600 transition-colors"
-                >
-                  Community
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/"
-                  className="text-slate-600 hover:text-blue-600 transition-colors"
-                >
-                  Help Center
-                </Link>
-              </li>
+              {siteConfig.social.github && (
+                <li>
+                  <Link
+                    href={siteConfig.social.github}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-slate-600 hover:text-blue-600 transition-colors"
+                  >
+                    GitHub
+                  </Link>
+                </li>
+              )}
             </ul>
           </div>
           {/* Social Links */}
@@ -135,18 +115,8 @@ export default function Footer() {
           </p>
           {
             <div className="flex items-center gap-6 text-sm">
-              <Link
-                href="/"
-                className="text-slate-500 hover:text-blue-600 transition-colors"
-              >
-                Privacy Policy
-              </Link>
-              <Link
-                href="/"
-                className="text-slate-500 hover:text-blue-600 transition-colors"
-              >
-                Terms of Service
-              </Link>
+              <span className="text-slate-400">Privacy Policy</span>
+              <span className="text-slate-400">Terms of Service</span>
             </div>
           }
         </div>
