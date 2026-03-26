@@ -6,9 +6,6 @@
 
 **A modern, high-performance documentation platform built with Next.js 16 and MDX**
 
-
-
-
 [![Next.js](https://img.shields.io/badge/Next.js-16.1-black?logo=next.js)](https://nextjs.org/)
 [![React](https://img.shields.io/badge/React-19-61dafb?logo=react&logoColor=white)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178c6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
@@ -61,10 +58,23 @@ Perfect for technical documentation, API references, knowledge bases, and develo
 - **Custom Fonts** - Inter for text, JetBrains Mono for code
 - **Performance Optimized** - Dynamic imports for non-critical components
 
+### 🌗 Dark Mode
+
+- **System-Aware Theme** - Automatically follows your OS preference via `next-themes`
+- **Theme Toggle** - Sun/Moon toggle button in the header for manual switching
+- **Full Coverage** - Dark mode styles across all components, sidebar, search, code blocks, and more
+
 ### 🔍 Enhanced UX
 
 - **Command Palette** - Quick search with `Cmd+K` / `Ctrl+K`
-- **SEO Optimized** - Meta tags, OpenGraph, Twitter cards
+- **Keyboard Shortcuts** - Press `?` to view all available keyboard shortcuts
+- **Back to Top** - Floating button appears on scroll for quick navigation
+- **Click-to-Copy Inline Code** - Click any inline `code` snippet to copy it to clipboard
+- **Related Articles** - Tag-based related content suggestions at the bottom of each page
+- **Social Sharing** - Share buttons for Twitter, Bluesky, LinkedIn, WhatsApp, Email, and copy link
+- **Responsive Table of Contents** - Collapsible mobile-friendly TOC with active heading tracking
+- **RSS Feed** - Auto-generated RSS feed at `/feed.xml` from all MDX content
+- **SEO Optimized** - Meta tags, OpenGraph, Twitter cards, JSON-LD structured data
 - **Security Headers** - HSTS, CSP, X-Frame-Options configured
 - **Sitemap Generation** - Automatic sitemap for better indexing
 
@@ -364,19 +374,15 @@ tk-docs/
 │   ├── layout.tsx               # Root layout with sidebar & dynamic imports
 │   ├── page.tsx                 # Homepage
 │   ├── globals.css              # Global styles
-│   ├── code-highlight.css       # Syntax highlighting styles
 │   ├── docs/
 │   │   └── [...slug]/           # Dynamic MDX routes
+│   ├── feed.xml/
+│   │   └── route.ts             # RSS feed generation
 │   └── ui/
 │       ├── search.tsx           # Search component
 │       └── interface/           # Layout components
 ├── components/                   # React components
-│   ├── mdx/
-│   │   └── code-block.tsx       # Code block component
 │   ├── ui/                      # Radix UI components (PascalCase)
-│   │   ├── buttons/             # Button-related components
-│   │   ├── forms/               # Form-related components
-│   │   ├── modals/              # Modal & dialog components
 │   │   ├── Accordion.tsx
 │   │   ├── Alert.tsx
 │   │   ├── Badge.tsx
@@ -386,10 +392,17 @@ tk-docs/
 │   │   ├── README.md            # Component documentation
 │   │   └── ... (30+ components)
 │   ├── analytics.tsx            # Analytics (dynamically loaded)
+│   ├── BackToTop.tsx            # Floating back-to-top button
+│   ├── Code.tsx                 # Prism syntax-highlighted code blocks
+│   ├── InlineCode.tsx           # Click-to-copy inline code
+│   ├── KeyboardShortcutsHelp.tsx # Keyboard shortcuts dialog ("?" key)
+│   ├── RelatedArticles.tsx      # Tag-based related content
+│   ├── ShareButtons.tsx         # Social sharing buttons
+│   ├── TableOfContents.tsx      # Responsive TOC with active tracking
+│   ├── ThemeProvider.tsx        # next-themes provider wrapper
+│   ├── ThemeToggle.tsx          # Dark/light mode toggle
 │   ├── header.tsx               # Site header
-│   ├── footer.tsx               # Site footer (dynamically loaded)
-│   ├── TableOfContents.tsx      # TOC component
-│   └── ShareButtons.tsx         # Social sharing
+│   └── footer.tsx               # Site footer (dynamically loaded)
 ├── config/                       # Configuration files
 │   ├── config.base.ts           # Base configuration (template defaults)
 │   ├── config.private.ts        # Production overrides (committed)
@@ -427,6 +440,7 @@ tk-docs/
 | [Lucide](https://lucide.dev/)                               | Icon library                    |
 | [Prism](https://prismjs.com/)                               | Syntax highlighting             |
 | [gray-matter](https://github.com/jonschlinkert/gray-matter) | Frontmatter parsing             |
+| [next-themes](https://github.com/pacocoursey/next-themes)   | Dark mode / theme management    |
 
 ## 🎨 Customization
 
@@ -511,11 +525,11 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         variant === "primary" && "bg-blue-600 text-white hover:bg-blue-700",
         variant === "secondary" &&
           "bg-gray-200 text-gray-800 hover:bg-gray-300",
-        className
+        className,
       )}
       {...props}
     />
-  )
+  ),
 );
 
 Button.displayName = "Button";
