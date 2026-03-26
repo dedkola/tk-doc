@@ -41,7 +41,7 @@ const getIconForFolder = (folderName: string) => {
 export default function AccordionMenu({ groupedFiles }: AccordionMenuProps) {
   const pathname = usePathname();
   const [userToggledFolders, setUserToggledFolders] =
-      useState<Set<string> | null>(null);
+    useState<Set<string> | null>(null);
   const activeLinkRef = useRef<HTMLAnchorElement>(null);
 
   // Scroll the sidebar to keep active link visible on mount and navigation
@@ -62,7 +62,7 @@ export default function AccordionMenu({ groupedFiles }: AccordionMenuProps) {
     // Decode the pathname to handle encoded characters like %20 for spaces
     const decodedPathname = decodeURIComponent(pathname || "");
     const activeEntry = Object.entries(groupedFiles).find(([, files]) =>
-        files.some((file) => `/docs/${file.slug.join("/")}` === decodedPathname),
+      files.some((file) => `/docs/${file.slug.join("/")}` === decodedPathname),
     );
     return activeEntry ? new Set([activeEntry[0]]) : new Set<string>();
   }, [pathname, groupedFiles]);
@@ -93,84 +93,90 @@ export default function AccordionMenu({ groupedFiles }: AccordionMenuProps) {
   };
 
   return (
-      <ScrollArea className="flex-1">
-        <nav className="px-4 pt-4 pb-16 space-y-1">
-          {Object.entries(groupedFiles).map(([folderName, files]) => {
-            const isOpen = openFolders.has(folderName);
-            const decodedPathname = decodeURIComponent(pathname || "");
-            const hasActivePage = files.some(
-                (file) => `/docs/${file.slug.join("/")}` === decodedPathname,
-            );
-            const Icon = getIconForFolder(folderName);
+    <ScrollArea className="flex-1">
+      <nav className="px-4 pt-4 pb-16 space-y-1">
+        {Object.entries(groupedFiles).map(([folderName, files]) => {
+          const isOpen = openFolders.has(folderName);
+          const decodedPathname = decodeURIComponent(pathname || "");
+          const hasActivePage = files.some(
+            (file) => `/docs/${file.slug.join("/")}` === decodedPathname,
+          );
+          const Icon = getIconForFolder(folderName);
 
-            return (
-                <div key={folderName} className="mb-1">
-                  <button
-                      onClick={() => toggleFolder(folderName)}
-                      className={`w-full flex items-center justify-between px-3 py-2 text-sm font-medium transition-colors group ${hasActivePage
-                          ? "text-blue-600"
-                          : "text-slate-600 hover:text-slate-900"
-                      }`}
-                  >
-                    <div className="flex items-center gap-3">
+          return (
+            <div key={folderName} className="mb-1">
+              <button
+                onClick={() => toggleFolder(folderName)}
+                className={`w-full flex items-center justify-between px-3 py-2 text-sm font-medium transition-colors group ${
+                  hasActivePage
+                    ? "text-blue-600"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+                }`}
+              >
+                <div className="flex items-center gap-3">
                   <span
-                      className={`transition-colors ${hasActivePage
-                          ? "text-blue-600"
-                          : "text-slate-400 group-hover:text-slate-600"
-                      }`}
+                    className={`transition-colors ${
+                      hasActivePage
+                        ? "text-blue-600"
+                        : "text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300"
+                    }`}
                   >
                     {Icon}
                   </span>
-                      {folderName}
-                    </div>
-                    <div className="flex items-center gap-2">
-                  <span className="px-1.5 py-0.5 text-[10px] font-semibold bg-slate-100 text-slate-500 rounded-full border border-slate-200 group-hover:border-slate-300 transition-colors">
+                  {folderName}
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="px-1.5 py-0.5 text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-full border border-slate-200 dark:border-slate-700 group-hover:border-slate-300 dark:group-hover:border-slate-600 transition-colors">
                     {files.length}
                   </span>
-                      <ChevronDown
-                          size={14}
-                          className={`text-slate-400 transition-transform duration-200 ${isOpen ? "rotate-0" : "-rotate-90"
-                          }`}
-                      />
-                    </div>
-                  </button>
-
-                  {/* Submenu */}
-                  <div
-                      className={`transition-[max-height,opacity] duration-300 ease-in-out ${isOpen
-                          ? "max-h-[60vh] opacity-100 overflow-y-auto"
-                          : "max-h-0 opacity-0 overflow-hidden"
-                      }`}
-                  >
-                    <div className="mt-1 space-y-0.5">
-                      {files.map((file) => {
-                        const href = `/docs/${file.slug.join("/")}`;
-                        const isActive = decodeURIComponent(pathname || "") === href;
-
-                        return (
-                            <Link
-                                key={file.slug.join("/")}
-                                href={href}
-                                ref={isActive ? activeLinkRef : null}
-                                className={`block pl-4 pr-3 py-2 text-sm transition-colors border-l-2 ${isActive
-                                    ? "text-blue-600 font-medium border-blue-600"
-                                    : "text-slate-500 hover:text-slate-900 border-transparent"
-                                }`}
-                                title={file.title}
-                            >
-                              {file.title}
-                            </Link>
-                        );
-                      })}
-                    </div>
-                  </div>
+                  <ChevronDown
+                    size={14}
+                    className={`text-slate-400 transition-transform duration-200 ${
+                      isOpen ? "rotate-0" : "-rotate-90"
+                    }`}
+                  />
                 </div>
-            );
-          })}
-        </nav>
+              </button>
 
-        {/* Bottom Gradient Fade */}
-        <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-white to-transparent"></div>
-      </ScrollArea>
+              {/* Submenu */}
+              <div
+                className={`transition-[max-height,opacity] duration-300 ease-in-out ${
+                  isOpen
+                    ? "max-h-[60vh] opacity-100 overflow-y-auto"
+                    : "max-h-0 opacity-0 overflow-hidden"
+                }`}
+              >
+                <div className="mt-1 space-y-0.5">
+                  {files.map((file) => {
+                    const href = `/docs/${file.slug.join("/")}`;
+                    const isActive =
+                      decodeURIComponent(pathname || "") === href;
+
+                    return (
+                      <Link
+                        key={file.slug.join("/")}
+                        href={href}
+                        ref={isActive ? activeLinkRef : null}
+                        className={`block pl-4 pr-3 py-2 text-sm transition-colors border-l-2 ${
+                          isActive
+                            ? "text-blue-600 font-medium border-blue-600"
+                            : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 border-transparent"
+                        }`}
+                        title={file.title}
+                      >
+                        {file.title}
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </nav>
+
+      {/* Bottom Gradient Fade */}
+      <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-white dark:from-slate-900 to-transparent"></div>
+    </ScrollArea>
   );
 }

@@ -3,12 +3,13 @@ import type { ReactNode } from "react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
+import { InlineCode } from "@/components/InlineCode";
 // Lazy load the Code component to reduce initial bundle size
 const Code = dynamic(
   () => import("./components/Code").then((mod) => mod.Code),
   {
     loading: () => (
-      <div className="my-6 rounded-xl border border-slate-200 bg-slate-50 p-4 font-mono text-sm text-slate-400">
+      <div className="my-6 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-4 font-mono text-sm text-slate-400">
         Loading code...
       </div>
     ),
@@ -29,13 +30,51 @@ function getTextContent(node: ReactNode): string {
   return "";
 }
 
+// Track used IDs to deduplicate (reset per render)
+const usedIds = new Map<string, number>();
+
 function slugify(text: string): string {
-  return text
+  let id = text
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9\s-]/g, "")
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-");
+
+  const count = usedIds.get(id) || 0;
+  usedIds.set(id, count + 1);
+  if (count > 0) {
+    id = `${id}-${count}`;
+  }
+
+  return id;
+}
+
+/** Heading component with hover anchor link */
+function HeadingWithAnchor({
+  level,
+  id,
+  className,
+  children,
+}: {
+  level: 2 | 3 | 4;
+  id: string;
+  className: string;
+  children: ReactNode;
+}) {
+  const Tag = `h${level}` as const;
+  return (
+    <Tag id={id} className={`group ${className}`}>
+      {children}
+      <a
+        href={`#${id}`}
+        className="ml-2 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground transition-opacity"
+        aria-label={`Link to ${getTextContent(children)}`}
+      >
+        #
+      </a>
+    </Tag>
+  );
 }
 
 const components: MDXComponents = {
@@ -45,25 +84,37 @@ const components: MDXComponents = {
   h2: ({ children }) => {
     const id = slugify(getTextContent(children));
     return (
-      <h2 id={id} className="mb-3 mt-6 text-3xl font-light scroll-mt-20">
+      <HeadingWithAnchor
+        level={2}
+        id={id}
+        className="mb-3 mt-6 text-3xl font-light scroll-mt-20"
+      >
         {children}
-      </h2>
+      </HeadingWithAnchor>
     );
   },
   h3: ({ children }) => {
     const id = slugify(getTextContent(children));
     return (
-      <h3 id={id} className="mb-2 mt-5 text-2xl font-semibold scroll-mt-20">
+      <HeadingWithAnchor
+        level={3}
+        id={id}
+        className="mb-2 mt-5 text-2xl font-semibold scroll-mt-20"
+      >
         {children}
-      </h3>
+      </HeadingWithAnchor>
     );
   },
   h4: ({ children }) => {
     const id = slugify(getTextContent(children));
     return (
-      <h4 id={id} className="mb-2 mt-4 text-xl font-semibold scroll-mt-20">
+      <HeadingWithAnchor
+        level={4}
+        id={id}
+        className="mb-2 mt-4 text-xl font-semibold scroll-mt-20"
+      >
         {children}
-      </h4>
+      </HeadingWithAnchor>
     );
   },
   p: ({ children }) => <p className="mb-4 leading-7">{children}</p>,
@@ -87,11 +138,7 @@ const components: MDXComponents = {
   code: ({ children, className }) => {
     const isInline = !className;
     if (isInline) {
-      return (
-        <code className="rounded bg-muted px-1.5 py-0.5 text-sm font-mono text-foreground">
-          {children}
-        </code>
-      );
+      return <InlineCode>{children}</InlineCode>;
     }
     return <Code className={className}>{children}</Code>;
   },
@@ -134,7 +181,7 @@ const components: MDXComponents = {
       (props.src.startsWith("/") || props.src.startsWith("http"))
     ) {
       return (
-        <span className="block relative my-8 w-full h-auto aspect-video rounded-lg overflow-hidden bg-slate-100">
+        <span className="block relative my-8 w-full h-auto aspect-video rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-800">
           <Image
             src={props.src}
             alt={props.alt || ""}

@@ -50,7 +50,7 @@ export default function Search({ placeholder, onSearch, value }: SearchProps) {
         onChange={(e) => {
           handleSearch(e.target.value);
         }}
-        className="pl-10 pr-12 py-2 border border-slate-200 rounded-lg leading-5 bg-slate-50/50 text-slate-900 placeholder-slate-500 focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm transition-all shadow-sm"
+        className="pl-10 pr-12 py-2 border border-slate-200 dark:border-slate-700 rounded-lg leading-5 bg-slate-50/50 dark:bg-slate-800/50 text-slate-900 dark:text-slate-100 placeholder-slate-500 dark:placeholder-slate-400 focus:outline-none focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm transition-all shadow-sm"
       />
     </div>
   );

@@ -29,18 +29,18 @@ export default function Error({
           </div>
         </div>
 
-        <h1 className="mb-2 text-3xl font-bold text-slate-900">
+        <h1 className="mb-2 text-3xl font-bold text-slate-900 dark:text-slate-100">
           Something went wrong!
         </h1>
 
-        <p className="mb-6 text-slate-600">
+        <p className="mb-6 text-slate-600 dark:text-slate-400">
           We encountered an unexpected error. Please try again or return to the
           homepage.
         </p>
 
         {siteConfig.debug?.showErrorDetails && error.message && (
-          <div className="mb-6 rounded-lg bg-slate-100 p-4 text-left">
-            <p className="text-sm font-mono text-slate-800 wrap-break-word">
+          <div className="mb-6 rounded-lg bg-slate-100 dark:bg-slate-800 p-4 text-left">
+            <p className="text-sm font-mono text-slate-800 dark:text-slate-200 wrap-break-word">
               {error.message}
             </p>
           </div>

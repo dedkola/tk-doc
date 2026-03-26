@@ -216,7 +216,7 @@ export default function SearchResults({ groupedFiles }: SearchResultsProps) {
                         <Badge
                           key={`${tag}-${index}`}
                           variant="secondary"
-                          className="text-[10px] px-2 py-0.5 bg-slate-100 text-slate-600 hover:bg-slate-200 border-transparent font-medium"
+                          className="text-[10px] px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 border-transparent font-medium"
                         >
                           #{tag}
                         </Badge>

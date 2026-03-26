@@ -7,6 +7,7 @@ import {
   CardFooter,
 } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { Search } from "lucide-react";
 
 export default function NotFound() {
   return (
@@ -24,9 +25,15 @@ export default function NotFound() {
               The page you are looking for does not exist or has been moved.
             </p>
           </CardHeader>
-          <CardFooter className="justify-center">
+          <CardFooter className="justify-center gap-3">
             <Button asChild>
               <Link href="/">Return Home</Link>
+            </Button>
+            <Button variant="outline" asChild>
+              <Link href="/docs" className="inline-flex items-center gap-2">
+                <Search size={16} />
+                Search Docs
+              </Link>
             </Button>
           </CardFooter>
         </Card>

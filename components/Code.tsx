@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { Highlight, themes, Prism as PrismLib } from "prism-react-renderer";
+import { useTheme } from "next-themes";
 
 // ESM imports are hoisted and run before top-level code.
 // Language components from `prismjs` expect a global `Prism` to exist at load time.
@@ -22,6 +23,7 @@ interface CodeProps {
 export function Code({ children = "", className = "" }: CodeProps) {
   const [copied, setCopied] = useState(false);
   const [, setLanguagesLoaded] = useState(false);
+  const { resolvedTheme } = useTheme();
   // Load Prism language definitions only on the client after Prism is set globally
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -126,10 +128,10 @@ export function Code({ children = "", className = "" }: CodeProps) {
   };
 
   return (
-    <div className="group relative my-6 rounded-xl overflow-hidden border border-slate-200 bg-slate-50 shadow-sm transition-all duration-300 hover:shadow-md">
+    <div className="group relative my-6 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 shadow-sm transition-all duration-300 hover:shadow-md">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-slate-200">
-        <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
+      <div className="flex items-center justify-between px-4 py-3 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
+        <div className="flex items-center gap-2 text-xs font-medium text-slate-500 dark:text-slate-400">
           {language === "bash" || language === "sh" ? (
             <Terminal size={14} />
           ) : (
@@ -139,7 +141,7 @@ export function Code({ children = "", className = "" }: CodeProps) {
         </div>
         <button
           onClick={handleCopy}
-          className="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+          className="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
           type="button"
         >
           {copied ? (
@@ -157,7 +159,11 @@ export function Code({ children = "", className = "" }: CodeProps) {
       </div>
 
       {/* Code Area with Line Numbers */}
-      <Highlight theme={themes.github} code={code} language={language}>
+      <Highlight
+        theme={resolvedTheme === "dark" ? themes.nightOwl : themes.github}
+        code={code}
+        language={language}
+      >
         {({ tokens, getLineProps, getTokenProps }) => (
           <pre
             className="p-4 text-sm font-mono leading-relaxed overflow-x-auto"

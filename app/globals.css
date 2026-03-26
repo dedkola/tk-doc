@@ -4,6 +4,7 @@
 @source not "../out";
 
 @custom-variant dark (&:is(.dark *));
+@custom-variant print (@media print);
 
 /* Custom scrollbar for webkit */
 ::-webkit-scrollbar {
@@ -24,11 +25,29 @@
   background: #94a3b8;
 }
 
+/* Firefox scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+.dark * {
+  scrollbar-color: #475569 transparent;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #475569;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
 html {
   scroll-padding-top: 5rem;
 }
 
-@theme inline {
+@theme {
   --font-sans:
     system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
     sans-serif;
@@ -74,7 +93,43 @@ html {
 
 /* Color of text selection */
 ::selection {
-  background-color: #0078d4;
+  background-color: #2563eb;
+  color: #ffffff;
+}
+
+/* Dark mode theme overrides */
+.dark {
+  --color-background: #0f172a;
+  --color-foreground: #e2e8f0;
+  --color-card: #1e293b;
+  --color-card-foreground: #e2e8f0;
+  --color-popover: #1e293b;
+  --color-popover-foreground: #e2e8f0;
+  --color-primary: #3b82f6;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #1e293b;
+  --color-secondary-foreground: #e2e8f0;
+  --color-muted: #1e293b;
+  --color-muted-foreground: #94a3b8;
+  --color-accent: #1e293b;
+  --color-accent-foreground: #e2e8f0;
+  --color-destructive: #ef4444;
+  --color-destructive-foreground: #ffffff;
+  --color-border: #334155;
+  --color-input: #334155;
+  --color-ring: #3b82f6;
+  --color-sidebar: #0f172a;
+  --color-sidebar-foreground: #e2e8f0;
+  --color-sidebar-primary: #3b82f6;
+  --color-sidebar-primary-foreground: #ffffff;
+  --color-sidebar-accent: #1e293b;
+  --color-sidebar-accent-foreground: #e2e8f0;
+  --color-sidebar-border: #334155;
+  --color-sidebar-ring: #3b82f6;
+}
+
+.dark ::selection {
+  background-color: #3b82f6;
   color: #ffffff;
 }
 
@@ -195,4 +250,52 @@ html {
 
 .fade-in.zoom-in {
   animation-name: fade-in, zoom-in;
+}
+
+/* Print-friendly styles */
+@media print {
+  header,
+  nav,
+  aside,
+  footer {
+    display: none !important;
+  }
+
+  body {
+    background: white !important;
+    color: black !important;
+    font-size: 12pt;
+  }
+
+  .prose {
+    max-width: 100% !important;
+  }
+
+  .prose a {
+    color: black !important;
+    text-decoration: underline !important;
+  }
+
+  .prose a[href^="http"]::after {
+    content: " (" attr(href) ")";
+    font-size: 0.8em;
+    color: #666;
+  }
+
+  .prose pre {
+    border: 1px solid #ccc !important;
+    page-break-inside: avoid;
+  }
+
+  .prose img {
+    max-width: 100% !important;
+    page-break-inside: avoid;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    page-break-after: avoid;
+  }
 }
