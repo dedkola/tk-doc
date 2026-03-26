@@ -181,7 +181,7 @@ const components: MDXComponents = {
       (props.src.startsWith("/") || props.src.startsWith("http"))
     ) {
       return (
-        <span className="block relative my-8 w-full h-auto aspect-video rounded-lg overflow-hidden bg-slate-100">
+        <span className="block relative my-8 w-full h-auto aspect-video rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-800">
           <Image
             src={props.src}
             alt={props.alt || ""}

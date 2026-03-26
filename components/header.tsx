@@ -35,7 +35,7 @@ export default function Header() {
           <Button
             variant="ghost"
             size="icon"
-            className="lg:hidden p-2 -ml-2 hover:bg-slate-100 rounded-md text-slate-600"
+            className="lg:hidden p-2 -ml-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md text-slate-600 dark:text-slate-400"
             onClick={() => setSidebarOpen(!sidebarOpen)}
             aria-label="Toggle sidebar"
           >
@@ -65,14 +65,14 @@ export default function Header() {
               value={searchQuery}
             />
             <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-              <span className="text-slate-400 text-xs border border-slate-200 rounded px-1.5 py-0.5">
+              <span className="text-slate-400 text-xs border border-slate-200 dark:border-slate-700 rounded px-1.5 py-0.5">
                 ⌘K
               </span>
             </div>
           </div>
         </div>
         {/* Right: Links & Mobile Search */}
-        <div className="flex items-center gap-4 text-sm font-medium text-slate-600">
+        <div className="flex items-center gap-4 text-sm font-medium text-slate-600 dark:text-slate-400">
           <Link
             href="/"
             onClick={handleGoHome}
@@ -112,7 +112,7 @@ export default function Header() {
                 href={siteConfig.social.github}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-all"
+                className="p-2 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-all"
                 aria-label="GitHub"
               >
                 <Github size={20} />
@@ -134,7 +134,7 @@ export default function Header() {
       </div>
       {/* Mobile Search Bar Dropdown */}
       {isMobileSearchOpen && (
-        <div className="md:hidden border-t border-slate-200 bg-white px-4 py-3 shadow-sm">
+        <div className="md:hidden border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-3 shadow-sm">
           <div className="relative group">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
               <SearchIcon className="h-4 w-4 text-slate-400 group-focus-within:text-blue-500 transition-colors" />

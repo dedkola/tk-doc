@@ -138,7 +138,7 @@ export function ShareButtons() {
               <Button
                 variant="ghost"
                 size="icon"
-                className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-all h-auto w-auto"
+                className="p-2 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-all h-auto w-auto"
                 onClick={copyToClipboard}
               >
                 {copied ? <Check size={20} /> : <Link size={20} />}
