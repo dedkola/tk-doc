@@ -26,7 +26,7 @@
 
 ## 📖 Overview
 
-**TK Doc** is a production-ready documentation template designed for developers who need a fast, beautiful, and maintainable documentation site. Built with cutting-edge technologies, it provides an exceptional reading experience while maintaining excellent developer experience.
+**TK Docs** is a production-ready documentation template designed for developers who need a fast, beautiful, and maintainable documentation site. Built with cutting-edge technologies, it provides an exceptional reading experience while maintaining excellent developer experience.
 
 Perfect for technical documentation, API references, knowledge bases, and developer guides.
 
