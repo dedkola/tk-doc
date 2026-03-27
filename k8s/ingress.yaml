@@ -22,7 +22,7 @@ spec:
                 name: tk-docs-service
                 port:
                   number: 80
- tls:
-   - hosts:
-     - doc,tk.com
-     secretName: tk-docs-tls
+  tls:
+    - hosts:
+        - doc.tk.com
+      secretName: tk-docs-tls
