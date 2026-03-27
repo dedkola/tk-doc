@@ -21,7 +21,7 @@ spec:
               service:
                 name: tk-docs-service
                 port:
-                  number: 80
+                  number: 443
   tls:
     - hosts:
         - doc.tk.com
