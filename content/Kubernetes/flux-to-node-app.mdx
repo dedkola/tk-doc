@@ -4,6 +4,7 @@ description: Flux CD GitOps to any Next.js app, including Dockerization, Kuberne
 
 tags: [flux, gitops, kubernetes, nextjs, docker, ci-cd]
 ---
+
 This setup is good for 1 project, but if you need complex setup use [this template](flux-onboarding) instead.
 Checklist for adding Flux CD GitOps to any Next.js app.
 Replace `APP_NAME` with your app name (e.g. `chat2md`, `my-dashboard`).
@@ -138,7 +139,7 @@ resources:
 ## Phase 4: CI Pipeline (GitHub Actions)
 
 > **Note:** Replace `GITHUB_USER/APP_NAME` in the sed command with actual values (lowercase).
-Create .github/workflows/docker-build.yml
+> Create .github/workflows/docker-build.yml
 
 ```yaml title=".github/workflows/docker-build.yml"
 name: Build and Push Docker Image
@@ -246,6 +247,17 @@ resources:
   - flux-system/gotk-sync.yaml
 ```
 
+### Create secrets for Github pulling
+
+```bash copy
+kubectl create secret docker-registry ghcr-secret \
+  --docker-server=ghcr.io \
+  --docker-username=dedkola \
+  --docker-password=YOUR_GITHUB_PAT \
+  --docker-email=maiden.tech@gmail.com \
+  -n default
+```
+
 ### 5B: Add App to Flux (repeat for each new app)
 
 Create the Flux Kustomization resource for the app:
@@ -279,8 +291,8 @@ resources:
 
 Commit and push to main. Flux picks it up automatically.
 
-
 ### Add git key
+
 ```bash copy
 
 kubectl create secrekubectl create secret generic flux-system \
@@ -288,6 +300,7 @@ kubectl create secrekubectl create secret generic flux-system \
     --from-literal=username=git \
     --from-literal=password=<GIT-REPO_TOKEN>
 ```
+
 then reconfigure
 
 ```bash copy
