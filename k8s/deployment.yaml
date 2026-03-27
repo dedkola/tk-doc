@@ -18,7 +18,7 @@ spec:
         - name: ghcr-secret
       containers:
         - name: tk-docs
-          image: ghcr.io/dedkola/tk-doc:20260327133447-6a16fd9 # {"$imagepolicy": "flux-system:tk-doc"}
+          image: ghcr.io/dedkola/tk-doc:20260327144113-7fc59f9 # {"$imagepolicy": "flux-system:tk-doc"}
           imagePullPolicy: Always
           ports:
             - containerPort: 3000
