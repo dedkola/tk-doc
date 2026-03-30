@@ -34,6 +34,7 @@ Perfect for technical documentation, API references, knowledge bases, and develo
 
 ### 🚀 Performance & Modern Stack
 
+
 - **Next.js 16** with App Router for optimal performance
 - **React 19** with Server Components
 - **TypeScript** for type safety
