@@ -4,7 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Search from "@/app/ui/search";
 import { Button } from "@/components/ui/Button";
-import { Search as SearchIcon, Menu, X, Github, Twitter } from "lucide-react";
+import { Search as SearchIcon, Menu, X } from "lucide-react";
+import { GithubIcon, TwitterXIcon } from "@/components/SocialIcons";
 import { useSearch } from "@/app/ui/interface/search-context";
 import { Logo } from "@/components/logo";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -115,7 +116,7 @@ export default function Header() {
                 className="p-2 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-all"
                 aria-label="GitHub"
               >
-                <Github size={20} />
+                <GithubIcon size={20} />
               </Link>
             )}
             {siteConfig.social.twitter && (
@@ -126,7 +127,7 @@ export default function Header() {
                 className="p-2 text-slate-400 hover:text-blue-400 hover:bg-blue-50 rounded-full transition-all"
                 aria-label="Twitter"
               >
-                <Twitter size={20} />
+                <TwitterXIcon size={20} />
               </Link>
             )}
           </div>

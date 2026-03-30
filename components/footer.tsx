@@ -1,5 +1,10 @@
 import Link from "next/link";
-import { Github, Twitter, Linkedin, Rss } from "lucide-react";
+import { Rss } from "lucide-react";
+import {
+  GithubIcon,
+  TwitterXIcon,
+  LinkedinIcon,
+} from "@/components/SocialIcons";
 import { Logo } from "@/components/logo";
 import { siteConfig } from "@/config/site";
 
@@ -90,7 +95,7 @@ export default function Footer() {
                   className="p-2 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-all"
                   aria-label="GitHub"
                 >
-                  <Github size={20} />
+                  <GithubIcon size={20} />
                 </Link>
               )}
               {siteConfig.social.twitter && (
@@ -101,7 +106,7 @@ export default function Footer() {
                   className="p-2 text-slate-400 hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950 rounded-full transition-all"
                   aria-label="Twitter"
                 >
-                  <Twitter size={20} />
+                  <TwitterXIcon size={20} />
                 </Link>
               )}
               {siteConfig.social.linkedin && (
@@ -112,7 +117,7 @@ export default function Footer() {
                   className="p-2 text-slate-400 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950 rounded-full transition-all"
                   aria-label="LinkedIn"
                 >
-                  <Linkedin size={20} />
+                  <LinkedinIcon size={20} />
                 </Link>
               )}
             </div>
