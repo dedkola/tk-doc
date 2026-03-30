@@ -147,3 +147,40 @@ export const getAllMDXFiles = cache((): MDXFile[] => {
   const contentDir = path.join(process.cwd(), "content");
   return getMDXFiles(contentDir);
 });
+
+export function getRecentArticles(files: MDXFile[], count: number): MDXFile[] {
+  return [...files]
+    .sort((a, b) => b.lastModified.getTime() - a.lastModified.getTime())
+    .slice(0, count);
+}
+
+export function getTopTags(
+  files: MDXFile[],
+  count: number,
+): { tag: string; count: number }[] {
+  const tagCounts = new Map<string, number>();
+  for (const file of files) {
+    for (const tag of file.tags ?? []) {
+      tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1);
+    }
+  }
+  return [...tagCounts.entries()]
+    .map(([tag, c]) => ({ tag, count: c }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, count);
+}
+
+export function getContentStats(
+  files: MDXFile[],
+  grouped: Record<string, MDXFile[]>,
+) {
+  const allTags = new Set<string>();
+  for (const file of files) {
+    for (const tag of file.tags ?? []) allTags.add(tag);
+  }
+  return {
+    totalArticles: files.length,
+    totalCategories: Object.keys(grouped).length,
+    totalTags: allTags.size,
+  };
+}

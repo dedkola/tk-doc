@@ -33,7 +33,7 @@ This repo's Dockerfile expects Next.js standalone output when building for produ
 DOCKER_BUILD=true pnpm build && docker build -t dedkola/tk-docs:latest .
 ```
 
-Tag (if you want additional tags)
+Tag (if you want additional tags )
 
 ```zsh
 # Tag the same image with a version or commit SHA
