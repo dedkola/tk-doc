@@ -7,14 +7,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/Tooltip";
-import {
-  Check,
-  Link,
-  Mail,
-  Twitter,
-  Linkedin,
-  MessageCircle,
-} from "lucide-react";
+import { Check, Link, Mail, MessageCircle } from "lucide-react";
+import { TwitterXIcon, LinkedinIcon } from "@/components/SocialIcons";
 import { useEffect, useMemo, useState } from "react";
 
 function BlueskyIcon({ size = 20 }: { size?: number }) {
@@ -57,7 +51,7 @@ export function ShareButtons() {
   const shareLinks = [
     {
       name: "Share on Twitter",
-      icon: Twitter,
+      icon: TwitterXIcon,
       href: `https://twitter.com/intent/tweet?text=${encodeURIComponent(
         title,
       )}&url=${encodeURIComponent(url)}`,
@@ -73,7 +67,7 @@ export function ShareButtons() {
     },
     {
       name: "Share on LinkedIn",
-      icon: Linkedin,
+      icon: LinkedinIcon,
       href: `https://www.linkedin.com/shareArticle?mini=true&url=${encodeURIComponent(
         url,
       )}&title=${encodeURIComponent(title)}`,
