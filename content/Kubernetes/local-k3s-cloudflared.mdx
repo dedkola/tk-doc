@@ -1,0 +1,68 @@
+---
+title: Local K3s publish to WWW with Cloudflared tunnel
+description: A guide to publish a local K3s cluster to the WWW using Cloudflared tunnel.
+date: 2026-03-31
+tags:
+  - Kubernetes
+  - K3s
+  - Cloudflared
+  - Tunnels
+  - Local Development
+---
+
+### Create secret for Cloudflared tunnel token
+
+```bash
+kubectl create namespace cloudflare
+
+kubectl create secret generic cloudflared-token \
+  --from-literal=token=YOUR_TUNNEL_TOKEN \
+  -n cloudflare
+```
+
+### Create deployment and service
+
+```bash
+nano cloudflared-deployment.yaml
+```
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloudflared
+  namespace: cloudflare
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: cloudflared
+  template:
+    metadata:
+      labels:
+        app: cloudflared
+    spec:
+      containers:
+        - name: cloudflared
+          image: cloudflare/cloudflared:latest
+          args:
+            - tunnel
+            - run
+          env:
+            - name: TUNNEL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: cloudflared-token
+                  key: token
+```
+
+### Change hostname where point to
+
+```bash
+Service: http://your-service-name.namespace.svc.cluster.local:port
+
+### Example:
+http://myapp.default.svc.cluster.local:8080
+http://nginx.default.svc.cluster.local:80.
+http://code-server.codelearn.svc.cluster.local:80
+```
