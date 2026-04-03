@@ -1,0 +1,97 @@
+---
+title: K3s API Access via Cloudflare Tunnel
+description: A guide to access K3s API securely using Cloudflare Tunnel.
+date: 2026-04-01
+tags:
+  - Kubernetes
+  - K3s
+  - Cloudflared
+  - Tunnels
+  - API Access
+---
+
+How to create a Cloudflare Tunnel you can check the [Local K3s publish to WWW with Cloudflared tunnel](./local-k3s-cloudflared.mdx) guide.
+Point it to https://localhost:6443
+
+### Create a ServiceAccount token
+
+```yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: codeforge-sa
+  namespace: codelearn
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: codeforge-cs-manager
+  namespace: codelearn
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "services", "persistentvolumeclaims"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+  - apiGroups: [""]
+    resources: ["pods/status"]
+    verbs: ["get"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses"]
+    verbs: ["get", "list", "create", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: codeforge-cs-manager-binding
+  namespace: codelearn
+subjects:
+  - kind: ServiceAccount
+    name: codeforge-sa
+    namespace: codelearn
+roleRef:
+  kind: Role
+  name: codeforge-cs-manager
+  apiGroup: rbac.authorization.k8s.io
+```
+
+Now create a long-lived token for the ServiceAccount:
+
+```bash
+kubectl -n codelearn create token codeforge-sa --duration=8760h
+```
+
+Alternative — non-expiring Secret-bound token (if your cluster supports it):
+
+```bash
+apiVersion: v1
+kind: Secret
+metadata:
+  name: codeforge-sa-token
+  namespace: codelearn
+  annotations:
+    kubernetes.io/service-account.name: codeforge-sa
+type: kubernetes.io/service-account-token
+```
+
+Apply the manifest and get the token value:
+
+```bash
+kubectl apply -f - <<EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: codeforge-sa-token
+  namespace: codelearn
+  annotations:
+    kubernetes.io/service-account.name: codeforge-sa
+type: kubernetes.io/service-account-token
+EOF
+
+kubectl -n codelearn get secret codeforge-sa-token -o jsonpath='{.data.token}' | base64 -d
+```
+
+### Verify API access through the tunnel
+
+```bash
+curl -s -H "Authorization: Bearer <TOKEN>" \
+  https://k8s.tkweb.site/api/v1/namespaces/codelearn/pods | head -20
+```
