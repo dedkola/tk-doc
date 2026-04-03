@@ -8,6 +8,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Folder, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { searchFiles, tokenize, type SearchResult } from "@/lib/search-utils";
 
 interface SearchResultsProps {
   groupedFiles: Record<string, MDXFile[]>;
@@ -17,17 +18,10 @@ export default function SearchResults({ groupedFiles }: SearchResultsProps) {
   const { searchQuery, setSearchQuery, selectedTag, setSelectedTag } =
     useSearch();
 
-  type ResultType = {
-    folder: string;
-    file: MDXFile;
-    excerpt?: string;
-    matchType: string;
-  };
-
-  const searchResults = useMemo(() => {
-    // Tag filtering
+  const searchResults = useMemo<SearchResult[] | null>(() => {
+    // Tag filtering (unchanged — exact match on tag name)
     if (selectedTag) {
-      const results: ResultType[] = [];
+      const results: SearchResult[] = [];
 
       Object.entries(groupedFiles).forEach(([folderName, files]) => {
         files.forEach((file) => {
@@ -36,7 +30,12 @@ export default function SearchResults({ groupedFiles }: SearchResultsProps) {
               (tag) => tag.toLowerCase() === selectedTag.toLowerCase(),
             )
           ) {
-            results.push({ folder: folderName, file, matchType: "tag" });
+            results.push({
+              folder: folderName,
+              file,
+              matchType: "tag",
+              score: 0,
+            });
           }
         });
       });
@@ -44,68 +43,15 @@ export default function SearchResults({ groupedFiles }: SearchResultsProps) {
       return results;
     }
 
-    // Search query
     if (!searchQuery.trim()) {
       return null;
     }
 
-    const query = searchQuery.toLowerCase();
-    const results: ResultType[] = [];
-
-    Object.entries(groupedFiles).forEach(([folderName, files]) => {
-      files.forEach((file) => {
-        let matchType = "";
-        let excerpt = "";
-
-        // Search in title
-        if (file.title.toLowerCase().includes(query)) {
-          matchType = "title";
-          results.push({ folder: folderName, file, matchType });
-          return;
-        }
-
-        // Search in folder name
-        if (folderName.toLowerCase().includes(query)) {
-          matchType = "folder";
-          results.push({ folder: folderName, file, matchType });
-          return;
-        }
-
-        // Search in description
-        if (file.description?.toLowerCase().includes(query)) {
-          matchType = "description";
-          results.push({ folder: folderName, file, matchType });
-          return;
-        }
-
-        // Search in tags
-        if (file.tags?.some((tag) => tag.toLowerCase().includes(query))) {
-          matchType = "tag";
-          results.push({ folder: folderName, file, matchType });
-          return;
-        }
-
-        // Search in content
-        if (file.content?.toLowerCase().includes(query)) {
-          matchType = "content";
-
-          // Extract excerpt around the match
-          const contentLower = file.content.toLowerCase();
-          const matchIndex = contentLower.indexOf(query);
-          const start = Math.max(0, matchIndex - 100);
-          const end = Math.min(
-            file.content.length,
-            matchIndex + query.length + 100,
-          );
-          excerpt = "..." + file.content.substring(start, end).trim() + "...";
-
-          results.push({ folder: folderName, file, excerpt, matchType });
-        }
-      });
-    });
-
-    return results;
+    return searchFiles(groupedFiles, searchQuery);
   }, [groupedFiles, searchQuery, selectedTag]);
+
+  // Highlight individual query words in text
+  const queryWords = useMemo(() => tokenize(searchQuery), [searchQuery]);
 
   if (!searchQuery.trim() && !selectedTag) {
     return null;
@@ -114,20 +60,23 @@ export default function SearchResults({ groupedFiles }: SearchResultsProps) {
   const displayQuery = selectedTag || searchQuery;
   const isTagFilter = !!selectedTag;
 
-  // Helper to highlight text
   const HighlightText = ({
     text,
-    highlight,
+    words,
   }: {
     text: string;
-    highlight: string;
+    words: string[];
   }) => {
-    if (!highlight || !text) return <>{text}</>;
-    const parts = text.split(new RegExp(`(${highlight})`, "gi"));
+    if (!words.length || !text) return <>{text}</>;
+    const escaped = words.map((w) =>
+      w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+    );
+    const pattern = new RegExp(`(${escaped.join("|")})`, "gi");
+    const parts = text.split(pattern);
     return (
       <>
         {parts.map((part, i) =>
-          part.toLowerCase() === highlight.toLowerCase() ? (
+          words.some((w) => part.toLowerCase() === w.toLowerCase()) ? (
             <span
               key={i}
               className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200 font-medium px-0.5 rounded"
@@ -197,7 +146,7 @@ export default function SearchResults({ groupedFiles }: SearchResultsProps) {
                     </Badge>
                   </div>
                   <CardTitle className="text-lg font-semibold leading-tight group-hover:text-primary transition-colors">
-                    <HighlightText text={file.title} highlight={searchQuery} />
+                    <HighlightText text={file.title} words={queryWords} />
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="flex-1 flex flex-col gap-4">
@@ -205,7 +154,7 @@ export default function SearchResults({ groupedFiles }: SearchResultsProps) {
                     <p className="text-sm text-muted-foreground line-clamp-3 leading-relaxed">
                       <HighlightText
                         text={excerpt || file.description || ""}
-                        highlight={searchQuery}
+                        words={queryWords}
                       />
                     </p>
                   )}
