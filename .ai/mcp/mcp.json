@@ -17,6 +17,18 @@
         "CONTEXT7_API_KEY": "ctx7sk-52c9ac33-8469-4475-8ac1-f1aa6024d477"
       },
       "type": "stdio"
+    },
+    "playwright": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@playwright/mcp@latest",
+        "--headless",
+        "--browser=chromium",
+        "--output-mode=file",
+        "--output-dir=.playwright-mcp"
+      ],
+      "type": "stdio"
     }
   }
 }

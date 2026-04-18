@@ -1,128 +1,56 @@
 # Copilot Instructions for TK Docs
 
-TK Docs is a documentation platform template built with Next.js 16 (App Router), React 19, TypeScript (strict), Tailwind CSS 4, and MDX. No test framework is configured — quality control is ESLint only.
+TK Docs is a content-driven documentation site built with Next.js 16 App Router, React 19, strict TypeScript, Tailwind CSS 4, and MDX.
 
 ## Commands
 
 ```bash
-pnpm dev          # Start dev server with Turbopack (port 3000)
-pnpm build        # Production build (also runs type checking)
-pnpm lint         # ESLint (flat config format via eslint.config.mjs)
-npx tsc --noEmit  # Type check without building
+pnpm install
+pnpm dev
+pnpm build        # production build; Next.js also runs type-checking here
+pnpm start
+pnpm lint
+pnpm lint app/layout.tsx   # lint a specific file or directory
+npx tsc --noEmit           # standalone type-check
 ```
 
-## Architecture
+There is no test runner or test suite configured in this repository right now, so there is no single-test command.
 
-### Content → URL Pipeline
+## High-level architecture
 
-MDX files in `content/` map directly to `/docs/` routes by file path:
-- `content/Docker/install.mdx` → `/docs/Docker/install`
+### Content is the shared data source
 
-`lib/mdx-utils.ts` handles file discovery and frontmatter parsing (**server-only** — uses `eval('require')` guard). `app/docs/[...slug]/page.tsx` uses `generateStaticParams()` to pre-render all pages at build time. Components available in MDX are registered in `lib/mdx-page-components.tsx` (not `mdx-components.tsx`).
+- `content/**/*.mdx` is the source of truth for docs pages, sidebar groups, homepage stats, related articles, sitemap entries, and the RSS feed.
+- `lib/mdx-utils.ts` is the central server-only content loader. It recursively scans `content/`, parses frontmatter with `gray-matter`, normalizes tags/keywords, and exposes helpers like `groupByFolder()`, `getRecentArticles()`, and `getTopTags()`.
+- `app/docs/[...slug]/page.tsx` reads the matching MDX file, renders it with `MDXRemote`, extracts h2-h4 headings, builds page metadata and JSON-LD, and uses `generateStaticParams()` plus `dynamicParams = false` to pre-render every docs route at build time.
+- `app/page.tsx`, `app/sitemap.ts`, and `app/feed.xml/route.ts` all reuse the same MDX data layer instead of maintaining separate indexes.
 
-**MDX frontmatter:**
-```yaml
----
-title: "Page Title"
-description: "Short description"
-tags: [tag1, tag2]       # also accepts CSV string
-keywords: "optional, keywords"
-publishedAt: "2024-01-01"
-updatedAt: "2024-03-01"
----
-```
+### Layout and search are split across server and client
 
-### Three-Layer Configuration System
+- `app/layout.tsx` builds the app shell on the server: it loads all MDX files once, groups them, and passes that shared dataset into `LayoutClient`, `SideNav`, and the header/search UI.
+- `app/ui/interface/search-context.tsx` is the client state boundary. It owns `searchQuery`, `selectedTag`, and mobile sidebar state, and syncs `search` / `tag` query params back to the URL with a 300ms debounce.
+- `app/ui/interface/layout-client.tsx` decides whether to show normal page content or global search results. Search is rendered inside the shared layout, not as its own route.
+- `app/ui/interface/search-results.tsx` uses `lib/search-utils.ts`, which applies multi-word AND matching plus weighted scoring across title, tags, keywords, description, folder, and content.
+- `app/ui/search.tsx` wires the global `Cmd+K` / `Ctrl+K` shortcut to focus search, and `components/KeyboardShortcutsHelp.tsx` exposes the `?` shortcut help dialog.
 
-**Never modify `config/config.base.ts`.** Merge order: base → private → local.
+### Configuration and deployment have multiple modes
 
-| File | Purpose | Git |
-|------|---------|-----|
-| `config/config.base.ts` | Template defaults | committed (read-only) |
-| `config/config.private.ts` | Production values (URL, analytics, social) | committed |
-| `config/config.local.ts` | Local dev overrides | gitignored |
+- `config/site.ts` builds `siteConfig` by merging `config/config.base.ts` -> `config/config.private.ts` -> optional `config/config.local.ts`.
+- Treat `config/config.base.ts` as template defaults. Site-specific committed changes belong in `config/config.private.ts`; local-only overrides belong in `config/config.local.ts`.
+- `next.config.mjs` switches output mode by environment: default Next.js app locally, `standalone` when `DOCKER_BUILD=true`, and static `export` when `CF_PAGES=1`.
+- `Dockerfile` sets `DOCKER_BUILD=true` and copies the standalone build plus `content/` into the final image. For Cloudflare Pages, security headers move to `public/_headers` because `headers()` cannot run in static export mode.
 
-`config/site.ts` exports `siteConfig` by merging all three layers with `mergeSection()`. Import `siteConfig` wherever site metadata is needed.
+## Key conventions
 
-### Search Architecture
+- Global MDX components live in `lib/mdx-page-components.tsx`, not `mdx-components.tsx`. If a component should be usable directly inside MDX, register it there. `content/component-examples.mdx` is the reference page.
+- `lib/mdx-utils.ts` is server-only by design; do not import it into client components.
+- URLs and sidebar structure come directly from MDX file paths. Example: `content/Docker/install.mdx` becomes `/docs/Docker/install` and appears under the `Docker` section automatically.
+- Frontmatter is part of the content contract. `title` and `description` are expected; `tags` and `keywords` accept arrays or comma-separated strings; `publishedAt` and `updatedAt` drive metadata, RSS ordering, and recency displays.
+- Search behavior is cross-file behavior. If you change search state, filtering, or rendering, update `search-context.tsx`, `layout-client.tsx`, and `search-results.tsx` together so URL syncing and layout switching stay aligned.
+- UI components in `components/ui/` use PascalCase filenames and the normal pattern is Radix primitive + `class-variance-authority` + `cn()` from `lib/utils.ts`.
+- Prefer `siteConfig` from `config/site.ts` for metadata, social links, analytics, and SEO values instead of importing individual config layers in app code.
 
-Client-side full-text search, no external service:
+## Existing repo guidance
 
-1. `lib/mdx-utils.ts` — `getAllMDXFiles()` (server, `cache()`-wrapped) scans `content/` and returns parsed MDX with frontmatter
-2. `app/ui/interface/search-context.tsx` — `SearchProvider` client context; syncs `searchQuery` and `selectedTag` to URL params with 300ms debounce
-3. `app/ui/interface/search-results.tsx` — filters across title, description, tags, folder, and content; extracts 200-char excerpts; highlights matches
-
-Search is triggered with **Cmd+K / Ctrl+K**.
-
-### Server vs Client Components
-
-Server Components by default. Key client components:
-- `app/ui/interface/search-context.tsx` — `SearchProvider`, `useSearch` hook
-- `app/ui/interface/layout-client.tsx` — main layout wrapper
-- `app/ui/interface/sidenav-client.tsx` — interactive sidebar
-- `components/header.tsx`, `components/TableOfContents.tsx`, `components/ThemeToggle.tsx`
-
-Dynamic imports for non-critical components:
-```tsx
-// SSR disabled (Prism runs client-side)
-const Code = dynamic(() => import("./components/Code"), { ssr: false });
-
-// SSR enabled but deferred
-const Footer = dynamic(() => import("@/components/footer"), { ssr: true });
-```
-
-### Sidebar Navigation
-
-`app/ui/interface/sidenav.tsx` (server) loads all MDX files, groups them by folder via `groupByFolder()`, and extracts top 10 tags. It passes this data as props to `sidenav-client.tsx` (client) which renders collapsible accordions. Navigation auto-generates from `content/` folder structure — no manual registration needed.
-
-## Key Conventions
-
-### Component Pattern (Radix UI + CVA)
-
-```tsx
-import { cva, type VariantProps } from "class-variance-authority";
-import { cn } from "@/lib/utils";
-
-const variants = cva("base-classes", {
-  variants: { variant: { default: "...", outline: "..." } },
-  defaultVariants: { variant: "default" },
-});
-
-export function Component({
-  className, variant, asChild = false, ...props
-}: React.ComponentProps<"button"> & VariantProps<typeof variants>) {
-  const Comp = asChild ? Slot : "button";
-  return <Comp className={cn(variants({ variant }), className)} {...props} />;
-}
-```
-
-- Components: PascalCase files in `components/ui/`
-- Utilities/hooks: kebab-case
-- MDX content files: kebab-case
-
-### Path Aliases
-
-```tsx
-import { cn } from "@/lib/utils";           // @/* → root
-import { Button } from "@components/ui/Button"; // @components/* → components/
-import { siteConfig } from "@/config/site";
-// Also available: @lib/*, @app/*
-```
-
-### MDX Components
-
-All components in `lib/mdx-page-components.tsx` are available in MDX without imports. To add a new component for MDX use, register it there. See `content/component-examples.mdx` for live usage examples of all available components.
-
-Headings (h2–h4) auto-generate deduplicated URL-safe IDs for anchor links. Inline code (no `className`) renders as `<InlineCode>`; fenced code blocks render via the dynamically-imported `<Code>` component (Prism).
-
-### SEO Pattern
-
-`app/docs/[...slug]/page.tsx` generates per-page metadata including OpenGraph, Twitter card, and two JSON-LD schemas (`TechArticle` + `BreadcrumbList`) injected via `<script type="application/ld+json">`.
-
-## Docker
-
-`DOCKER_BUILD=true` env var enables Next.js standalone output in `next.config.mjs` (disabled locally to avoid symlink issues on Windows). Docker Compose maps host port **3000 → container 3000**.
-
-```bash
-docker compose up --build
-```
+- For framework and library questions in this repo (Next.js App Router, Radix UI, Tailwind CSS, MDX, Docker), use Context7 before changing code or configuration.
+- Repo-local MCP server entries live in `.ai/mcp/mcp.json`. Use Playwright MCP there when a change needs real browser interaction, rendered UI checks, or screenshot-based debugging.
