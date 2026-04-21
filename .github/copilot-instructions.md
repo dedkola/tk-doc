@@ -1,6 +1,6 @@
-# Copilot Instructions for TK Docs
+# Copilot Instructions for TK Doc
 
-TK Docs is a content-driven documentation site built with Next.js 16 App Router, React 19, strict TypeScript, Tailwind CSS 4, and MDX.
+TK Doc is a content-driven documentation site built with Next.js 16 App Router, React 19, strict TypeScript, Tailwind CSS 4, and MDX.
 
 ## Commands
 

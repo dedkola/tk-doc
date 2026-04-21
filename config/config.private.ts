@@ -1,8 +1,8 @@
 import type { BaseSiteConfig } from "./config.base";
 
 export const privateConfig: Partial<BaseSiteConfig> = {
-  name: "TK Docs",
-  title: "TK Docs",
+  name: "TK Doc",
+  title: "TK Doc",
   description: "A modern, high-performance documentation platform.",
   url: "https://doc.tkweb.site",
   og: {
@@ -27,7 +27,7 @@ export const privateConfig: Partial<BaseSiteConfig> = {
     linkedin: "https://www.linkedin.com/in/nikolay-sokolovskiy-it/",
   },
   footer: {
-    companyName: "TK Docs",
+    companyName: "TK Doc",
     copyright: `© ${new Date().getFullYear()} All rights reserved.`,
   },
 };

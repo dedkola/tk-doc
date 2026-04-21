@@ -1,6 +1,6 @@
-# Kubernetes Deployment Guide for TK Docs
+# Kubernetes Deployment Guide for TK Doc
 
-This directory contains Kubernetes manifests for deploying the TK Docs application to a Kubernetes cluster.
+This directory contains Kubernetes manifests for deploying the TK Doc application to a Kubernetes cluster.
 
 ## 🚀 Quick Start (Docker Desktop Kubernetes)
 

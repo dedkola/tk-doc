@@ -31,9 +31,9 @@ export interface BaseSiteConfig {
 }
 
 export const baseConfig: BaseSiteConfig = {
-  name: "Template Docs",
-  title: "Template Docs",
-  description: "Base configuration for the TK Docs template.",
+  name: "TK Doc",
+  title: "TK Doc",
+  description: "A modern, high-performance documentation platform.",
   url: "http://localhost:3000",
   og: {
     image: "",
@@ -57,7 +57,7 @@ export const baseConfig: BaseSiteConfig = {
     linkedin: "",
   },
   footer: {
-    companyName: "Template Docs",
+    companyName: "TK Doc",
     copyright: `© ${new Date().getFullYear()} All rights reserved.`,
   },
 };

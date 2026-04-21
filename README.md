@@ -1,8 +1,9 @@
-# TK Docs
+# TK Doc
 
 <div align="center">
 
-![TK Docs](public/github_page_collage.png)
+<img src="public/github_page_home.png" alt="TK Doc home page" width="49%" />
+<img src="public/github_page_docs.png" alt="TK Doc documentation page" width="49%" />
 
 **A modern, high-performance documentation platform built with Next.js 16 and MDX**
 
@@ -14,9 +15,9 @@
 [![pnpm](https://img.shields.io/badge/pnpm-fast-f69220?logo=pnpm&logoColor=white)](https://pnpm.io/)
 
 [![Website](https://img.shields.io/website?url=https%3A%2F%2Fdoc.tkweb.site&label=demo)](https://doc.tkweb.site)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen?style=flat)](https://github.com/dedkola/tk-docs-template/pulls)
-[![GitHub last commit](https://img.shields.io/github/last-commit/dedkola/tk-docs-template?style=flat&logo=github)](https://github.com/dedkola/tk-docs-template/commits/main)
-[![GitHub license](https://img.shields.io/github/license/dedkola/tk-docs-template?style=flat)](LICENSE)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen?style=flat)](https://github.com/dedkola/tk-doc/pulls)
+[![GitHub last commit](https://img.shields.io/github/last-commit/dedkola/tk-doc?style=flat&logo=github)](https://github.com/dedkola/tk-doc/commits/main)
+[![GitHub license](https://img.shields.io/github/license/dedkola/tk-doc?style=flat)](LICENSE)
 
 [Features](#-features) • [Quick Start](#-quick-start) • [Documentation](#-documentation) • [Project Structure](#-project-structure) • [Contributing](#-contributing)
 
@@ -26,7 +27,7 @@
 
 ## 📖 Overview
 
-**TK Docs** is a production-ready documentation template designed for developers who need a fast, beautiful, and maintainable documentation site. Built with cutting-edge technologies, it provides an exceptional reading experience while maintaining excellent developer experience.
+**TK Doc** is a production-ready documentation template designed for developers who need a fast, beautiful, and maintainable documentation site. Built with cutting-edge technologies, it provides an exceptional reading experience while maintaining excellent developer experience.
 
 Perfect for technical documentation, API references, knowledge bases, and developer guides.
 
@@ -98,8 +99,8 @@ Perfect for technical documentation, API references, knowledge bases, and develo
 1. **Use this template or clone:**
 
    ```bash
-   git clone https://github.com/dedkola/tk-docs-template.git
-   cd tk-docs-template
+   git clone https://github.com/dedkola/tk-doc.git
+   cd tk-doc
    ```
 
 2. **Install dependencies:**
@@ -138,7 +139,7 @@ The template includes one example file: `component-examples.mdx` showing all ava
 ````mdx
 ---
 title: Getting Started
-description: Learn how to use TK Docs
+description: Learn how to use TK Doc
 tags: [guide, beginner]
 ---
 
@@ -293,8 +294,8 @@ export const privateConfig: Partial<BaseSiteConfig> = {
 
 | Field             | Purpose                             | Example                             |
 | ----------------- | ----------------------------------- | ----------------------------------- |
-| `name`            | Company/site name                   | `"TK Docs"`                         |
-| `title`           | Page title (appears in browser tab) | `"TK Docs"`                         |
+| `name`            | Company/site name                   | `"TK Doc"`                          |
+| `title`           | Page title (appears in browser tab) | `"TK Doc"`                          |
 | `description`     | Meta description (SEO)              | `"A modern documentation platform"` |
 | `url`             | Your production domain              | `"https://docs.example.com"`        |
 | `social.github`   | GitHub profile link                 | Leave empty `""` to hide            |
@@ -370,7 +371,7 @@ export const privateConfig: Partial<BaseSiteConfig> = {
 ## 📁 Project Structure
 
 ```
-tk-docs/
+tk-doc/
 ├── app/                          # Next.js App Router
 │   ├── layout.tsx               # Root layout with sidebar & dynamic imports
 │   ├── page.tsx                 # Homepage
@@ -570,4 +571,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 Made with ❤️ by [dedkola](https://github.com/dedkola/)
 
-[Documentation](https://doc.tkweb.site) • [GitHub](https://github.com/dedkola/tk-docs-template) • [Issues](https://github.com/dedkola/tk-docs-template/issues)
+[Documentation](https://doc.tkweb.site) • [GitHub](https://github.com/dedkola/tk-doc) • [Issues](https://github.com/dedkola/tk-doc/issues)
