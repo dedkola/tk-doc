@@ -27,7 +27,8 @@ This command displays the secure token required for agent nodes to join the clus
 On your **new agent node**, run the following command to install K3s and join the cluster:
 
 ```bash copy
-curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION=v1.26.7+k3s1 INSTALL_K3S_EXEC="agent --server https://192.168.3.2:6443 --node-ip 192.168.3.3 --node-external-ip 192.168.3.3" K3S_TOKEN=K105b9c68df80752c8f9d498097b764a35f9ba2c0220b2ea8951cef3aca111d9f33::server:2855bde078f38f3964f3f36e6e37dfbb K3S_NODE_NAME=agent sh -
+curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION=v1.26.7+k3s1 INSTALL_K3S_EXEC="agent --server https://192.168.3.2:6443 --node-ip 192.168.3.3 --node-external-ip 192.168.3.3" /
+K3S_TOKEN=YOUR-K3S-TOKEN K3S_NODE_NAME=agent sh -
 ```
 
 ### Important: Customize These Values
