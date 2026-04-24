@@ -203,6 +203,11 @@ export default async function Page({
     })),
   };
 
+  const capitalizedCategory =
+    decodedSlug.length > 1
+      ? decodedSlug[0].charAt(0).toUpperCase() + decodedSlug[0].slice(1)
+      : null;
+
   return (
     <div className="mx-auto w-full max-w-5xl px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
       {/* JSON-LD Structured Data */}
@@ -229,9 +234,7 @@ export default async function Page({
           <BreadcrumbItem>
             <BreadcrumbLink href="/docs">Docs</BreadcrumbLink>
           </BreadcrumbItem>
-          {decodedSlug.length > 1 && (() => {
-            const capitalizedCategory = decodedSlug[0].charAt(0).toUpperCase() + decodedSlug[0].slice(1);
-            return (
+          {capitalizedCategory && (
               <>
                 <BreadcrumbSeparator />
                 <BreadcrumbItem>
@@ -242,8 +245,7 @@ export default async function Page({
                   </BreadcrumbLink>
                 </BreadcrumbItem>
               </>
-            );
-          })()}
+            )}
           <BreadcrumbSeparator />
           <BreadcrumbItem>
             <BreadcrumbPage>{title}</BreadcrumbPage>
