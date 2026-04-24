@@ -4,27 +4,28 @@ import { siteConfig } from "@/config/site";
 export const dynamic = "force-static";
 
 export async function GET() {
-  const allFiles = getAllMDXFiles();
-  const baseUrl = siteConfig.url;
+  try {
+    const allFiles = getAllMDXFiles();
+    const baseUrl = siteConfig.url;
 
-  const items = allFiles
-    .sort(
-      (a, b) =>
-        new Date(b.updatedAt || b.lastModified).getTime() -
-        new Date(a.updatedAt || a.lastModified).getTime(),
-    )
-    .map((file) => {
-      const url = `${baseUrl}/docs/${file.slug.map((s) => encodeURIComponent(s)).join("/")}`;
-      const pubDate =
-        file.publishedAt || file.updatedAt || file.lastModified.toISOString();
-      // Escape XML special characters
-      const escapeXml = (s: string) =>
-        s
-          .replace(/&/g, "&amp;")
-          .replace(/</g, "&lt;")
-          .replace(/>/g, "&gt;")
-          .replace(/"/g, "&quot;");
-      return `    <item>
+    const items = allFiles
+      .sort(
+        (a, b) =>
+          new Date(b.updatedAt || b.lastModified).getTime() -
+          new Date(a.updatedAt || a.lastModified).getTime(),
+      )
+      .map((file) => {
+        const url = `${baseUrl}/docs/${file.slug.map((s) => encodeURIComponent(s)).join("/")}`;
+        const pubDate =
+          file.publishedAt || file.updatedAt || file.lastModified.toISOString();
+        // Escape XML special characters
+        const escapeXml = (s: string) =>
+          s
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;");
+        return `    <item>
       <title>${escapeXml(file.title)}</title>
       <link>${url}</link>
       <guid isPermaLink="true">${url}</guid>
@@ -32,10 +33,10 @@ export async function GET() {
       ${file.description ? `<description>${escapeXml(file.description)}</description>` : ""}
       ${file.tags ? file.tags.map((t) => `<category>${escapeXml(t)}</category>`).join("\n      ") : ""}
     </item>`;
-    })
-    .join("\n");
+      })
+      .join("\n");
 
-  const rss = `<?xml version="1.0" encoding="UTF-8"?>
+    const rss = `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
   <channel>
     <title>${siteConfig.name}</title>
@@ -48,10 +49,17 @@ ${items}
   </channel>
 </rss>`;
 
-  return new Response(rss, {
-    headers: {
-      "Content-Type": "application/rss+xml; charset=utf-8",
-      "Cache-Control": "public, max-age=3600, s-maxage=3600",
-    },
-  });
+    return new Response(rss, {
+      headers: {
+        "Content-Type": "application/rss+xml; charset=utf-8",
+        "Cache-Control": "public, max-age=3600, s-maxage=3600",
+      },
+    });
+  } catch (e) {
+    console.error("[feed.xml] Error generating feed:", e);
+    return new Response("Error generating feed", {
+      status: 500,
+      headers: { "Content-Type": "application/rss+xml" },
+    });
+  }
 }

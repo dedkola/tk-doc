@@ -10,7 +10,7 @@ import { KeyboardShortcutsHelp } from "@/components/KeyboardShortcutsHelp";
 import { siteConfig } from "@/config/site";
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import React from "react";
+import type { ReactNode } from "react";
 // Dynamic imports for non-critical components
 const Footer = dynamic(() => import("@/components/footer"), {
   ssr: true,
@@ -74,7 +74,7 @@ export const viewport: Viewport = {
 export default function RootLayout({
   children,
 }: Readonly<{
-  children: React.ReactNode;
+  children: ReactNode;
 }>) {
   const allMDXFiles = getAllMDXFiles();
   const groupedFiles = groupByFolder(allMDXFiles);

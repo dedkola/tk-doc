@@ -229,18 +229,21 @@ export default async function Page({
           <BreadcrumbItem>
             <BreadcrumbLink href="/docs">Docs</BreadcrumbLink>
           </BreadcrumbItem>
-          {decodedSlug.length > 1 && (
-            <>
-              <BreadcrumbSeparator />
-              <BreadcrumbItem>
-                <BreadcrumbLink
-                  href={`/docs?folder=${encodeURIComponent(decodedSlug[0])}`}
-                >
-                  {decodedSlug[0]}
-                </BreadcrumbLink>
-              </BreadcrumbItem>
-            </>
-          )}
+          {decodedSlug.length > 1 && (() => {
+            const capitalizedCategory = decodedSlug[0].charAt(0).toUpperCase() + decodedSlug[0].slice(1);
+            return (
+              <>
+                <BreadcrumbSeparator />
+                <BreadcrumbItem>
+                  <BreadcrumbLink
+                    href={`/docs?folder=${encodeURIComponent(decodedSlug[0])}`}
+                  >
+                    {capitalizedCategory}
+                  </BreadcrumbLink>
+                </BreadcrumbItem>
+              </>
+            );
+          })()}
           <BreadcrumbSeparator />
           <BreadcrumbItem>
             <BreadcrumbPage>{title}</BreadcrumbPage>

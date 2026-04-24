@@ -40,6 +40,16 @@ export default function LayoutClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Run only once on mount
 
+  // Close sidebar when viewport shrinks below the lg breakpoint
+  useEffect(() => {
+    const mql = window.matchMedia("(max-width: 1023px)");
+    const handler = (e: MediaQueryListEvent) => {
+      if (e.matches) setSidebarOpen(false);
+    };
+    mql.addEventListener("change", handler);
+    return () => mql.removeEventListener("change", handler);
+  }, [setSidebarOpen]);
+
   // Clear search when navigating to a blog post
   useEffect(() => {
     if (pathname.startsWith("/docs/")) {

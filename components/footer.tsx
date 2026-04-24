@@ -133,16 +133,7 @@ export default function Footer() {
             </span>{" "}
             All rights reserved.
           </p>
-          {
-            <div className="flex items-center gap-6 text-sm">
-              <span className="text-slate-400 dark:text-slate-500">
-                Privacy Policy
-              </span>
-              <span className="text-slate-400 dark:text-slate-500">
-                Terms of Service
-              </span>
-            </div>
-          }
+
         </div>
       </div>
     </footer>
