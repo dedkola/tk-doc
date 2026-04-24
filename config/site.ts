@@ -56,4 +56,3 @@ export const siteConfig: BaseSiteConfig = {
   ),
 };
 
-export type SiteConfig = typeof siteConfig;

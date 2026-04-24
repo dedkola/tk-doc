@@ -4,7 +4,6 @@ import type { MDXFile } from "@/lib/mdx-utils";
 import AccordionMenu from "./accordion-menu";
 import { useSearch } from "./search-context";
 import { Badge } from "@/components/ui/Badge";
-import React from "react";
 
 interface SideNavClientProps {
   groupedFiles: Record<string, MDXFile[]>;

@@ -31,7 +31,12 @@ function getServerModules() {
 export function getMDXFiles(dir: string, baseDir: string = dir): MDXFile[] {
   const { fs, path } = getServerModules();
   const files: MDXFile[] = [];
-  const items = fs.readdirSync(dir, { withFileTypes: true });
+  let items: import("fs").Dirent[];
+  try {
+    items = fs.readdirSync(dir, { withFileTypes: true });
+  } catch (e) {
+    throw new Error(`[mdx-utils] Cannot read content directory "${dir}". Check that the path exists and is readable.`, { cause: e });
+  }
 
   for (const item of items) {
     const fullPath = path.join(dir, item.name);
@@ -42,7 +47,13 @@ export function getMDXFiles(dir: string, baseDir: string = dir): MDXFile[] {
       const relativePath = path.relative(baseDir, fullPath);
       const slug = relativePath.replace(/\.mdx$/, "").split(path.sep);
 
-      const content = fs.readFileSync(fullPath, "utf-8");
+      let content: string;
+      try {
+        content = fs.readFileSync(fullPath, "utf-8");
+      } catch (e) {
+        console.error(`[mdx-utils] Failed to read ${fullPath}:`, e);
+        continue;
+      }
 
       // Parse frontmatter using gray-matter for robustness
       const parsed = matter(content);
@@ -84,8 +95,13 @@ export function getMDXFiles(dir: string, baseDir: string = dir): MDXFile[] {
       const contentWithoutFrontmatter = parsed.content.trim();
 
       // Get file modification time
-      const stats = fs.statSync(fullPath);
-      const lastModified = stats.mtime;
+      let lastModified: Date;
+      try {
+        lastModified = fs.statSync(fullPath).mtime;
+      } catch (e) {
+        console.error(`[mdx-utils] Failed to stat ${fullPath}:`, e);
+        lastModified = new Date(0);
+      }
 
       // Parse keywords from frontmatter
       const keywords =
@@ -102,15 +118,19 @@ export function getMDXFiles(dir: string, baseDir: string = dir): MDXFile[] {
           : undefined;
 
       // Parse dates from frontmatter (fallback to file mtime)
-      const publishedAt =
-        data && data.publishedAt
-          ? new Date(String(data.publishedAt)).toISOString()
-          : undefined;
+      let publishedAt: string | undefined;
+      if (data && data.publishedAt) {
+        const _d = new Date(String(data.publishedAt));
+        publishedAt = isNaN(_d.getTime()) ? undefined : _d.toISOString();
+      }
 
-      const updatedAt =
-        data && data.updatedAt
-          ? new Date(String(data.updatedAt)).toISOString()
-          : lastModified.toISOString();
+      let updatedAt: string;
+      if (data && data.updatedAt) {
+        const _d = new Date(String(data.updatedAt));
+        updatedAt = isNaN(_d.getTime()) ? lastModified.toISOString() : _d.toISOString();
+      } else {
+        updatedAt = lastModified.toISOString();
+      }
 
       files.push({
         slug,

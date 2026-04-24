@@ -92,6 +92,7 @@ export function ShareButtons() {
   ];
 
   const copyToClipboard = async () => {
+    if (!mounted || !url) return;
     try {
       await navigator.clipboard.writeText(url);
       setCopied(true);
