@@ -47,7 +47,8 @@
   "pnpm": {
     "overrides": {
       "minimatch": ">=10.2.1",
-      "webpack": ">=5.104.1"
+      "webpack": ">=5.104.1",
+      "postcss": ">=8.5.10"
     }
   },
   "devDependencies": {
@@ -63,5 +64,8 @@
     "tailwindcss": "^4.2.4",
     "tw-animate-css": "^1.3.0",
     "typescript": "^6.0.3"
+  },
+  "overrides": {
+    "postcss": ">=8.5.10"
   }
 }
