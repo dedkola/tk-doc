@@ -6,12 +6,12 @@
 
 # Want to help us make this template better? Share your feedback here: https://forms.gle/ybq9Krt8jtBL3iCk7
 
-ARG NODE_VERSION=22
+ARG NODE_VERSION=24
 ARG PNPM_VERSION=11.1.0
 
 ################################################################################
 # Use node image for base image for all stages.
-FROM node:${NODE_VERSION}-alpine AS base
+FROM node:${NODE_VERSION}-bookworm-slim AS base
 
 # Set working directory for all build stages.
 WORKDIR /usr/src/app
@@ -56,7 +56,7 @@ RUN pnpm run build
 ################################################################################
 # Create a new stage to run the application with minimal runtime dependencies
 # where the necessary files are copied from the build stage.
-FROM node:${NODE_VERSION}-alpine AS final
+FROM node:${NODE_VERSION}-bookworm-slim AS final
 # Use production node environment by default.
 ENV NODE_ENV production
 
