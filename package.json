@@ -2,6 +2,8 @@
   "name": "tk-doc",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@11.1.0",
+
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build",
@@ -49,7 +51,6 @@
       "minimatch": ">=10.2.1",
       "webpack": ">=5.104.1",
       "postcss": ">=8.5.10",
-      "packageManager": "pnpm@11.1.0"
     }
   },
   "devDependencies": {
