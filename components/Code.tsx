@@ -20,42 +20,66 @@ interface CodeProps {
   className?: string;
 }
 
+// Map of language to its Prism component import path
+const LANGUAGE_IMPORTS: Record<string, () => Promise<unknown>> = {
+  bash: () => import("prismjs/components/prism-bash"),
+  sh: () => import("prismjs/components/prism-bash"),
+  shell: () => import("prismjs/components/prism-bash"),
+  "shell-session": () => import("prismjs/components/prism-shell-session"),
+  docker: () => import("prismjs/components/prism-docker"),
+  dockerfile: () => import("prismjs/components/prism-docker"),
+  yaml: () => import("prismjs/components/prism-yaml"),
+  yml: () => import("prismjs/components/prism-yaml"),
+  json: () => import("prismjs/components/prism-json"),
+  markdown: () => import("prismjs/components/prism-markdown"),
+  md: () => import("prismjs/components/prism-markdown"),
+  python: () => import("prismjs/components/prism-python"),
+  py: () => import("prismjs/components/prism-python"),
+  sql: () => import("prismjs/components/prism-sql"),
+  diff: () => import("prismjs/components/prism-diff"),
+  hcl: () => import("prismjs/components/prism-hcl"),
+  "markup-templating": () => import("prismjs/components/prism-markup-templating"),
+  php: () => import("prismjs/components/prism-php"),
+};
+
+// Cache loaded languages to avoid duplicate imports
+const loadedLanguages = new Set<string>();
+
+// Load only the language components actually needed
+async function loadLanguageIfNeeded(language: string): Promise<void> {
+  if (!language || language === "text" || loadedLanguages.has(language)) {
+    return;
+  }
+
+  const importFn = LANGUAGE_IMPORTS[language.toLowerCase()];
+  if (!importFn) {
+    // Language not in our list, that's okay (Prism has built-in support for many)
+    return;
+  }
+
+  try {
+    await importFn();
+    loadedLanguages.add(language);
+  } catch (e) {
+    console.warn(`Failed to load Prism language component for "${language}":`, e);
+  }
+}
+
 export function Code({ children = "", className = "" }: CodeProps) {
   const [copied, setCopied] = useState(false);
-  const [, setLanguagesLoaded] = useState(false);
   const { resolvedTheme } = useTheme();
-  // Load Prism language definitions only on the client after Prism is set globally
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    globalThis.Prism = PrismLib;
-    // Dynamically import language components
-    Promise.all([
-      import("prismjs/components/prism-bash"),
-      import("prismjs/components/prism-shell-session"),
-      import("prismjs/components/prism-docker"),
-      import("prismjs/components/prism-yaml"),
-      import("prismjs/components/prism-json"),
-      import("prismjs/components/prism-markdown"),
-      import("prismjs/components/prism-python"),
-      import("prismjs/components/prism-sql"),
-      import("prismjs/components/prism-diff"),
-      import("prismjs/components/prism-hcl"),
-      import("prismjs/components/prism-markup-templating"),
-      import("prismjs/components/prism-php"),
-    ])
-      .then(() => {
-        setLanguagesLoaded(true);
-      })
-      .catch((e) => {
-        console.warn("Failed to load Prism language components", e);
-        setLanguagesLoaded(true);
-      });
-  }, []);
   const language =
     className
       .replace(/language-/, "")
       .replace(/\s+copy$/, "")
       .trim() || "text";
+
+  // Load language component only when needed
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    globalThis.Prism = PrismLib;
+    loadLanguageIfNeeded(language);
+  }, [language]);
 
   // Extract text content from children (handles both string and React nodes)
   const getTextContent = (node: React.ReactNode): string => {
