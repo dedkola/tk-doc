@@ -48,4 +48,3 @@ next-env.d.ts
 .pnpm-store
 playwright-report
 test-results
-content/.doc-git-dates.json

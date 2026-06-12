@@ -6,6 +6,14 @@ const repoRoot = process.cwd();
 const contentDir = path.join(repoRoot, "content");
 const outputPath = path.join(contentDir, ".doc-git-dates.json");
 
+function readExistingManifest() {
+  try {
+    return JSON.parse(fs.readFileSync(outputPath, "utf-8"));
+  } catch {
+    return { files: {} };
+  }
+}
+
 function walk(dir) {
   const entries = fs.readdirSync(dir, { withFileTypes: true });
   const files = [];
@@ -64,12 +72,22 @@ function getGitDates(relativePath) {
   };
 }
 
+const existingManifest = readExistingManifest();
 const files = Object.fromEntries(
   walk(contentDir)
     .map((fullPath) => {
       const relativePath = path.relative(contentDir, fullPath).replace(/\\/g, "/");
       const gitPath = `content/${relativePath}`;
-      return [relativePath, getGitDates(gitPath)];
+      const existingDates = existingManifest.files?.[relativePath] ?? {};
+      const nextDates = getGitDates(gitPath);
+
+      return [
+        relativePath,
+        {
+          createdAt: nextDates.createdAt ?? existingDates.createdAt,
+          updatedAt: nextDates.updatedAt ?? existingDates.updatedAt,
+        },
+      ];
     })
     .filter(([, dates]) => dates.createdAt || dates.updatedAt),
 );
