@@ -6,9 +6,9 @@ export interface MDXFile {
   keywords?: string[];
   folder?: string;
   content?: string;
-  /** ISO date string from frontmatter or file mtime */
+  /** ISO date string from frontmatter, git metadata, or file mtime */
   publishedAt?: string;
-  /** ISO date string from frontmatter or file mtime */
+  /** ISO date string from frontmatter, git metadata, or file mtime */
   updatedAt?: string;
   /** File system last modified date */
   lastModified: Date;
@@ -16,6 +16,7 @@ export interface MDXFile {
 
 import { cache } from "react";
 import matter from "gray-matter";
+import { resolveDocDates } from "@/lib/doc-dates";
 
 function getServerModules() {
   if (typeof window !== "undefined") {
@@ -117,20 +118,11 @@ export function getMDXFiles(dir: string, baseDir: string = dir): MDXFile[] {
               ]
           : undefined;
 
-      // Parse dates from frontmatter (fallback to file mtime)
-      let publishedAt: string | undefined;
-      if (data && data.publishedAt) {
-        const _d = new Date(String(data.publishedAt));
-        publishedAt = isNaN(_d.getTime()) ? undefined : _d.toISOString();
-      }
-
-      let updatedAt: string;
-      if (data && data.updatedAt) {
-        const _d = new Date(String(data.updatedAt));
-        updatedAt = isNaN(_d.getTime()) ? lastModified.toISOString() : _d.toISOString();
-      } else {
-        updatedAt = lastModified.toISOString();
-      }
+      const { publishedAt, updatedAt } = resolveDocDates(
+        relativePath,
+        data,
+        lastModified,
+      );
 
       files.push({
         slug,
@@ -170,7 +162,11 @@ export const getAllMDXFiles = cache((): MDXFile[] => {
 
 export function getRecentArticles(files: MDXFile[], count: number): MDXFile[] {
   return [...files]
-    .sort((a, b) => b.lastModified.getTime() - a.lastModified.getTime())
+    .sort(
+      (a, b) =>
+        new Date(b.updatedAt ?? b.lastModified.toISOString()).getTime() -
+        new Date(a.updatedAt ?? a.lastModified.toISOString()).getTime(),
+    )
     .slice(0, count);
 }
 

@@ -109,7 +109,9 @@ export default function Home() {
                   )}
                   <span className="ml-auto flex items-center gap-1 text-xs text-muted-foreground">
                     <Clock className="h-3 w-3" />
-                    {formatRelativeTime(file.lastModified)}
+                    {formatRelativeTime(
+                      new Date(file.updatedAt ?? file.lastModified.toISOString()),
+                    )}
                   </span>
                 </div>
                 <h3 className="font-medium text-foreground group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-2">

@@ -11,6 +11,7 @@ import { TableOfContents } from "@/components/TableOfContents";
 import { RelatedArticles } from "@/components/RelatedArticles";
 import { extractHeadings } from "@/lib/extract-headings";
 import { mdxComponents } from "@/lib/mdx-page-components";
+import { resolveDocDates } from "@/lib/doc-dates";
 import { getAllMDXFiles } from "@/lib/mdx-utils";
 import {
   Breadcrumb,
@@ -122,13 +123,11 @@ export default async function Page({
   const headings = extractHeadings(content);
 
   // Date handling for structured data
-  const publishedAt = frontmatter.publishedAt
-    ? new Date(frontmatter.publishedAt).toISOString()
-    : undefined;
-  const updatedAt = frontmatter.updatedAt
-    ? new Date(frontmatter.updatedAt).toISOString()
-    : undefined;
-  // For structured data only: always provide a dateModified
+  const { publishedAt, updatedAt } = resolveDocDates(
+    `${filePath}.mdx`,
+    frontmatter,
+    stats.mtime,
+  );
   const dateModified = updatedAt ?? publishedAt ?? stats.mtime.toISOString();
 
   // Build breadcrumb items

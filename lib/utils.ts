@@ -7,7 +7,7 @@ export function cn(...inputs: ClassValue[]) {
 
 export function formatRelativeTime(date: Date): string {
   const now = Date.now();
-  const diff = now - date.getTime();
+  const diff = Math.max(0, now - date.getTime());
   const seconds = Math.floor(diff / 1000);
   const minutes = Math.floor(seconds / 60);
   const hours = Math.floor(minutes / 60);
