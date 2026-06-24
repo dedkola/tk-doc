@@ -1,0 +1,52 @@
+---
+title: "MetalLB: Load Balancer for Kubernetes in Docker Desktop"
+description: "MetalLB is a load-balancer implementation for Kubernetes that allows you to expose services
+externally. It provides a way to assign external IP addresses to services in a Kubernetes cluster, enabling them to be accessed from outside the cluster."
+date: "2024-06-01"
+tags: ["Kubernetes", "Load Balancer", "MetalLB", "Networking"]
+---
+
+## Install MetalLB
+
+```bash copy
+kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.14.9/config/manifests/metallb-native.yaml
+```
+
+
+## Check Docker Destop IPs
+
+```bash copy
+docker network inspect -f '{{.IPAM.Config}}' kind
+```
+## Adjust config for metalLB
+
+```yaml copy
+# metallb-config.yaml
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: default-pool
+  namespace: metallb-system
+spec:
+  addresses:
+    - 172.18.255.200-172.18.255.250  # adjust based on your kind network range
+---
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata:
+  name: default
+  namespace: metallb-system
+```
+
+## Apply the config
+
+```bash copy
+kubectl apply -f metallb-config.yaml
+```
+## Verify MetalLB is working
+
+```bash copy
+kubectl get pods -n metallb-system
+
+kubectl get svc -n ingress-nginx
+```

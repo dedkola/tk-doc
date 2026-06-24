@@ -1,0 +1,20 @@
+---
+title: Mount Windows Partition in Fedora
+description: A guide on how to mount a Windows partition in Fedora using the terminal and configuring fstab for automatic mounting.
+tags: [fedora, windows, mount, fstab, ntfs]
+---
+
+## Identify the Windows Partition
+```bash copy
+lsblk -f
+```
+
+```bash
+sudo nano /etc/fstab
+```
+
+```bash
+UUID=F036C0C836C090D0  /mnt/c  ntfs-3g  uid=1000,gid=1000,umask=022,windows_names  0  0
+```
+Replace `F036C0C836C090D0` with the UUID of your Windows partition and `/mnt/c` with your desired mount point.
+

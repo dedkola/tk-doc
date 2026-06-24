@@ -1,0 +1,615 @@
+---
+title: Simple WordPress setup with MySQL on K3s
+description: How to deploy WordPress with MySQL on K3s with PVC and expose it to LAN by LoadBalancer
+tags: [k3s, metallb, loadbalancer, wordpress, mysql, kubernetes, pvc]
+---
+
+Simple setup. 1 replica WordPress + 1 replica MySQL with PVC on K3s and expose it to LAN by LoadBalancer.
+
+## Overview
+
+This guide demonstrates deploying a production-ready WordPress application with MySQL database backend on K3s (lightweight Kubernetes distribution). The setup leverages Kubernetes PersistentVolumes (PV) and PersistentVolumeClaims (PVC) for stateful data persistence, ensuring data survives pod restarts and rescheduling events.
+
+### Architecture Components
+
+- **K3s Cluster**: Lightweight Kubernetes distribution optimized for edge and resource-constrained environments
+- **MySQL 8.0**: Relational database providing data persistence with InnoDB storage engine
+- **WordPress**: Web application tier serving content over HTTP/HTTPS
+- **PersistentVolumes**: Cluster-level storage resources managed by K3s
+- **MetalLB LoadBalancer**: Provides external IP allocation for service exposure to LAN
+- **Network Segmentation**: Pod-to-pod communication via Kubernetes DNS
+
+### Storage Architecture
+
+PersistentVolumeClaims abstract the underlying storage implementation from pods. K3s supports multiple storage backends:
+
+- **Local Path Storage** (default): Uses node's local filesystem - suitable for single-node clusters
+- **Network Storage**: NFS, iSCSI, or cloud storage for multi-node deployments
+- **Storage Classes**: Define provisioning policies and performance characteristics
+
+### Create deployment MySQL
+
+```bash
+nano mysql.yaml
+```
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql
+  labels:
+    app: mysql
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mysql
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      containers:
+        - name: mysql
+          image: mysql:8
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              value: rootpassword
+            - name: MYSQL_DATABASE
+              value: wordpress
+            - name: MYSQL_USER
+              value: wpuser
+            - name: MYSQL_PASSWORD
+              value: wppassword
+          ports:
+            - containerPort: 3306
+          volumeMounts:
+            - name: mysql-pvc
+              mountPath: /var/lib/mysql
+      volumes:
+        - name: mysql-pvc
+          persistentVolumeClaim:
+            claimName: mysql-pvc
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mysql-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql
+spec:
+  type: LoadBalancer
+  ports:
+    - port: 3306
+      targetPort: 3306
+  selector:
+    app: mysql
+```
+
+### Create deployment WordPress
+
+```bash
+nano wp.yaml
+```
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wordpress
+  labels:
+    app: wordpress
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: wordpress
+  template:
+    metadata:
+      labels:
+        app: wordpress
+    spec:
+      containers:
+        - name: wordpress
+          image: wordpress:latest
+          ports:
+            - containerPort: 80
+          env:
+            - name: WORDPRESS_DB_HOST
+              value: mysql
+            - name: WORDPRESS_DB_USER
+              value: wpuser
+            - name: WORDPRESS_DB_PASSWORD
+              value: wppassword
+            - name: WORDPRESS_DB_NAME
+              value: wordpress
+          volumeMounts:
+            - name: wordpress-pvc
+              mountPath: /var/www/html
+      volumes:
+        - name: wordpress-pvc
+          persistentVolumeClaim:
+            claimName: wordpress-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wordpress
+spec:
+  type: LoadBalancer
+  selector:
+    app: wordpress
+  ports:
+    - port: 80
+      targetPort: 80
+```
+
+### Create PVC for WordPress
+
+```bash
+nano pvc.yaml
+```
+
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: wordpress-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+```
+
+### Deploy all resources
+
+```bash
+kubectl apply -f pvc.yaml
+kubectl apply -f mysql.yaml
+kubectl apply -f wp.yaml
+```
+
+## Verification and Troubleshooting
+
+### Verify Deployment Status
+
+```bash
+# Check pod status and readiness
+kubectl get pods -o wide
+
+# Get detailed pod information
+kubectl describe pod mysql-<pod-id>
+kubectl describe pod wordpress-<pod-id>
+
+# Monitor pod logs for startup errors
+kubectl logs mysql-<pod-id>
+kubectl logs wordpress-<pod-id> -f
+```
+
+### Verify PVC Binding
+
+```bash
+# List all PersistentVolumeClaims
+kubectl get pvc
+
+# Inspect PVC details
+kubectl describe pvc mysql-pvc
+kubectl describe pvc wordpress-pvc
+
+# Check PersistentVolume status
+kubectl get pv
+```
+
+### Check Service and LoadBalancer
+
+```bash
+# List services and external IPs
+kubectl get svc
+
+# Watch service assignment of external IP
+kubectl get svc -w
+
+# Test MySQL connectivity from within cluster
+kubectl exec -it deployment/wordpress -- mysql -h mysql -u wpuser -p wordpress -e "SELECT 1;"
+```
+
+## Technical Deep Dive
+
+### Kubernetes Storage Fundamentals
+
+**PersistentVolume (PV)** vs **PersistentVolumeClaim (PVC)**:
+
+- **PV**: Cluster-level storage resource with lifecycle independent of pods
+- **PVC**: Pod-level storage request that binds to available PVs
+- **Binding**: Kubernetes matches PVC requests with suitable PVs based on:
+  - Storage capacity
+  - Access modes (ReadWriteOnce, ReadOnlyMany, ReadWriteMany)
+  - StorageClass matching
+  - Label selectors
+
+**Access Modes Explanation**:
+
+- `ReadWriteOnce`: Single pod read/write access (node-level exclusivity)
+- `ReadOnlyMany`: Multiple pods read-only access
+- `ReadWriteMany`: Multiple pods read/write access (requires network storage)
+
+### MySQL Container Configuration
+
+#### Environment Variables and Initialization
+
+The MySQL container initializes through environment variables on first startup:
+
+- `MYSQL_ROOT_PASSWORD`: Sets root user password (critical for security)
+- `MYSQL_DATABASE`: Pre-creates specified database during initialization
+- `MYSQL_USER`: Creates non-root user with permissions on `MYSQL_DATABASE`
+- `MYSQL_PASSWORD`: Password for the `MYSQL_USER` account
+
+**Security Considerations**:
+
+- Root password stored in plain YAML (development only)
+- For production, use Kubernetes Secrets:
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mysql-credentials
+type: Opaque
+stringData:
+  root-password: ${SECURE_ROOT_PASSWORD}
+  user-password: ${SECURE_USER_PASSWORD}
+---
+# Reference in deployment:
+- name: MYSQL_ROOT_PASSWORD
+  valueFrom:
+    secretKeyRef:
+      name: mysql-credentials
+      key: root-password
+```
+
+#### MySQL Storage Path
+
+- **Container Mount Point**: `/var/lib/mysql`
+- **Data Files**: InnoDB tablespaces, binary logs, replication metadata
+- **Performance**: PVC mount point determines I/O performance characteristics
+- **Recovery**: Data persists across container restarts via PVC binding
+
+#### InnoDB Storage Engine Specifics
+
+MySQL 8.0 uses InnoDB by default, providing:
+
+- ACID compliance for transactional consistency
+- Row-level locking for concurrent access
+- Crash recovery mechanisms
+- Doublewrite buffer for data integrity
+
+**Buffer Pool Configuration** (important for K3s resource constraints):
+
+```mysql
+-- Check current settings
+SHOW VARIABLES LIKE 'innodb_buffer_pool_size';
+
+-- InnoDB uses ~75-80% of available memory for buffer pool
+-- For K3s nodes with 2GB available: set to ~1.5GB
+```
+
+### WordPress Application Configuration
+
+#### Initialization Flow
+
+WordPress requires database connectivity during startup:
+
+1. **Image Pull**: `wordpress:latest` (Apache + PHP + WordPress)
+2. **Entrypoint Script**: Detects `wp-config.php` missing, generates from environment
+3. **Database Connection**: Attempts MySQL connection via `WORDPRESS_DB_HOST`
+4. **WordPress Setup**: Creates tables and initializes content
+5. **Service Ready**: Serves HTTP requests on port 80
+
+#### Environment Variable Dependencies
+
+```yaml
+WORDPRESS_DB_HOST: mysql # Must match MySQL Service name (DNS resolvable)
+WORDPRESS_DB_USER: wpuser # Must exist in MySQL with database permissions
+WORDPRESS_DB_PASSWORD: wppassword # Credentials match MySQL setup
+WORDPRESS_DB_NAME: wordpress # Must pre-exist in MySQL
+```
+
+**DNS Resolution**: `WORDPRESS_DB_HOST: mysql` resolves via Kubernetes CoreDNS to MySQL Service ClusterIP address.
+
+#### PHP-FPM and Apache Configuration
+
+- **Web Server**: Apache 2.4 with mod_php
+- **PHP Version**: Varies with image tag (latest ≈ PHP 8.2+)
+- **Max Upload Size**: Default 64MB, configurable via PHP_INI environment variables
+- **Default Document Root**: `/var/www/html`
+
+### Networking Architecture
+
+#### Service Discovery
+
+```
+WordPress Pod (10.42.x.x)
+    ↓
+Service mysql:3306
+    ↓
+DNS Resolution (CoreDNS)
+    ↓
+MySQL Pod (10.42.x.x)
+```
+
+#### LoadBalancer Service Integration
+
+MetalLB assigns external IPs from configured address pools:
+
+```bash
+# Check LoadBalancer status
+kubectl get svc wordpress -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+
+# Access WordPress via external IP
+curl http://<EXTERNAL_IP>
+```
+
+#### Network Policies (Optional Enhancement)
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: wordpress-to-mysql
+spec:
+  podSelector:
+    matchLabels:
+      app: wordpress
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: mysql
+      ports:
+        - protocol: TCP
+          port: 3306
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 53 # DNS
+        - protocol: UDP
+          port: 53
+```
+
+## Performance Optimization
+
+### Resource Requests and Limits
+
+Enhance deployments with resource specifications:
+
+```yaml
+resources:
+  requests:
+    memory: "256Mi"
+    cpu: "250m"
+  limits:
+    memory: "512Mi"
+    cpu: "500m"
+```
+
+**MySQL Memory Tuning**:
+
+- Buffer Pool: 50-75% of container memory limit
+- Maximum Connections: Scale with available memory (~1MB per connection)
+- Sort Buffer: Optimize for query performance
+
+### Storage Performance Metrics
+
+K3s local storage performance depends on:
+
+- **Disk Type**: SSD (optimal) vs HDD (slower)
+- **Filesystem**: ext4, XFS (journal modes affect write performance)
+- **Mount Options**: `noatime`, `nodiratime` can improve performance
+
+Monitor using:
+
+```bash
+kubectl top pod <pod-name>
+kubectl top node
+```
+
+### Scaling Considerations
+
+**Current limitations** of this single-replica setup:
+
+- **Single Failure Point**: No MySQL replication/failover
+- **Write Bottleneck**: All WordPress instances depend on single MySQL
+- **Storage Bottleneck**: Single PVC may saturate disk I/O
+
+**Production improvements**:
+
+- MySQL Primary-Secondary replication
+- WordPress horizontal pod autoscaling with shared volume or object storage
+- Read replicas with read-only WordPress instances
+
+## Monitoring and Maintenance
+
+### Health Checks Configuration
+
+Add liveness and readiness probes:
+
+```yaml
+livenessProbe:
+  exec:
+    command:
+      - /bin/sh
+      - -c
+      - mysql -h localhost -u root -p${MYSQL_ROOT_PASSWORD} -e "SELECT 1" || exit 1
+  initialDelaySeconds: 30
+  periodSeconds: 10
+
+readinessProbe:
+  exec:
+    command:
+      - /bin/sh
+      - -c
+      - mysql -h localhost -u root -p${MYSQL_ROOT_PASSWORD} -e "SELECT 1" || exit 1
+  initialDelaySeconds: 5
+  periodSeconds: 5
+```
+
+### Database Backup Strategy
+
+```bash
+# Backup WordPress PVC data
+kubectl exec deployment/mysql -- mysqldump -u root -p${MYSQL_ROOT_PASSWORD} --all-databases > backup.sql
+
+# Backup using kubectl cp
+kubectl cp mysql-<pod-id>:/var/lib/mysql ./mysql-backup
+
+# Restore from backup
+kubectl exec -i deployment/mysql -- mysql -u root -p${MYSQL_ROOT_PASSWORD} < backup.sql
+```
+
+### Log Analysis
+
+```bash
+# View MySQL initialization logs
+kubectl logs mysql-<pod-id> | grep "ERROR"
+
+# Monitor WordPress errors
+kubectl logs wordpress-<pod-id> | grep "WordPress"
+
+# Real-time log streaming
+kubectl logs -f deployment/wordpress --all-containers=true
+```
+
+## Common Issues and Solutions
+
+### Issue: WordPress Cannot Connect to MySQL
+
+**Symptoms**: `Error establishing database connection`
+
+**Diagnosis**:
+
+```bash
+# Check MySQL pod logs
+kubectl logs deployment/mysql
+
+# Verify MySQL service exists
+kubectl get svc mysql
+
+# Test DNS resolution from WordPress
+kubectl exec deployment/wordpress -- nslookup mysql
+```
+
+**Solution**:
+
+- Verify `WORDPRESS_DB_HOST` matches MySQL Service name exactly
+- Check MySQL pod is running: `kubectl get pods | grep mysql`
+- Verify credentials match between deployments
+
+### Issue: PVC Not Binding
+
+**Symptoms**: `Pending` status in `kubectl get pvc`
+
+**Diagnosis**:
+
+```bash
+kubectl describe pvc mysql-pvc | grep -A 20 "Events"
+```
+
+**Causes and Solutions**:
+
+- No available PV: Create PersistentVolume or use StorageClass for dynamic provisioning
+- AccessMode mismatch: `ReadWriteOnce` not available (check other bound PVCs)
+- Storage class not found: Verify `storageClassName` exists
+
+### Issue: High MySQL Memory Usage
+
+**Symptoms**: Pod OOM killed or slow queries
+
+**Solutions**:
+
+```sql
+-- Analyze buffer pool efficiency
+SHOW VARIABLES LIKE 'innodb_buffer_pool_%';
+
+-- Check current connections
+SHOW PROCESSLIST;
+
+-- Optimize configuration for K3s constraints
+SET GLOBAL innodb_buffer_pool_size = 256M;
+SET GLOBAL max_connections = 100;
+```
+
+## Advanced Topics
+
+### Persistent Volume Reclaim Policies
+
+Default policy: `Delete` - PV deleted when PVC is deleted
+
+**Alternative - Retain**:
+
+```yaml
+spec:
+  persistentVolumeReclaimPolicy: Retain
+```
+
+Prevents accidental data loss; manual cleanup required.
+
+### Volume Snapshots for Disaster Recovery
+
+```yaml
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshot
+metadata:
+  name: mysql-snapshot
+spec:
+  volumeSnapshotClassName: csi-hostpath-snapclass
+  source:
+    persistentVolumeClaimName: mysql-pvc
+```
+
+### StatefulSet Alternative (Production)
+
+For better MySQL deployments, use StatefulSet instead of Deployment:
+
+```yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mysql
+spec:
+  serviceName: mysql
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mysql
+  template:
+    # Same as Deployment template above
+  volumeClaimTemplates:
+    - metadata:
+        name: mysql-pvc
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 10Gi
+```
+
+StatefulSet benefits:
+
+- Stable DNS names: `mysql-0.mysql.default.svc.cluster.local`
+- Ordered scaling and termination
+- Automatic PVC creation and binding per replica

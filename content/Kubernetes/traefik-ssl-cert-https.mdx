@@ -1,0 +1,226 @@
+---
+title: "Traefik Let's Encrypt Setup on k3s"
+description: "Step-by-step guide to configure HTTP→HTTPS redirect and Let's Encrypt TLS certificates for a k3s cluster using Traefik v3."
+tags:
+  - Kubernetes
+  - Traefik
+  - Let's Encrypt
+  - TLS
+  - ACME
+  - Helm
+  - k3s
+publishedAt: "2024-06-15"
+updatedAt: "2024-06-15"
+---
+
+## Context
+
+- **k3s** with built-in Traefik (v3.x, deployed via Helm)
+- **Domain**: `test.tkweb.site`
+- **ACME challenge**: HTTP-01 (port 80 must be publicly reachable)
+
+## Step 1 — Create the HTTP→HTTPS redirect Middleware
+
+Create `redirect-middleware.yaml`:
+
+```yaml
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: redirect-https
+  namespace: default
+spec:
+  redirectScheme:
+    scheme: https
+    permanent: true
+```
+
+Apply:
+
+```bash
+kubectl apply -f redirect-middleware.yaml
+```
+
+---
+
+## Step 2 — Split Ingress into HTTP (redirect) + HTTPS (TLS)
+
+A single ingress with `router.tls: "true"` only creates an HTTPS router — HTTP gets a 404.
+The fix is two separate Ingress objects.
+
+`ingress.yaml`:
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: chat2md-http
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: web
+    traefik.ingress.kubernetes.io/router.middlewares: default-redirect-https@kubernetescrd
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: test.tkweb.site
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: chat2md
+                port:
+                  number: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: chat2md
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    traefik.ingress.kubernetes.io/router.tls.certresolver: letsencrypt
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - test.tkweb.site
+  rules:
+    - host: test.tkweb.site
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: chat2md
+                port:
+                  number: 80
+```
+
+Apply:
+
+```bash
+kubectl apply -f ingress.yaml
+```
+
+> **Middleware annotation format**: `<namespace>-<middleware-name>@kubernetescrd`
+> So `default-redirect-https@kubernetescrd` = Middleware named `redirect-https` in `default` namespace.
+
+---
+
+## Step 3 — Configure Traefik with Let's Encrypt via HelmChartConfig
+
+In k3s, Traefik is managed by Helm. The correct way to customize it is via a `HelmChartConfig`
+resource — **do not edit Traefik's deployment directly**.
+
+> **Important**: The correct Helm values key is `certificatesResolvers` (not `certResolvers`).
+
+Apply this with `kubectl apply -f` or directly:
+
+```bash
+cat <<'EOF' | kubectl apply -f -
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: traefik
+  namespace: kube-system
+spec:
+  valuesContent: |-
+    certificatesResolvers:
+      letsencrypt:
+        acme:
+          email: maiden.tech@gmail.com
+          storage: /data/acme.json
+          httpChallenge:
+            entryPoint: web
+    persistence:
+      enabled: true
+      path: /data
+      size: 128Mi
+EOF
+```
+
+---
+
+## Step 4 — Wait for Traefik to redeploy
+
+k3s automatically triggers a Helm upgrade job. Wait for it:
+
+```bash
+# Wait for the Helm job to finish
+kubectl wait job/helm-install-traefik -n kube-system --for=condition=complete --timeout=180s
+
+# Wait for the Traefik pod to restart
+kubectl rollout status deployment/traefik -n kube-system --timeout=90s
+```
+
+---
+
+## Step 5 — Verify
+
+**Check cert resolver args are present in Traefik pod:**
+
+```bash
+kubectl get pod -n kube-system -l app.kubernetes.io/name=traefik \
+  -o jsonpath='{.items[0].spec.containers[0].args}' | tr ',' '\n' | grep cert
+```
+
+Expected output:
+
+```
+"--certificatesresolvers.letsencrypt.acme.email=maiden.tech@gmail.com"
+"--certificatesresolvers.letsencrypt.acme.httpChallenge.entryPoint=web"
+"--certificatesresolvers.letsencrypt.acme.storage=/data/acme.json"
+```
+
+**Check Traefik registered with Let's Encrypt:**
+
+```bash
+kubectl logs -n kube-system deployment/traefik --since=5m | grep -i "acme\|letsencrypt\|register"
+```
+
+Expected:
+
+```
+INF Testing certificate renew... acmeCA=https://acme-v02.api.letsencrypt.org/directory
+INF Register... providerName=letsencrypt.acme
+```
+
+**Test HTTP redirect:**
+
+```bash
+curl -sv http://10.10.0.210 -H "host: test.tkweb.site" 2>&1 | grep -E "HTTP|Location"
+# Expected: HTTP/1.1 301 Moved Permanently  +  Location: https://test.tkweb.site/
+```
+
+**Test HTTPS:**
+
+```bash
+curl -sk https://test.tkweb.site
+# Expected: 200 OK with a valid Let's Encrypt cert (after first public request triggers issuance)
+```
+
+---
+
+## How Let's Encrypt cert issuance works
+
+1. First real request to `https://test.tkweb.site` from the internet triggers Traefik to request a cert.
+2. Let's Encrypt sends an HTTP-01 challenge to `http://test.tkweb.site/.well-known/acme-challenge/<token>`.
+3. Traefik answers the challenge automatically.
+4. Certificate is issued and stored in `/data/acme.json` inside the Traefik pod (persisted via PVC).
+5. Subsequent requests use the real cert — no more "TRAEFIK DEFAULT CERT" warning.
+
+> **Requirement**: Port 80 of `test.tkweb.site` must be publicly reachable from the internet.
+
+---
+
+## Troubleshooting
+
+| Symptom                                          | Cause                                                        | Fix                                                       |
+| ------------------------------------------------ | ------------------------------------------------------------ | --------------------------------------------------------- |
+| `Router uses a nonexistent certificate resolver` | `HelmChartConfig` not applied or wrong key name              | Re-apply Step 3, verify with Step 5                       |
+| HTTP returns 404                                 | Single ingress with `router.tls: "true"` has no HTTP router  | Use split ingress from Step 2                             |
+| HTTP returns 404 (still)                         | Middleware name wrong in annotation                          | Format must be `<namespace>-<name>@kubernetescrd`         |
+| Cert still self-signed after setup               | Normal until first public request triggers HTTP-01 challenge | Access via public domain                                  |
+| `secret default/chat2md-tls does not exist`      | `secretName` uncommented in TLS block                        | Keep `secretName` commented out when using `certresolver` |

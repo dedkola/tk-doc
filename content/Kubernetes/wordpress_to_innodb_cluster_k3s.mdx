@@ -1,0 +1,555 @@
+---
+title: Deploy Wordpress with Innodb Cluster in K3s
+description: Deploy Wordpress with Innodb Cluster in K3s
+tags: [k3s, wordpress, innodb, cluster, kubernetes]
+---
+
+## Overview
+
+This guide demonstrates deploying WordPress with MySQL InnoDB Cluster on K3s, a lightweight Kubernetes distribution ideal for edge, IoT, and development environments. MySQL InnoDB Cluster provides high availability with Group Replication, automatic failover, and consistent data across multiple nodes.
+
+**Prerequisites:**
+
+- K3s cluster deployed and running (1.24+)
+- MySQL InnoDB Cluster already deployed. Follow the setup guide: [MySQL InnoDB Cluster on K3s and expose it to LAN by LoadBalancer](/docs/vm/mysql_innodb_cluster)
+- `kubectl` configured to access your cluster
+- Persistent storage configured (K3s default: local-path provisioner)
+
+## Architecture Overview
+
+When deploying WordPress with MySQL InnoDB Cluster in K3s, the typical architecture consists of:
+
+- **WordPress Deployment**: Single or multi-replica pods running the WordPress application
+- **InnoDB Cluster**: 3+ MySQL nodes with Group Replication for HA
+- **LoadBalancer Service**: Exposes WordPress externally on port 80
+- **Service Discovery**: K3s DNS resolves the InnoDB Cluster endpoint automatically
+
+### Network Communication
+
+WordPress pods communicate with the InnoDB Cluster primary node using the MySQL Protocol (TCP/3306). K3s provides automatic service discovery through DNS FQDN: `<service-name>.<namespace>.svc.cluster.local`
+
+## Deploy Wordpress
+
+```bash
+nano wordpress.yaml
+```
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wordpress
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: wordpress
+  template:
+    metadata:
+      labels:
+        app: wordpress
+    spec:
+      containers:
+        - name: wordpress
+          image: wordpress:latest
+          env:
+            - name: WORDPRESS_DB_HOST
+              value: "10.11.0.102:3306"
+            - name: WORDPRESS_DB_NAME
+              value: "db2"
+            - name: WORDPRESS_DB_USER
+              value: "root"
+            - name: WORDPRESS_DB_PASSWORD
+              value: "123"
+          ports:
+            - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wordpress
+  namespace: default
+spec:
+  ports:
+    - port: 80
+  selector:
+    app: wordpress
+  type: LoadBalancer
+```
+
+## Enhanced WordPress Deployment with Best Practices
+
+For production environments, implement the following enhancements:
+
+### 1. Using Kubernetes Secrets for Credentials
+
+Instead of hardcoding credentials in environment variables, use Kubernetes Secrets:
+
+```bash
+# Create a secret for database credentials
+kubectl create secret generic wordpress-db-secret \
+  --from-literal=db_name=db2 \
+  --from-literal=db_user=root \
+  --from-literal=db_password=your-secure-password
+```
+
+### 2. Production-Ready Deployment Manifest
+
+```yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: wordpress
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: wordpress-pvc
+  namespace: wordpress
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wordpress
+  namespace: wordpress
+  labels:
+    app: wordpress
+    version: v1
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: wordpress
+  template:
+    metadata:
+      labels:
+        app: wordpress
+        version: v1
+    spec:
+      securityContext:
+        fsGroup: 33
+        runAsNonRoot: false
+      containers:
+        - name: wordpress
+          image: wordpress:6.4.2-apache
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+          env:
+            - name: WORDPRESS_DB_HOST
+              # Use the InnoDB Cluster service endpoint
+              value: "mysql-innodbcluster.default.svc.cluster.local:3306"
+            - name: WORDPRESS_DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: wordpress-db-secret
+                  key: db_name
+            - name: WORDPRESS_DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: wordpress-db-secret
+                  key: db_user
+            - name: WORDPRESS_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: wordpress-db-secret
+                  key: db_password
+            - name: WORDPRESS_TABLE_PREFIX
+              value: "wp_"
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 2
+          volumeMounts:
+            - name: wordpress-storage
+              mountPath: /var/www/html
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
+      volumes:
+        - name: wordpress-storage
+          persistentVolumeClaim:
+            claimName: wordpress-pvc
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - wordpress
+                topologyKey: kubernetes.io/hostname
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wordpress
+  namespace: wordpress
+  labels:
+    app: wordpress
+spec:
+  type: LoadBalancer
+  selector:
+    app: wordpress
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP
+  sessionAffinity: None
+```
+
+## Technical Details and Configuration
+
+### Database Connection Parameters
+
+The key configuration variable is `WORDPRESS_DB_HOST`. In Kubernetes, this should reference the InnoDB Cluster service:
+
+| Parameter               | Value                                                | Description                                     |
+| ----------------------- | ---------------------------------------------------- | ----------------------------------------------- |
+| `WORDPRESS_DB_HOST`     | `mysql-innodbcluster.default.svc.cluster.local:3306` | DNS service name of InnoDB Cluster with port    |
+| `WORDPRESS_DB_NAME`     | `db2`                                                | Database name created in InnoDB Cluster         |
+| `WORDPRESS_DB_USER`     | `root`                                               | Database user (should be limited in production) |
+| `WORDPRESS_DB_PASSWORD` | (secret)                                             | Encrypted password via Kubernetes Secret        |
+
+### InnoDB Cluster Service Discovery
+
+K3s automatically creates DNS records for Kubernetes Services. The format is:
+
+```
+<service-name>.<namespace>.svc.<cluster-domain>
+```
+
+For example:
+
+- `mysql-innodbcluster.default.svc.cluster.local` (in `default` namespace)
+- `mysql-innodbcluster.wordpress.svc.cluster.local` (in `wordpress` namespace)
+
+### Persistent Storage Configuration
+
+K3s includes the `local-path` storage provisioner by default, which:
+
+- Stores data in `/var/lib/rancher/k3s/storage/` on the host
+- Supports `ReadWriteOnce` access mode
+- Suitable for single-node or small clusters
+
+For multi-node production clusters, consider:
+
+- **Longhorn**: Distributed block storage
+- **NFS**: Shared storage for disaster recovery
+- **CSI Drivers**: Cloud-native storage solutions
+
+```yaml
+# Example Longhorn PVC configuration
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: wordpress-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 20Gi
+```
+
+### LoadBalancer Service Type
+
+The `LoadBalancer` service type exposes WordPress externally:
+
+- **K3s Default**: Uses `klipper-lb` (built-in load balancer)
+- **Alternative**: Use `NodePort` service if LoadBalancer is unavailable
+- **Cloud Integration**: Supports cloud provider load balancers (AWS ELB, GCP Load Balancer, etc.)
+
+## Deployment and Verification
+
+### 1. Create the WordPress Namespace
+
+```bash
+kubectl create namespace wordpress
+```
+
+### 2. Create Database Secrets
+
+```bash
+kubectl create secret generic wordpress-db-secret \
+  --namespace wordpress \
+  --from-literal=db_name=db2 \
+  --from-literal=db_user=root \
+  --from-literal=db_password='YourSecurePassword123!'
+```
+
+### 3. Apply Deployment
+
+```bash
+kubectl apply -f wordpress-deployment.yaml
+```
+
+### 4. Verify Deployment Status
+
+```bash
+# Check deployment status
+kubectl get deployment -n wordpress
+kubectl describe deployment wordpress -n wordpress
+
+# Monitor pod creation
+kubectl get pods -n wordpress -w
+
+# Check service status
+kubectl get service -n wordpress
+kubectl get service wordpress -n wordpress -o wide
+```
+
+### 5. Verify Database Connectivity
+
+```bash
+# Execute shell in WordPress pod
+kubectl exec -it deployment/wordpress -n wordpress -- /bin/bash
+
+# Inside the pod, test MySQL connectivity
+apt-get update && apt-get install -y mysql-client
+mysql -h mysql-innodbcluster.default.svc.cluster.local -u root -p'123' -e "SHOW DATABASES;"
+```
+
+## Troubleshooting
+
+### Issue: WordPress Pod Cannot Connect to Database
+
+**Symptoms:** Pod restarts continuously, logs show "Can't connect to MySQL server"
+
+**Solutions:**
+
+1. Verify InnoDB Cluster is running and accessible:
+
+   ```bash
+   kubectl get pods -n default -l app=mysql
+   kubectl get svc mysql-innodbcluster -n default
+   ```
+
+2. Check network connectivity from WordPress pod:
+
+   ```bash
+   kubectl exec -it deployment/wordpress -n wordpress -- \
+     nc -zv mysql-innodbcluster.default.svc.cluster.local 3306
+   ```
+
+3. Verify secrets are created:
+
+   ```bash
+   kubectl get secrets -n wordpress
+   kubectl describe secret wordpress-db-secret -n wordpress
+   ```
+
+4. Check logs for detailed error messages:
+   ```bash
+   kubectl logs -f deployment/wordpress -n wordpress
+   ```
+
+### Issue: LoadBalancer Service Shows PENDING
+
+**Symptoms:** `kubectl get svc` shows `<pending>` for EXTERNAL-IP
+
+**Solutions:**
+
+1. K3s LoadBalancer needs servicelb enabled (default):
+
+   ```bash
+   kubectl get pods -n kube-system | grep servicelb
+   ```
+
+2. For local testing, use port-forward instead:
+
+   ```bash
+   kubectl port-forward -n wordpress svc/wordpress 8080:80
+   # Access WordPress at http://localhost:8080
+   ```
+
+3. Check service endpoint configuration:
+   ```bash
+   kubectl get endpoints wordpress -n wordpress
+   ```
+
+## Performance Optimization
+
+### 1. Resource Requests and Limits
+
+The provided deployment specifies resource constraints:
+
+- **Requests**: Minimum guaranteed resources for scheduling
+- **Limits**: Maximum resources allowed to prevent resource starvation
+
+Adjust based on expected WordPress traffic:
+
+```yaml
+resources:
+  requests:
+    memory: "256Mi" # For high-traffic sites
+    cpu: "250m"
+  limits:
+    memory: "1Gi"
+    cpu: "1000m"
+```
+
+### 2. Horizontal Pod Autoscaling
+
+Enable automatic scaling based on CPU utilization:
+
+```yaml
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: wordpress-hpa
+  namespace: wordpress
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: wordpress
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+```
+
+### 3. Pod Disruption Budget
+
+Ensure high availability during cluster upgrades:
+
+```yaml
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: wordpress-pdb
+  namespace: wordpress
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: wordpress
+```
+
+## Security Considerations
+
+### 1. Credential Management
+
+- Never commit passwords to version control
+- Use Kubernetes Secrets for sensitive data
+- Rotate passwords regularly
+- Consider using external secret management (Sealed Secrets, External Secrets)
+
+### 2. Network Policies
+
+Restrict traffic to WordPress pods:
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: wordpress-network-policy
+  namespace: wordpress
+spec:
+  podSelector:
+    matchLabels:
+      app: wordpress
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector: {}
+      ports:
+        - protocol: TCP
+          port: 80
+  egress:
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 3306
+    - to:
+        - podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+```
+
+### 3. Image Security
+
+- Use specific version tags instead of `latest`
+- Scan images for vulnerabilities
+- Consider using distroless or minimal base images
+
+## Maintenance and Backup
+
+### 1. Backing up WordPress Data
+
+```bash
+# Backup persistent volume
+kubectl exec -it deployment/wordpress -n wordpress -- \
+  tar czf - /var/www/html | gzip > wordpress-backup-$(date +%Y%m%d).tar.gz
+```
+
+### 2. Backing up MySQL InnoDB Cluster
+
+MySQL InnoDB Cluster automatically maintains replicas. For additional safety:
+
+```bash
+# Execute backup from WordPress pod
+kubectl exec -it deployment/wordpress -n wordpress -- \
+  mysqldump -h mysql-innodbcluster.default.svc.cluster.local \
+  -u root -p'123' --all-databases | gzip > mysql-backup-$(date +%Y%m%d).sql.gz
+```

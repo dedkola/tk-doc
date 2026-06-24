@@ -1,0 +1,21 @@
+---
+title: Install Node.js 24 on Linux
+description: A guide on how to install Node.js on a Linux system.
+tags: [Node.js, Installation, Linux, JavaScript, pnpm]
+---
+
+# Install Node.js on Linux
+
+```bash
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+
+\. "$HOME/.nvm/nvm.sh"
+
+nvm install 24
+
+node -v # Should print "v24.11.1".
+
+corepack enable pnpm
+
+pnpm -v
+```

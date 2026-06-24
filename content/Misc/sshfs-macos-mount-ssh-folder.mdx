@@ -1,0 +1,31 @@
+---
+title: Mount SSH Folder on macOS using SSHFS
+description: A step-by-step guide to mounting a remote SSH folder on macOS using SSHFS
+tags: [sshfs, macos, ssh, mount, filesystem]
+---
+
+### Install SSHFS on macOS
+```bash copy
+brew install --cask macfuse
+brew install gromgit/fuse/sshfs-mac
+```
+
+### Create a Mount Point
+```bash copy
+mkdir -p ~/Volumes/RemoteSSH
+```
+
+### Mount the Remote SSH Folder
+```bash copy
+sshfs username@remote_host:/path/to/remote/folder ~/Volumes/RemoteSSH
+```
+###Unmount the Remote SSH Folder
+```bash copy
+umount ~/Volumes/RemoteSSH
+```
+
+### Mount with reconnect option
+```bash copy
+sshfs root@198.177.125.147:/home/ ~/remote-server \
+  -o reconnect,ServerAliveInterval=15,ServerAliveCountMax=3
+```

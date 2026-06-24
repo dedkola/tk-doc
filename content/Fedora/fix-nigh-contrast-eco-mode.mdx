@@ -1,0 +1,28 @@
+---
+title: Fix Night Contrast in Eco Mode on Asus Laptops
+description: On Asus TUF series laptops, with hybrid graphics and Eco Mode enabled on battery extrenky high contrast UI.
+tags:
+  - Fedora
+  - Asus
+  - Hybrid Graphics
+  - Eco Mode
+  - Night Contrast
+  - UI
+  - Nvidia
+  - Linux
+---
+
+## Fix bug eco-mode in hybrid Asus laptops with Nvidia GPU and AMD iGPU
+
+```bash
+
+sudo dnf install asusctl supergfxctl
+
+sudo systemctl enable --now supergfxd
+sudo systemctl enable --now asusd
+```
+
+### Set integrated graphics mode
+
+```bash
+sudo supergfxctl -m Integrated

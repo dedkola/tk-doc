@@ -1,0 +1,23 @@
+---
+title: Install Prettier locally
+description: A guide on how to install Prettier locally in your project.
+tags:
+  - Prettier
+  - Installation
+  - JavaScript
+  - Code Formatting
+---
+
+# Install Prettier Locally
+```bash
+pnpm add --save-dev --save-exact prettier
+node --eval "fs.writeFileSync('.prettierrc','{}\n')"
+node --eval "fs.writeFileSync('.prettierignore','# Ignore artifacts:\nbuild\ncoverage\n')"
+```
+### Make all files formatted
+```bash
+pnpm exec prettier . --write
+```
+### Check all files are formatted
+```bash
+pnpm exec prettier . --check

@@ -1,0 +1,378 @@
+---
+title: "Kubectl Autocomplete"
+description: "Enable kubectl command-line autocompletion for enhanced productivity."
+keywords: [kubectl, autocomplete, command-line, productivity]
+---
+
+Kubectl exposes completion scripts through `kubectl completion <shell>`. The script defines helper functions (notably `__start_kubectl`) that hook into the shell's completion system and read your current kubeconfig to suggest resource names, contexts, and namespaces. Enabling this reduces typos and speeds up multi-step commands like `kubectl -n staging get deploy -o wide`.
+
+## Technical Overview
+
+The completion mechanism leverages your shell's programmable completion system (Bash's `complete` builtin or Zsh's `compdef`). When you press Tab, the shell invokes `__start_kubectl` with your partial command, which calls `kubectl __complete` internally. This subprocess queries the Kubernetes API server based on your current context to fetch live resource names, namespaces, and other completable arguments. The completion data is cached per-session to minimize API calls.
+
+**Performance considerations:**
+
+- First-time completions may incur 50-200ms latency due to API discovery
+- Subsequent completions use in-memory caching (valid until shell restart)
+- Large clusters (1000+ resources) may experience slower completions; consider using `--chunk-size` flag in queries
+- Completion queries respect the current kubeconfig context and RBAC permissions
+
+#### Prerequisites
+
+- kubectl v1.20+ installed and on `PATH` (check with `kubectl version --client`)
+- Bash 4.1+ or Zsh 5.2+ with completion enabled
+- Write access to your shell init file (e.g., `~/.bashrc`, `~/.zshrc`)
+
+#### Notes on persistence
+
+Appending the completion command to your shell init file ensures the function is loaded every new shell session. If you manage dotfiles via tools like chezmoi, stow, or a corporate profile manager, ensure they do not overwrite the completion snippet on login.
+
+**Shell loading order:**
+
+- Bash reads `~/.bash_profile` (login) or `~/.bashrc` (interactive non-login)
+- Zsh reads `~/.zshenv`, `~/.zprofile`, `~/.zshrc`, `~/.zlogin` in sequence
+- Place completion scripts in `~/.bashrc` or `~/.zshrc` for consistency across sessions
+
+**Troubleshooting slow startups:**
+If sourcing completion adds noticeable shell startup delay (>100ms), generate a static file once and source that instead:
+
+```bash
+kubectl completion bash > ~/.kubectl_completion.sh
+echo 'source ~/.kubectl_completion.sh' >> ~/.bashrc
+```
+
+This avoids spawning a `kubectl` subprocess on every shell initialization.
+
+### bash
+
+```bash copy
+echo 'source <(kubectl completion bash)' >> ~/.bashrc
+echo 'alias k=kubectl' >> ~/.bashrc
+echo 'complete -o default -F __start_kubectl k' >> ~/.bashrc
+```
+
+### zsh
+
+```bash copy
+autoload -Uz compinit
+compinit
+source <(kubectl completion zsh)
+alias k=kubectl
+compdef __start_kubectl k
+```
+
+**Alternative: Faster zsh startup with static completion file**
+To avoid process substitution overhead on every shell start, generate the completion script once:
+
+```bash copy
+mkdir -p ~/.zsh/completion
+kubectl completion zsh > ~/.zsh/completion/_kubectl
+echo 'fpath=(~/.zsh/completion $fpath)' >> ~/.zshrc
+echo 'autoload -Uz compinit && compinit' >> ~/.zshrc
+```
+
+For alias completion, ensure `compdef` is called after `compinit`:
+
+```bash copy
+echo 'alias k=kubectl' >> ~/.zshrc
+echo 'compdef __start_kubectl k' >> ~/.zshrc
+```
+
+#### macOS + Homebrew (bash)
+
+Homebrew ships bash-completion files under `/opt/homebrew/etc` (ARM) or `/usr/local/etc` (Intel). To avoid subshell execution on every prompt, you can write a static completion file and source it via the standard completion directory:
+
+```bash copy
+mkdir -p ~/.local/share/bash-completion/completions
+kubectl completion bash > ~/.local/share/bash-completion/completions/kubectl
+echo '[[ -r "/opt/homebrew/etc/profile.d/bash_completion.sh" ]] && source "/opt/homebrew/etc/profile.d/bash_completion.sh"' >> ~/.bashrc
+```
+
+**Intel Mac users (x86_64):** Replace `/opt/homebrew` with `/usr/local`:
+
+```bash copy
+echo '[[ -r "/usr/local/etc/profile.d/bash_completion.sh" ]] && source "/usr/local/etc/profile.d/bash_completion.sh"' >> ~/.bashrc
+```
+
+**Verification:**
+After reloading your shell, check that bash-completion v2+ is active:
+
+```bash
+type _init_completion
+# Should output: _init_completion is a function
+```
+
+#### system-wide (Linux, bash)
+
+For multi-user environments, install the completion script once and let `/etc/profile.d` load it. Requires sudo rights:
+
+```bash copy
+sudo kubectl completion bash > /etc/bash_completion.d/kubectl
+sudo restorecon /etc/bash_completion.d/kubectl 2>/dev/null || true
+```
+
+**SELinux systems (RHEL/CentOS/Fedora):**
+The `restorecon` command ensures the file has the correct security context. If missing, completion may fail silently. Verify with:
+
+```bash
+ls -Z /etc/bash_completion.d/kubectl
+# Should show: system_u:object_r:bin_t:s0 or similar
+```
+
+**Permission best practices:**
+
+```bash copy
+sudo chmod 644 /etc/bash_completion.d/kubectl
+sudo chown root:root /etc/bash_completion.d/kubectl
+```
+
+#### oh-my-zsh nuance
+
+oh-my-zsh loads completion before custom aliases. Ensure the completion function is available after plugins by sourcing `kubectl completion zsh` late in `~/.zshrc`, or place the snippet in `${ZSH_CUSTOM}/plugins/kubectl/_kubectl` and add `kubectl` to `plugins=(...)`.
+
+**Recommended approach for oh-my-zsh:**
+
+```bash copy
+# In ~/.zshrc, after 'source $ZSH/oh-my-zsh.sh'
+if [ $commands[kubectl] ]; then
+  source <(kubectl completion zsh)
+fi
+alias k=kubectl
+compdef __start_kubectl k
+```
+
+**Custom plugin method:**
+
+```bash copy
+mkdir -p ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/kubectl
+kubectl completion zsh > ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/kubectl/_kubectl
+```
+
+Then add `kubectl` to your plugins array in `~/.zshrc`:
+
+```bash
+plugins=(git docker kubectl)
+```
+
+#### Verification
+
+- Open a new shell and type `kubectl get po -n <TAB>`; expect namespace suggestions.
+- Run `which __start_kubectl` (zsh) or `type __start_kubectl` (bash) to confirm the function is in scope.
+- If completions fail, run `set -o pipefail` and re-source your shell config to catch errors from the `source <(kubectl completion ...)` pipeline.
+
+**Advanced verification:**
+Test completion for different resource types:
+
+```bash
+kubectl get <TAB>         # Should list resource types (pods, services, deployments...)
+kubectl get pod <TAB>     # Should list pod names in current namespace
+kubectl -n kube-system get pod <TAB>  # Should list pods in kube-system namespace
+kubectl config use-context <TAB>      # Should list available contexts
+```
+
+**Debug completion issues:**
+Enable bash/zsh completion debugging:
+
+```bash
+# Bash
+bash -x -c 'source <(kubectl completion bash)'
+
+# Zsh
+zsh -x -c 'source <(kubectl completion zsh)'
+```
+
+Check if kubectl can reach the API server:
+
+```bash
+kubectl cluster-info
+# If this fails, completions won't work for resource names
+```
+
+---
+
+## Advanced Configuration
+
+### Performance Optimization for Large Clusters
+
+For clusters with 1000+ namespaces or resources, consider these optimizations:
+
+**1. Set default namespace to avoid `-n` flag:**
+
+```bash copy
+kubectl config set-context --current --namespace=my-team
+```
+
+**2. Use resource aliases for faster typing:**
+
+```bash copy
+echo 'alias kgp="kubectl get pods"' >> ~/.bashrc
+echo 'alias kgs="kubectl get services"' >> ~/.bashrc
+echo 'alias kgd="kubectl get deployments"' >> ~/.bashrc
+```
+
+**3. Enable completion only for specific aliases:**
+
+```bash copy
+# Bash
+complete -o default -F __start_kubectl kgp
+complete -o default -F __start_kubectl kgs
+
+# Zsh
+compdef __start_kubectl kgp
+compdef __start_kubectl kgs
+```
+
+### Multiple kubectl Versions
+
+If you maintain multiple kubectl versions (e.g., for different cluster versions), generate separate completion files:
+
+```bash copy
+# For kubectl 1.28
+/usr/local/bin/kubectl-1.28 completion bash > ~/.kubectl-1.28-completion.sh
+
+# For kubectl 1.29
+/usr/local/bin/kubectl-1.29 completion bash > ~/.kubectl-1.29-completion.sh
+
+# Source the one you need
+alias k28='kubectl-1.28'
+alias k29='kubectl-1.29'
+source ~/.kubectl-1.28-completion.sh
+complete -o default -F __start_kubectl k28
+```
+
+### Fish Shell Support
+
+For fish shell users (version 3.0+):
+
+```fish copy
+kubectl completion fish | source
+```
+
+Make it permanent:
+
+```fish copy
+kubectl completion fish > ~/.config/fish/completions/kubectl.fish
+```
+
+### PowerShell Support (Windows/Cross-platform)
+
+```powershell copy
+kubectl completion powershell | Out-String | Invoke-Expression
+```
+
+Add to your PowerShell profile:
+
+```powershell copy
+kubectl completion powershell >> $PROFILE
+```
+
+---
+
+## Context-Aware Completions
+
+Completions are dynamically filtered based on your current kubeconfig context and RBAC permissions. If you can't see certain resources in completions, verify your access:
+
+```bash copy
+# Check current context
+kubectl config current-context
+
+# View effective permissions
+kubectl auth can-i --list
+
+# Check specific resource access
+kubectl auth can-i get pods -n production
+```
+
+**Multi-context workflow example:**
+
+```bash copy
+# List all contexts
+kubectl config get-contexts
+
+# Switch context and test completion
+kubectl config use-context staging-cluster
+kubectl get pods <TAB>  # Shows only staging pods
+
+kubectl config use-context prod-cluster
+kubectl get pods <TAB>  # Shows only production pods
+```
+
+### Namespace-Specific Completions
+
+Set a default namespace for your context to speed up completions:
+
+```bash copy
+# Set default namespace
+kubectl config set-context --current --namespace=my-namespace
+
+# Now completions work without -n flag
+kubectl get pod <TAB>  # Lists pods in my-namespace
+```
+
+**Per-context namespace configuration:**
+
+```bash copy
+# Create context with specific namespace
+kubectl config set-context dev-context \
+  --cluster=my-cluster \
+  --user=my-user \
+  --namespace=development
+
+kubectl config use-context dev-context
+# All commands now default to 'development' namespace
+```
+
+---
+
+## Troubleshooting
+
+### Common Issues
+
+**Issue: "command not found: compdef"**
+
+```bash
+# Solution: Initialize zsh completion system first
+autoload -Uz compinit && compinit
+```
+
+**Issue: Completions show outdated resources**
+
+```bash
+# Solution: Completion cache persists per shell session
+# Exit and start a new shell, or manually clear cache:
+unset BASH_COMP_DEBUG_FILE  # Bash
+rehash                       # Zsh
+```
+
+**Issue: Slow completions (>2 seconds)**
+
+- Check API server latency: `kubectl get --raw /healthz`
+- Use static completion file instead of process substitution
+- Consider using [kubectx/kubens](https://github.com/ahmetb/kubectx) for faster context switching
+
+**Issue: Completions don't work after kubectl upgrade**
+
+```bash
+# Regenerate completion files
+kubectl completion bash > ~/.kubectl_completion.sh
+source ~/.kubectl_completion.sh
+```
+
+**Issue: SELinux denies completion execution**
+
+```bash
+# Check audit logs
+sudo ausearch -m avc -ts recent | grep kubectl
+
+# Fix context
+sudo restorecon -v /etc/bash_completion.d/kubectl
+```
+
+---
+
+## Additional Resources
+
+- **Kubernetes Documentation:** [kubectl Cheat Sheet](https://kubernetes.io/docs/reference/kubectl/cheatsheet/)
+- **kubeconfig Management:** [Organizing Cluster Access](https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/)
+- **Shell Completion Standards:** [GNU Bash Manual - Programmable Completion](https://www.gnu.org/software/bash/manual/html_node/Programmable-Completion.html)
+- **Zsh Completion System:** [Zsh Documentation - Completion System](http://zsh.sourceforge.net/Doc/Release/Completion-System.html)

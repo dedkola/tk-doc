@@ -1,0 +1,89 @@
+---
+title: Terraform clone WSL instances
+description: Clone WSL instances using Terraform
+tags: [terraform, wsl, clone]
+---
+
+Base dir E:\WSL
+
+```bash copy
+terraform -chdir=E:\WSL init
+terraform -chdir=E:\WSL plan
+terraform -chdir=E:\WSL apply
+```
+
+File here https://github.com/dedkola/salsa/blob/main/terrraform/wsl.tf
+
+```terraform
+provider "local" {
+}
+
+resource "null_resource" "export_wsl" {
+  provisioner "local-exec" {
+    command = "wsl --export Ubuntu-24.04 E:\\WSL\\ubuntu-backup.tar"
+  }
+}
+
+resource "null_resource" "import_wsl_1" {
+  depends_on = [null_resource.export_wsl]
+
+  provisioner "local-exec" {
+    command = "wsl --import U1 E:\\WSL\\U1 E:\\WSL\\ubuntu-backup.tar"
+  }
+
+  provisioner "local-exec" {
+    when    = destroy
+    command = "wsl --unregister U1"
+  }
+}
+
+resource "null_resource" "import_wsl_2" {
+  depends_on = [null_resource.export_wsl]
+
+  provisioner "local-exec" {
+    command = "wsl --import U2 E:\\WSL\\U2 E:\\WSL\\ubuntu-backup.tar"
+  }
+
+
+  provisioner "local-exec" {
+    when    = destroy
+    command = "wsl --unregister U2"
+  }
+}
+provider "local" {
+}
+
+resource "null_resource" "export_wsl" {
+  provisioner "local-exec" {
+    command = "wsl --export Ubuntu-24.04 E:\\WSL\\ubuntu-backup.tar"
+  }
+}
+
+resource "null_resource" "import_wsl_1" {
+  depends_on = [null_resource.export_wsl]
+
+  provisioner "local-exec" {
+    command = "wsl --import U1 E:\\WSL\\U1 E:\\WSL\\ubuntu-backup.tar"
+  }
+
+  provisioner "local-exec" {
+    when    = destroy
+    command = "wsl --unregister U1"
+  }
+}
+
+resource "null_resource" "import_wsl_2" {
+  depends_on = [null_resource.export_wsl]
+
+  provisioner "local-exec" {
+    command = "wsl --import U2 E:\\WSL\\U2 E:\\WSL\\ubuntu-backup.tar"
+  }
+
+
+  provisioner "local-exec" {
+    when    = destroy
+    command = "wsl --unregister U2"
+  }
+}
+
+```

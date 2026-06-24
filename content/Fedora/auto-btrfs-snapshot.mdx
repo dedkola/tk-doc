@@ -1,0 +1,70 @@
+---
+title: Create BTRFS snapshot before dnf install or update
+description: Automatically create a BTRFS snapshot before installing or updating packages with dnf.
+keywords: btrfs, snapshot, dnf, automatic, backup
+tags: [btrfs, dnf, snapshot, backup, automation, fedora, snapper]
+---
+
+Keeping your system safe during package management operations is important. With BTRFS and Snapper, you can easily create snapshots before making changes with DNF. This guide will help you set up an automatic snapshot system, so you can roll back if something goes wrong during installs, updates, upgrades, or removals.
+
+
+### Step 1: Create the Snapshot Script
+
+We'll create a wrapper script for DNF that automatically creates a BTRFS snapshot before any major package operation. This ensures you always have a restore point.
+
+```bash
+#!/bin/bash
+# Create snapshot before DNF operations
+if [[ "$1" == "install" ]] || [[ "$1" == "update" ]] || [[ "$1" == "upgrade" ]] || [[ "$1" == "remove" ]]; then
+    snapper create -d "Before DNF $*"
+fi
+exec /usr/bin/dnf.real "$@"
+```
+
+Save this script as `/usr/local/bin/dnf` and make it executable. This replaces the default DNF command with your snapshot-enabled version.
+
+---
+
+### Step 2: Make the Script Executable
+
+Run the following command to allow execution of your new script:
+
+```bash
+sudo chmod +x /usr/local/bin/dnf
+```
+
+---
+
+### Step 3: Backup the Original DNF Binary
+
+Before replacing the original DNF command, back it up so you can restore it if needed:
+
+```bash
+sudo mv /usr/bin/dnf /usr/bin/dnf.real
+```
+
+---
+
+### Step 4: Create a Symlink
+
+Now, link your new script to the original DNF location. This way, every time you run `dnf`, your script will execute:
+
+```bash
+sudo ln -s /usr/local/bin/dnf /usr/bin/dnf
+```
+
+---
+
+### Step 5: Verify Snapshots
+
+After running any DNF operation (install, update, upgrade, remove), you can check that a snapshot was created:
+
+```bash
+sudo snapper list
+```
+
+This will show you the list of snapshots, including those created before DNF operations.
+
+---
+
+With these steps, your system will automatically create BTRFS snapshots before any major package management operation, giving you peace of mind and an easy way to recover if something goes wrong.

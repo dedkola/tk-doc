@@ -1,0 +1,429 @@
+{
+  "generatedAt": "2026-06-16T11:39:27.179Z",
+  "files": {
+    "Cheat Sheets/ansible-handbook.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Cheat Sheets/docker-cli-handbook.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Cheat Sheets/git-github-handbook.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Cheat Sheets/kubernetes-handbook.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Cheat Sheets/mac-cli-handbook.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Cheat Sheets/terraform-handbook.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Cheat Sheets/ubuntu-cli-handbook.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Docker/docker-autostart-container.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Docker/docker-ha-windows.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Docker/gitlab_pipeline_nextjs_example.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Docker/gitlab_runner.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Docker/llm-models-nvidia.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Docker/mcp-defaut-mount-playwright.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Docker/nextjs_app_to_docker.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Docker/rootless_rootful_docker_conflict.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Docker/unraid-base-containers.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Fedora/auto-btrfs-snapshot.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Fedora/black-sof-amd-nvidia.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Fedora/fedora-nvidia-driver.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Fedora/fix-dual-boot-time-reset.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Fedora/fix-nigh-contrast-eco-mode.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Fedora/mount-win-partition-fedora.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Kubernetes/autocomplete_kubectl.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Kubernetes/connect_remote_to_kubernetes.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Kubernetes/deploy_dockerhub_image_to_k3s.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Kubernetes/deploy_mysql_kubernetes_basic.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Kubernetes/docker-k8s-metallb.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Kubernetes/flux-onboarding.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Kubernetes/flux-to-node-app.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Kubernetes/jankins_metallb_microk8s.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Kubernetes/k3s-api-cf-tunnel.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Kubernetes/k3s_add_node.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Kubernetes/k3s_metallb_loadbalancer.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Kubernetes/k3s_mysql_loadbalancer.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Kubernetes/k3s_pvc_mysql_my_cnf.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Kubernetes/k8s-monitoring-guide.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Kubernetes/kubernetes_deployment_nginx_metallb.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Kubernetes/kubernetes_more_commands.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Kubernetes/kubernetes_services.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Kubernetes/local-k3s-cloudflared.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Kubernetes/mariadb_cluster_wordpress.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Kubernetes/microk8s_helm_onedev.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Kubernetes/mysql_innodb_cluster.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Kubernetes/nginx_loadbalancer_k3s.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Kubernetes/setup-argocd-k8s.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Kubernetes/traefik-ssl-cert-https.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Kubernetes/wordpress_mysql_pvc.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Kubernetes/wordpress_to_innodb_cluster_k3s.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Misc/fetch-remote-repository-to-private.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Misc/fix-mac-premissions-mc.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Misc/ha-samsung-tizen.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Misc/ha_add_vacuum_zone.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Misc/install-prettier-local.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Misc/linux-nodejs-install.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Misc/macos-mysql8-brew.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Misc/make-windows-autologin.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Misc/mysql-data-import-export.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Misc/nextjs_params_slug.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Misc/nodejs.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Misc/ollama-ui.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Misc/php-fpm_nginx.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Misc/rclone_gdrive_ubuntu_cli.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Misc/rsync_ssh_backup.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Misc/sshfs-macos-mount-ssh-folder.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Misc/tar-untar.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Misc/terraform_clone_wsl_instances.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Misc/windows11_without_internet.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Misc/wsl.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Network/adguard-best-dns.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Network/apple-controller.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Network/basic_network_monitor.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Network/cloudflared_ssh_tunnel.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Network/grep-current-network-connections.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Network/local-vpn-ubuntu.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Network/open_default_ports_ubuntu.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Network/proxy-dot-unbound.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Network/unifi_dhcp_fix_for_unraid_vm.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Ubuntu/backup-mysql-linux-cron.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Ubuntu/cifs_samba_mount.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Ubuntu/disable_app_armor.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Ubuntu/fix_windows_time_with_linux.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Ubuntu/grub_priority.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Ubuntu/increase_swap.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Ubuntu/install_mongodb_ubuntu.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Ubuntu/install_nvidia_drivers_ubuntu.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Ubuntu/mount_ssh_folder_windows.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Ubuntu/postgresql-ubuntu-server.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Ubuntu/screen_microk8s_basic.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Ubuntu/ssh_keys_basics.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Ubuntu/ubuntu-nala.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Ubuntu/ubuntu_look_and_feel.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Ubuntu/zsh-p10k-ubuntu.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "VM/bridge_to_host.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "VM/docker_on_ubuntu.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "VM/fedora_vm_server.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "VM/lxc-export-ssh-keys.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "VM/proxmox_cloud_init_clone.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "VM/unraid_vm_resize_disk.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "VM/wsl-enable-host-mode.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Wordpress/add-wp-date-to-post.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Wordpress/shrink_wp_posts.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Wordpress/tagdiv_newspaper_slow_qery.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Wordpress/wordpress-limit-posts.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Wordpress/wordpress-rss.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Wordpress/wordpress-set-homepage.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    },
+    "Wordpress/wp-post-view-count.mdx": {
+      "createdAt": "2026-06-16T14:36:24+03:00",
+      "updatedAt": "2026-06-16T14:36:24+03:00"
+    }
+  }
+}

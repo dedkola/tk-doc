@@ -1,0 +1,13 @@
+apiVersion: skaffold/v4beta13
+kind: Config
+metadata:
+  name: tk-doc
+build:
+  artifacts:
+    - image: ghcr.io/dedkola/tk-doc
+      docker:
+        dockerfile: Dockerfile
+manifests:
+  kustomize:
+    paths:
+      - k8s

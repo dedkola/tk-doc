@@ -1,0 +1,51 @@
+---
+title: MySQL Database Import/Export
+description: Quick dump large MySQL database import/export tips.
+tags: [mysql, import, large, database]
+---
+### Dump a MySQL database to file
+```bash copy
+mysqldump -u username -p database_name > data-dump.sql
+```
+
+### Import a MySQL database from file
+```bash copy
+mysql -u username -p new_database < data-dump.sql
+```
+
+### For quick large MySQL database import use:
+
+Manual mode by copy paste in terminal.
+
+### Start of file
+
+```bash copy
+sed -i '1s/^/SET autocommit = 0;\n/' dump.sql
+```
+
+### End of file
+
+```bash copy
+echo 'COMMIT;' >> dump.sql
+```
+
+### Or create bash script to run the above commands.
+
+```bash copy
+#!/bin/bash
+# Check if filename is provided as argument
+if [ $# -eq 0 ]; then
+    echo "Usage: $0 <filename>"
+    exit 1
+fi
+
+filename=$1
+
+# Add 'SET autocommit = 0;' at the beginning of the file
+sed -i '1s/^/SET autocommit = 0;\n/' "$filename"
+
+# Append 'echo 'COMMIT;' to the end of the file
+echo 'COMMIT;' >> "$filename"
+
+echo "Now import it. quickly :)"
+```

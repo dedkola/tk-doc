@@ -1,0 +1,50 @@
+---
+title: "Setting Up Argo CD on Kubernetes"
+description: "Learn how to install and configure Argo CD, a popular GitOps continuous delivery tool, on a Kubernetes cluster. This guide covers the installation process, basic configuration, and how to
+deploy applications using Argo CD."
+date: "2024-06-01"
+tags: ["Kubernetes", "Argo CD", "GitOps", "Continuous Delivery"]
+---
+
+
+Getting started https://argo-cd.readthedocs.io/en/stable/getting_started/
+
+
+## Edit ingress-nginx to use LoadBalancer
+
+ingress.yaml
+```yaml copy
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: argocd-server-ingress
+  namespace: argocd
+  annotations:
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: argocd.tkweb.site
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: argocd-server
+                port:
+                  name: https
+
+```
+```bash copy
+kubectl edit deployment ingress-nginx-controller -n ingress-nginx
+```
+
+```yaml copy
+containers:
+  - name: controller
+    args:
+      - /nginx-ingress-controller
+      - --enable-ssl-passthrough    # ← add this line
+```

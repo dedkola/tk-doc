@@ -1,0 +1,37 @@
+---
+title: Manage Node.js version with N
+description: Manage Node.js version with N
+tags: [nodejs, n, version]
+---
+
+### Install N
+
+```bash copy
+npm install -g n
+```
+
+### Fix permissions
+
+```bash copy
+sudo mkdir -p /usr/local/n
+sudo chown -R $(whoami) /usr/local/n
+sudo mkdir -p /usr/local/bin /usr/local/lib /usr/local/include /usr/local/share
+sudo chown -R $(whoami) /usr/local/bin /usr/local/lib /usr/local/include /usr/local/share
+```
+
+### Check
+
+```bash copy
+ n lts
+```
+### Install specific version of Node.js
+
+```bash copy
+n lts
+n 20.18.0
+```
+### Removing all cached versions except the installed version:
+
+```bash copy
+n prune
+```

@@ -1,0 +1,36 @@
+---
+title: Backup folder from remote server to local. Rsync
+description: Backup folder from remote server to local. Rsync
+tags: [backup, rsync, ssh]
+---
+
+### Copy from remote
+
+```bash copy
+rsync -avz -e ssh john@192.168.1.100:/var/www/html /home/john/backup/
+```
+
+-a: Archive mode (preserves permissions, timestamps, symbolic links, etc.) <br />
+-v: Verbose mode (shows progress) <br />
+-z: Compress data during transfer <br />
+-e ssh: Use SSH for secure transfer <br />
+
+### Generate keys
+
+```bash copy
+ssh-keygen -t rsa -b 4096
+```
+
+### Send to remote server
+
+```bash copy
+ssh-copy-id username@remote_server_ip
+```
+
+### Add cron
+
+```bash copy
+0 0 * * * rsync -avz -e ssh username@remote_server_ip:/path/to/remote/folder /path/to/local/backup/
+```
+
+\*daily at midnight
