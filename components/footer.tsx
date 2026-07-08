@@ -133,7 +133,6 @@ export default function Footer() {
             </span>{" "}
             All rights reserved.
           </p>
-
         </div>
       </div>
     </footer>

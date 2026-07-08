@@ -76,7 +76,9 @@ const existingManifest = readExistingManifest();
 const files = Object.fromEntries(
   walk(contentDir)
     .map((fullPath) => {
-      const relativePath = path.relative(contentDir, fullPath).replace(/\\/g, "/");
+      const relativePath = path
+        .relative(contentDir, fullPath)
+        .replace(/\\/g, "/");
       const gitPath = `content/${relativePath}`;
       const existingDates = existingManifest.files?.[relativePath] ?? {};
       const nextDates = getGitDates(gitPath);

@@ -3,7 +3,7 @@ import { privateConfig } from "./config.private";
 
 const mergeSection = <T extends Record<string, unknown>>(
   baseSection: T,
-  override?: Partial<T>
+  override?: Partial<T>,
 ): T => ({
   ...baseSection,
   ...(override ?? {}),
@@ -32,27 +32,26 @@ export const siteConfig: BaseSiteConfig = {
   ...localConfig,
   og: mergeSection(
     mergeSection(baseConfig.og, privateConfig.og),
-    localConfig.og
+    localConfig.og,
   ),
   twitter: mergeSection(
     mergeSection(baseConfig.twitter, privateConfig.twitter),
-    localConfig.twitter
+    localConfig.twitter,
   ),
   analytics: mergeSection(
     mergeSection(baseConfig.analytics, privateConfig.analytics),
-    localConfig.analytics
+    localConfig.analytics,
   ),
   debug: mergeSection(
     mergeSection(baseConfig.debug, privateConfig.debug),
-    localConfig.debug
+    localConfig.debug,
   ),
   social: mergeSection(
     mergeSection(baseConfig.social, privateConfig.social),
-    localConfig.social
+    localConfig.social,
   ),
   footer: mergeSection(
     mergeSection(baseConfig.footer, privateConfig.footer),
-    localConfig.footer
+    localConfig.footer,
   ),
 };
-

@@ -68,9 +68,7 @@ export default function SearchResults({ groupedFiles }: SearchResultsProps) {
     words: string[];
   }) => {
     if (!words.length || !text) return <>{text}</>;
-    const escaped = words.map((w) =>
-      w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
-    );
+    const escaped = words.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
     const pattern = new RegExp(`(${escaped.join("|")})`, "gi");
     const parts = text.split(pattern);
     return (

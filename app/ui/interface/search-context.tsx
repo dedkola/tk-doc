@@ -20,10 +20,10 @@ interface SearchContextType {
 const SearchContext = createContext<SearchContextType | undefined>(undefined);
 
 function UrlSync({
-                   searchQuery,
-                   setSearchQuery,
-                   setSelectedTag,
-                 }: {
+  searchQuery,
+  setSearchQuery,
+  setSelectedTag,
+}: {
   searchQuery: string;
   setSearchQuery: (query: string) => void;
   setSelectedTag: (tag: string | null) => void;
@@ -72,25 +72,25 @@ export function SearchProvider({ children }: { children: ReactNode }) {
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   return (
-      <SearchContext.Provider
-          value={{
-            searchQuery,
-            setSearchQuery,
-            selectedTag,
-            setSelectedTag,
-            sidebarOpen,
-            setSidebarOpen,
-          }}
-      >
-        <Suspense fallback={null}>
-          <UrlSync
-              searchQuery={searchQuery}
-              setSearchQuery={setSearchQuery}
-              setSelectedTag={setSelectedTag}
-          />
-        </Suspense>
-        {children}
-      </SearchContext.Provider>
+    <SearchContext.Provider
+      value={{
+        searchQuery,
+        setSearchQuery,
+        selectedTag,
+        setSelectedTag,
+        sidebarOpen,
+        setSidebarOpen,
+      }}
+    >
+      <Suspense fallback={null}>
+        <UrlSync
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          setSelectedTag={setSelectedTag}
+        />
+      </Suspense>
+      {children}
+    </SearchContext.Provider>
   );
 }
 

@@ -68,7 +68,10 @@ function scoreField(
       score += weight;
 
       // Bonus: word appears at a word boundary (start of a word)
-      const boundary = new RegExp(`(?:^|[\\s\\-_./,;:!?()\\[\\]])${escapeRegex(word)}`, "i");
+      const boundary = new RegExp(
+        `(?:^|[\\s\\-_./,;:!?()\\[\\]])${escapeRegex(word)}`,
+        "i",
+      );
       if (boundary.test(text)) {
         score += 2;
       }
@@ -129,13 +132,24 @@ export function scoreDocument(
   const titleScore = scoreField(file.title, words, FIELD_WEIGHTS.title);
   const tagScore = scoreTags(file.tags, words, FIELD_WEIGHTS.tags);
   const keywordScore = scoreTags(file.keywords, words, FIELD_WEIGHTS.keywords);
-  const descScore = scoreField(file.description, words, FIELD_WEIGHTS.description);
+  const descScore = scoreField(
+    file.description,
+    words,
+    FIELD_WEIGHTS.description,
+  );
   const folderScore = scoreField(folder, words, FIELD_WEIGHTS.folder);
   const contentScore = scoreField(file.content, words, FIELD_WEIGHTS.content);
 
   // Collect all matched words across every field
   const allMatched = new Set<string>();
-  for (const fs of [titleScore, tagScore, keywordScore, descScore, folderScore, contentScore]) {
+  for (const fs of [
+    titleScore,
+    tagScore,
+    keywordScore,
+    descScore,
+    folderScore,
+    contentScore,
+  ]) {
     for (const w of fs.matchedWords) allMatched.add(w);
   }
 
@@ -171,7 +185,14 @@ export function scoreDocument(
   }
 
   // Determine primary match type for the badge
-  const matchType = determinePrimaryMatch(titleScore, tagScore, keywordScore, descScore, folderScore, contentScore);
+  const matchType = determinePrimaryMatch(
+    titleScore,
+    tagScore,
+    keywordScore,
+    descScore,
+    folderScore,
+    contentScore,
+  );
 
   // Extract best excerpt
   const excerpt = extractBestExcerpt(file.content, words);
@@ -186,9 +207,7 @@ export function scoreDocument(
 }
 
 /** Pick the highest-scoring field as the primary match label. */
-function determinePrimaryMatch(
-  ...fields: { score: number }[]
-): string {
+function determinePrimaryMatch(...fields: { score: number }[]): string {
   const names = ["title", "tag", "keyword", "description", "folder", "content"];
   let best = 0;
   let bestIdx = 5; // default to "content"
@@ -270,7 +289,9 @@ export function extractBestExcerpt(
   const rawEnd = bestStart + windowSize;
   const excerptEnd = Math.min(
     content.length,
-    content.indexOf(" ", rawEnd) !== -1 ? content.indexOf(" ", rawEnd) : content.length,
+    content.indexOf(" ", rawEnd) !== -1
+      ? content.indexOf(" ", rawEnd)
+      : content.length,
   );
 
   const slice = content.substring(excerptStart, excerptEnd).trim();

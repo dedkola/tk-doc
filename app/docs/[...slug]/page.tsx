@@ -71,10 +71,7 @@ export async function generateMetadata({
     },
     twitter: {
       card: siteConfig.twitter.card as
-        | "summary"
-        | "summary_large_image"
-        | "app"
-        | "player",
+        "summary" | "summary_large_image" | "app" | "player",
       title: `${title} | ${siteConfig.name}`,
       description: description,
       images: siteConfig.og.image ? [siteConfig.og.image] : undefined,
@@ -234,17 +231,17 @@ export default async function Page({
             <BreadcrumbLink href="/docs">Docs</BreadcrumbLink>
           </BreadcrumbItem>
           {capitalizedCategory && (
-              <>
-                <BreadcrumbSeparator />
-                <BreadcrumbItem>
-                  <BreadcrumbLink
-                    href={`/docs?folder=${encodeURIComponent(decodedSlug[0])}`}
-                  >
-                    {capitalizedCategory}
-                  </BreadcrumbLink>
-                </BreadcrumbItem>
-              </>
-            )}
+            <>
+              <BreadcrumbSeparator />
+              <BreadcrumbItem>
+                <BreadcrumbLink
+                  href={`/docs?folder=${encodeURIComponent(decodedSlug[0])}`}
+                >
+                  {capitalizedCategory}
+                </BreadcrumbLink>
+              </BreadcrumbItem>
+            </>
+          )}
           <BreadcrumbSeparator />
           <BreadcrumbItem>
             <BreadcrumbPage>{title}</BreadcrumbPage>

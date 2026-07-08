@@ -36,7 +36,10 @@ export function getMDXFiles(dir: string, baseDir: string = dir): MDXFile[] {
   try {
     items = fs.readdirSync(dir, { withFileTypes: true });
   } catch (e) {
-    throw new Error(`[mdx-utils] Cannot read content directory "${dir}". Check that the path exists and is readable.`, { cause: e });
+    throw new Error(
+      `[mdx-utils] Cannot read content directory "${dir}". Check that the path exists and is readable.`,
+      { cause: e },
+    );
   }
 
   for (const item of items) {

@@ -50,10 +50,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: siteConfig.twitter.card as
-      | "summary"
-      | "summary_large_image"
-      | "app"
-      | "player",
+      "summary" | "summary_large_image" | "app" | "player",
     title: siteConfig.title,
     description: siteConfig.description,
     creator: siteConfig.twitter.creator,

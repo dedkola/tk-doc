@@ -1,0 +1,8 @@
+.next
+node_modules
+build
+out
+dist
+coverage
+tsconfig.tsbuildinfo
+content/.doc-git-dates.json

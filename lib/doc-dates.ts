@@ -20,7 +20,11 @@ function normalizeIsoDate(value: unknown): string | undefined {
 }
 
 const getGitDocDates = cache((): Record<string, GitDocDates> => {
-  const metadataPath = path.join(process.cwd(), "content", ".doc-git-dates.json");
+  const metadataPath = path.join(
+    process.cwd(),
+    "content",
+    ".doc-git-dates.json",
+  );
 
   try {
     const raw = fs.readFileSync(metadataPath, "utf-8");

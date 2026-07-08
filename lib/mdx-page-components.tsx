@@ -246,9 +246,7 @@ export const mdxComponents: MDXComponents = {
   // Markdown table elements (from remark-gfm)
   table: ({ children }) => (
     <div className="my-6 w-full overflow-x-auto">
-      <table className="w-full border-collapse text-sm">
-        {children}
-      </table>
+      <table className="w-full border-collapse text-sm">{children}</table>
     </div>
   ),
   thead: ({ children }) => (

@@ -12,13 +12,13 @@ Prerequisites
 
 Commands
 
-1) Login to Docker Hub
+1. Login to Docker Hub
 
 ```zsh
 docker login
 ```
 
-2) (Optional) Check buildx availability (needed for multi-arch builds)
+2. (Optional) Check buildx availability (needed for multi-arch builds)
 
 ```zsh
 docker buildx version
@@ -86,5 +86,3 @@ Notes
 
 - Recommend adding tag by commit SHA for traceability (e.g. `dedkola/tk-docs:<sha>`).
 - CI pipelines typically run the build and push steps and use secrets for Docker Hub credentials.
-
-
