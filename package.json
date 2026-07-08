@@ -9,7 +9,7 @@
     "prebuild": "node scripts/generate-doc-git-dates.mjs",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint",
+    "lint": "eslint app components config hooks lib scripts types eslint.config.mjs next.config.mjs postcss.config.mjs",
     "format": "prettier --write app components config hooks lib scripts types .github .devcontainer README.md DOCKER-BUILD-PUSH.md compose.yaml package.json eslint.config.mjs next.config.mjs postcss.config.mjs tsconfig.json .prettierrc.json pnpm-workspace.yaml",
     "format:check": "prettier --check app components config hooks lib scripts types .github .devcontainer README.md DOCKER-BUILD-PUSH.md compose.yaml package.json eslint.config.mjs next.config.mjs postcss.config.mjs tsconfig.json .prettierrc.json pnpm-workspace.yaml"
   },
