@@ -4,7 +4,7 @@ export const privateConfig: Partial<BaseSiteConfig> = {
   name: "TK Doc",
   title: "TK Doc",
   description: "A modern, high-performance documentation platform.",
-  url: "https://doc.tkweb.site",
+  url: "https://doc.tkweb.dev",
   og: {
     image: "/opengraph-image.png",
     imageWidth: 1200,

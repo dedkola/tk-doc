@@ -14,7 +14,7 @@
 [![Docker](https://img.shields.io/badge/Docker-ready-2496ed?logo=docker&logoColor=white)](Dockerfile)
 [![pnpm](https://img.shields.io/badge/pnpm-fast-f69220?logo=pnpm&logoColor=white)](https://pnpm.io/)
 
-[![Website](https://img.shields.io/website?url=https%3A%2F%2Fdoc.tkweb.site&label=demo)](https://doc.tkweb.site)
+[![Website](https://img.shields.io/website?url=https%3A%2F%2Fdoc.tkweb.dev&label=demo)](https://doc.tkweb.dev)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen?style=flat)](https://github.com/kolasokol/tk-doc/pulls)
 [![GitHub last commit](https://img.shields.io/github/last-commit/kolasokol/tk-doc?style=flat&logo=github)](https://github.com/kolasokol/tk-doc/commits/main)
 [![GitHub license](https://img.shields.io/github/license/kolasokol/tk-doc?style=flat)](LICENSE)
@@ -570,4 +570,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 Made with ❤️ by [kolasokol](https://github.com/kolasokol/)
 
-[Documentation](https://doc.tkweb.site) • [GitHub](https://github.com/kolasokol/tk-doc) • [Issues](https://github.com/kolasokol/tk-doc/issues)
+[Documentation](https://doc.tkweb.dev) • [GitHub](https://github.com/kolasokol/tk-doc) • [Issues](https://github.com/kolasokol/tk-doc/issues)
