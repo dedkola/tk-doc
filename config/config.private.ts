@@ -22,7 +22,7 @@ export const privateConfig: Partial<BaseSiteConfig> = {
     showErrorDetails: false,
   },
   social: {
-    github: "https://github.com/kolasokol",
+    github: "https://github.com/dedkola",
     twitter: "https://x.com/KolaSokolov",
     linkedin: "https://www.linkedin.com/in/nikolay-sokolovskiy-it/",
   },
