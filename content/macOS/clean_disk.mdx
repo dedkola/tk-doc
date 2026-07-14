@@ -1,0 +1,368 @@
+---
+title: macOS Disk Usage & Storage Investigation Commands
+description: A handy collection of commands to find what's using disk space on macOS.
+tags: [macOS, disk usage, storage, cleanup]
+
+---
+
+# Filesystem Usage
+
+Show filesystem usage:
+
+```bash
+df -h
+```
+
+Show filesystem usage for root volume:
+
+```bash
+df -h /
+```
+
+---
+
+# Top-Level Directories
+
+Show largest directories on the root filesystem:
+
+```bash
+sudo du -xhd 1 / | sort -h
+```
+
+Show largest directories in your home folder:
+
+```bash
+du -hd 1 ~ | sort -h
+```
+
+Show largest directories in Library:
+
+```bash
+du -hd 1 ~/Library | sort -h
+```
+
+---
+
+# Drill Down Into Large Folders
+
+Application Support:
+
+```bash
+du -hd 1 ~/Library/Application\ Support | sort -h
+```
+
+Caches:
+
+```bash
+du -hd 1 ~/Library/Caches | sort -h
+```
+
+Containers:
+
+```bash
+du -hd 1 ~/Library/Containers | sort -h
+```
+
+Group Containers:
+
+```bash
+du -hd 1 ~/Library/Group\ Containers | sort -h
+```
+
+Cloud Storage:
+
+```bash
+du -hd 1 ~/Library/CloudStorage | sort -h
+```
+
+Developer:
+
+```bash
+du -hd 1 ~/Library/Developer | sort -h
+```
+
+Downloads:
+
+```bash
+du -hd 1 ~/Downloads | sort -h
+```
+
+Documents:
+
+```bash
+du -hd 1 ~/Documents | sort -h
+```
+
+---
+
+# Largest Files
+
+Find files larger than 1 GB:
+
+```bash
+find ~ -type f -size +1G -exec ls -lh {} \;
+```
+
+Find files larger than 5 GB (whole disk):
+
+```bash
+sudo find / -type f -size +5G 2>/dev/null
+```
+
+Top 50 largest files in home directory:
+
+```bash
+find ~ -type f -exec du -h {} + 2>/dev/null | sort -hr | head -50
+```
+
+---
+
+# Largest Directories
+
+Top 50 largest directories:
+
+```bash
+find ~ -type d -exec du -sh {} + 2>/dev/null | sort -hr | head -50
+```
+
+---
+
+# Time Machine
+
+List local snapshots:
+
+```bash
+tmutil listlocalsnapshots /
+```
+
+List snapshot dates:
+
+```bash
+tmutil listlocalsnapshotdates
+```
+
+---
+
+# Docker
+
+Disk usage:
+
+```bash
+docker system df
+```
+
+Detailed usage:
+
+```bash
+docker system df -v
+```
+
+Remove unused objects:
+
+```bash
+docker system prune
+```
+
+Remove everything unused (including volumes):
+
+```bash
+docker system prune -a --volumes
+```
+
+---
+
+# pnpm
+
+Show store path:
+
+```bash
+pnpm store path
+```
+
+Show store size:
+
+```bash
+du -sh "$(pnpm store path)"
+```
+
+Remove unused packages:
+
+```bash
+pnpm store prune
+```
+
+---
+
+# Homebrew
+
+Cache size:
+
+```bash
+du -sh ~/Library/Caches/Homebrew
+```
+
+Cleanup:
+
+```bash
+brew cleanup
+```
+
+Remove old downloads:
+
+```bash
+brew cleanup -s
+```
+
+---
+
+# Xcode
+
+Developer folder:
+
+```bash
+du -hd 1 ~/Library/Developer | sort -h
+```
+
+DerivedData:
+
+```bash
+du -sh ~/Library/Developer/Xcode/DerivedData
+```
+
+Delete DerivedData:
+
+```bash
+rm -rf ~/Library/Developer/Xcode/DerivedData/*
+```
+
+List installed simulators:
+
+```bash
+xcrun simctl list
+```
+
+Delete unavailable simulators:
+
+```bash
+xcrun simctl delete unavailable
+```
+
+---
+
+# Google Drive / Cloud Storage
+
+Cloud storage usage:
+
+```bash
+du -hd 1 ~/Library/CloudStorage | sort -h
+```
+
+List providers:
+
+```bash
+ls ~/Library/CloudStorage
+```
+
+Show total size:
+
+```bash
+du -sh ~/Library/CloudStorage/*
+```
+
+---
+
+# APFS Snapshots
+
+List APFS snapshots:
+
+```bash
+diskutil apfs listSnapshots /
+```
+
+---
+
+# Mounted Volumes
+
+List mounted disks:
+
+```bash
+diskutil list
+```
+
+Detailed APFS information:
+
+```bash
+diskutil apfs list
+```
+
+---
+
+# Caches
+
+Show cache sizes:
+
+```bash
+du -hd 1 ~/Library/Caches | sort -h
+```
+
+System caches:
+
+```bash
+sudo du -xhd 1 /Library/Caches | sort -h
+```
+
+---
+
+# Quick Summary
+
+Top-level home usage:
+
+```bash
+du -hd 1 ~ | sort -h
+```
+
+Top-level Library usage:
+
+```bash
+du -hd 1 ~/Library | sort -h
+```
+
+Largest files:
+
+```bash
+find ~ -type f -size +1G -exec ls -lh {} \;
+```
+
+Filesystem usage:
+
+```bash
+df -h
+```
+
+Docker usage:
+
+```bash
+docker system df
+```
+
+pnpm cleanup:
+
+```bash
+pnpm store prune
+```
+
+Homebrew cleanup:
+
+```bash
+brew cleanup
+```
+
+---
+
+# Tip
+
+If `du` reports **"Operation not permitted"**, grant your terminal **Full Disk Access**:
+
+**System Settings → Privacy & Security → Full Disk Access**
+
+Then restart the terminal and rerun the commands.
