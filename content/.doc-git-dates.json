@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-14T09:41:05.684Z",
+  "generatedAt": "2026-07-16T08:14:57.027Z",
   "files": {
     "Cheat Sheets/ansible-handbook.mdx": {
       "createdAt": "2026-06-24T10:29:10+03:00",
@@ -432,6 +432,10 @@
     "Wordpress/wp-post-view-count.mdx": {
       "createdAt": "2026-06-24T10:29:10+03:00",
       "updatedAt": "2026-06-24T10:29:10+03:00"
+    },
+    "macOS/clean_disk.mdx": {
+      "createdAt": "2026-07-14T12:42:11+03:00",
+      "updatedAt": "2026-07-14T12:42:11+03:00"
     }
   }
 }
