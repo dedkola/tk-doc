@@ -11,6 +11,8 @@ image:
   # -- Container image pull policy.
   pullPolicy: Always
   # -- Container image tag. Defaults to the chart appVersion if empty.
+  # You MUST override this with an existing tag, e.g.:
+  #   --set image.tag=20260403082301-1afe339
   tag: ""
 
 # -- Image pull secrets for private registries.
@@ -62,25 +64,27 @@ service:
 
 ingress:
   # -- Enable ingress resource.
-  enabled: true
+  enabled: false
   # -- Ingress class name.
   className: nginx
   # -- Ingress annotations.
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /
-    cert-manager.io/cluster-issuer: "lan-ca"
   # -- Ingress hosts.
-  hosts:
-    - host: dev.doc.tk.com
-      paths:
-        - path: /
-          pathType: Prefix
-          servicePort: 443
+  hosts: []
   # -- Ingress TLS configuration.
-  tls:
-    - secretName: tk-docs-tls
-      hosts:
-        - doc.tk.com
+  tls: []
+  # Example:
+  # hosts:
+  #   - host: docs.example.com
+  #     paths:
+  #       - path: /
+  #         pathType: Prefix
+  #         servicePort: 443
+  # tls:
+  #   - secretName: docs-tls
+  #     hosts:
+  #       - docs.example.com
 
 # -- Resource requests and limits.
 resources:

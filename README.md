@@ -452,6 +452,19 @@ helm install tk-doc tk-doc/tk-doc \
 
 The default image tag is the chart `appVersion`. Override it with the actual container tag you want to deploy.
 
+### Enable Ingress
+
+Ingress is disabled by default. To expose the app with NGINX Ingress and TLS:
+
+```bash
+helm upgrade tk-doc tk-doc/tk-doc \
+  --namespace tk-doc \
+  --set ingress.enabled=true \
+  --set ingress.hosts[0].host=docs.example.com \
+  --set ingress.tls[0].secretName=docs-tls \
+  --set ingress.tls[0].hosts[0]=docs.example.com
+```
+
 ### Upgrade
 
 ```bash

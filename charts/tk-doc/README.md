@@ -52,6 +52,7 @@ helm uninstall tk-doc --namespace tk-doc
 
 ## Notes
 
-- The default image tag is the chart `appVersion`. Override `image.tag` to deploy a specific build.
+- The default image tag is the chart `appVersion`. Override `image.tag` with an existing image tag, e.g. `--set image.tag=20260403082301-1afe339`.
+- Ingress is disabled by default. Enable it with `--set ingress.enabled=true` and configure your own host and TLS.
 - If your registry is private, configure `imagePullSecrets`.
 - The included `ConfigMap` sets `NODE_ENV=production` and `DOCKER_BUILD=true`.
