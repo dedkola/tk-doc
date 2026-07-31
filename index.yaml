@@ -1,0 +1,24 @@
+apiVersion: v1
+entries:
+  tk-doc:
+  - apiVersion: v2
+    appVersion: 0.1.0
+    created: "2026-07-31T08:49:22.928220352Z"
+    description: A Helm chart for TK Doc - a modern Next.js documentation platform
+    digest: bc3adf3d0aa5d93058c9f0900a49dd40e979b62d1dba61064378b2b2b1c055c8
+    home: https://doc.tkweb.dev
+    keywords:
+    - documentation
+    - nextjs
+    - tk-doc
+    maintainers:
+    - name: dedkola
+      url: https://github.com/dedkola
+    name: tk-doc
+    sources:
+    - https://github.com/dedkola/tk-doc
+    type: application
+    urls:
+    - https://github.com/dedkola/tk-doc/releases/download/tk-doc-0.1.0/tk-doc-0.1.0.tgz
+    version: 0.1.0
+generated: "2026-07-31T08:49:22.928226684Z"
