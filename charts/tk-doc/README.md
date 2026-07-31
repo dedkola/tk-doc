@@ -15,9 +15,8 @@ Add the repository and install the chart:
 
 ```bash
 helm repo add tk-doc https://dedkola.github.io/tk-doc
-helm repo update
 
-helm upgrade --install tk-doc tk-doc/tk-doc \
+helm install tk-doc tk-doc/tk-doc \
   --namespace tk-doc \
   --create-namespace
 ```
@@ -28,6 +27,13 @@ application through the `nginx` IngressClass without requiring a hostname or
 registry secret. Successful builds from the repository's `main` branch publish
 the `latest` image for both `linux/amd64` and `linux/arm64`.
 
+If the `tk-doc` repository was already added earlier, refresh its chart index
+before installing:
+
+```bash
+helm repo update tk-doc
+```
+
 ## Configuration
 
 See [`values.yaml`](values.yaml) for the full list of configurable values.
@@ -37,7 +43,7 @@ See [`values.yaml`](values.yaml) for the full list of configurable values.
 The default values expose the app on the NGINX Ingress IP with no domain:
 
 ```bash
-helm upgrade --install tk-doc tk-doc/tk-doc \
+helm install tk-doc tk-doc/tk-doc \
   --namespace tk-doc \
   --create-namespace
 ```

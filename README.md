@@ -438,9 +438,8 @@ A Helm chart is published from this repository to `https://dedkola.github.io/tk-
 
 ```bash
 helm repo add tk-doc https://dedkola.github.io/tk-doc
-helm repo update
 
-helm upgrade --install tk-doc tk-doc/tk-doc \
+helm install tk-doc tk-doc/tk-doc \
   --namespace tk-doc \
   --create-namespace
 ```
@@ -450,12 +449,19 @@ registry secret, hostname, or TLS configuration is needed for the default
 k3s/NGINX Ingress/MetalLB setup. Successful `main` branch builds refresh the
 `latest` image for both `linux/amd64` and `linux/arm64`.
 
+If the `tk-doc` repository was already added earlier, refresh its chart index
+before installing:
+
+```bash
+helm repo update tk-doc
+```
+
 ### k3s with NGINX Ingress + MetalLB (no domain)
 
 By default the app is exposed on the default NGINX Ingress IP with no domain or TLS:
 
 ```bash
-helm upgrade --install tk-doc tk-doc/tk-doc \
+helm install tk-doc tk-doc/tk-doc \
   --namespace tk-doc \
   --create-namespace
 
