@@ -8,16 +8,14 @@ replicaCount: 1
 image:
   # -- Container image repository.
   repository: ghcr.io/dedkola/tk-doc
-  # -- Container image pull policy.
+  # -- Container image pull policy. Always ensures a fresh install pulls the
+  # current image for the selected tag.
   pullPolicy: Always
-  # -- Container image tag. Defaults to the chart appVersion if empty.
-  # You MUST override this with an existing tag, e.g.:
-  #   --set image.tag=20260403082301-1afe339
-  tag: ""
+  # -- Container image tag. Pin this to an immutable tag for production.
+  tag: "latest"
 
-# -- Image pull secrets for private registries.
-imagePullSecrets:
-  - name: ghcr-secret
+# -- Image pull secrets for private registries. The default GHCR image is public.
+imagePullSecrets: []
 
 # -- Override the chart name.
 nameOverride: ""
@@ -52,7 +50,7 @@ service:
   # -- Service type.
   type: ClusterIP
   # -- Service port.
-  port: 443
+  port: 80
   # -- Container port to expose.
   targetPort: 3000
   # -- Service protocol.
@@ -70,8 +68,7 @@ ingress:
   # -- Ingress class name.
   className: nginx
   # -- Ingress annotations.
-  annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /
+  annotations: {}
   # -- Ingress hosts. Leave empty for the default backend (no domain).
   hosts: []
   # -- Ingress TLS configuration. Leave empty to disable HTTPS.
@@ -82,7 +79,7 @@ ingress:
   #     paths:
   #       - path: /
   #         pathType: Prefix
-  #         servicePort: 443
+  #         servicePort: 80
   # tls:
   #   - secretName: docs-tls
   #     hosts:

@@ -439,32 +439,30 @@ A Helm chart is published from this repository to `https://dedkola.github.io/tk-
 ```bash
 helm repo add tk-doc https://dedkola.github.io/tk-doc
 helm repo update
-```
 
-### Install the chart
-
-```bash
-helm install tk-doc tk-doc/tk-doc \
+helm upgrade --install tk-doc tk-doc/tk-doc \
   --namespace tk-doc \
-  --create-namespace \
-  --set image.tag=<your-image-tag>
+  --create-namespace
 ```
 
-The default image tag is the chart `appVersion`. Override it with the actual container tag you want to deploy.
+This pulls the public multi-platform `ghcr.io/dedkola/tk-doc:latest` image. No
+registry secret, hostname, or TLS configuration is needed for the default
+k3s/NGINX Ingress/MetalLB setup. Successful `main` branch builds refresh the
+`latest` image for both `linux/amd64` and `linux/arm64`.
 
 ### k3s with NGINX Ingress + MetalLB (no domain)
 
 By default the app is exposed on the default NGINX Ingress IP with no domain or TLS:
 
 ```bash
-helm install tk-doc tk-doc/tk-doc \
+helm upgrade --install tk-doc tk-doc/tk-doc \
   --namespace tk-doc \
-  --create-namespace \
-  --set image.tag=<your-image-tag>
+  --create-namespace
 
 # Get the ingress IP
 kubectl get svc ingress-nginx-controller -n ingress-nginx \
   -o jsonpath="{.status.loadBalancer.ingress[0].ip}"
+echo
 # open http://<that-ip>
 ```
 
@@ -473,18 +471,36 @@ kubectl get svc ingress-nginx-controller -n ingress-nginx \
 ```bash
 helm upgrade tk-doc tk-doc/tk-doc \
   --namespace tk-doc \
-  --set image.tag=<new-image-tag> \
-  --set ingress.hosts[0].host=docs.example.com \
-  --set ingress.tls[0].secretName=docs-tls \
-  --set ingress.tls[0].hosts[0]=docs.example.com
+  --set 'ingress.hosts[0].host=docs.example.com' \
+  --set 'ingress.hosts[0].paths[0].path=/' \
+  --set 'ingress.hosts[0].paths[0].pathType=Prefix' \
+  --set 'ingress.hosts[0].paths[0].servicePort=80' \
+  --set 'ingress.tls[0].secretName=docs-tls' \
+  --set 'ingress.tls[0].hosts[0]=docs.example.com'
 ```
 
 ### Upgrade
 
 ```bash
+helm repo update
+helm upgrade tk-doc tk-doc/tk-doc \
+  --namespace tk-doc
+```
+
+The default `latest` tag is pulled whenever Kubernetes creates a pod. After
+publishing a new image with the same tag, restart the deployment explicitly:
+
+```bash
+kubectl rollout restart deployment/tk-doc --namespace tk-doc
+kubectl rollout status deployment/tk-doc --namespace tk-doc
+```
+
+For reproducible production upgrades, pin an immutable image tag:
+
+```bash
 helm upgrade tk-doc tk-doc/tk-doc \
   --namespace tk-doc \
-  --set image.tag=<new-image-tag>
+  --set image.tag=<immutable-image-tag>
 ```
 
 ### Releasing a new chart version
