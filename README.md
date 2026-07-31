@@ -12,6 +12,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178c6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-38bdf8?logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
 [![Docker](https://img.shields.io/badge/Docker-ready-2496ed?logo=docker&logoColor=white)](Dockerfile)
+[![Helm](https://img.shields.io/badge/Helm-chart-0F1689?logo=helm&logoColor=white)](https://dedkola.github.io/tk-doc)
 [![pnpm](https://img.shields.io/badge/pnpm-fast-f69220?logo=pnpm&logoColor=white)](https://pnpm.io/)
 
 [![Website](https://img.shields.io/website?url=https%3A%2F%2Fdoc.tkweb.dev&label=demo)](https://doc.tkweb.dev)
@@ -19,7 +20,7 @@
 [![GitHub last commit](https://img.shields.io/github/last-commit/dedkola/tk-doc?style=flat&logo=github)](https://github.com/dedkola/tk-doc/commits/main)
 [![GitHub license](https://img.shields.io/github/license/dedkola/tk-doc?style=flat)](LICENSE)
 
-[Features](#-features) • [Quick Start](#-quick-start) • [Documentation](#-documentation) • [Project Structure](#-project-structure) • [Contributing](#-contributing)
+[Features](#-features) • [Quick Start](#-quick-start) • [Documentation](#-documentation) • [Project Structure](#-project-structure) • [Helm](#-helm) • [Contributing](#-contributing)
 
 </div>
 
@@ -421,12 +422,49 @@ tk-doc/
 ├── public/                       # Static assets
 │   ├── robots.txt
 │   └── assets/
+├── charts/                       # Helm chart
 ├── types/                        # TypeScript definitions
 ├── next.config.mjs              # Next.js configuration
 ├── tailwind.config.ts           # Tailwind configuration
 ├── tsconfig.json                # TypeScript configuration
 └── package.json                 # Dependencies & scripts
 ```
+
+## ⛵ Helm
+
+A Helm chart is published from this repository to `https://dedkola.github.io/tk-doc`.
+
+### Add the chart repository
+
+```bash
+helm repo add tk-doc https://dedkola.github.io/tk-doc
+helm repo update
+```
+
+### Install the chart
+
+```bash
+helm install tk-doc tk-doc/tk-doc \
+  --namespace tk-doc \
+  --create-namespace \
+  --set image.tag=<your-image-tag>
+```
+
+The default image tag is the chart `appVersion`. Override it with the actual container tag you want to deploy.
+
+### Upgrade
+
+```bash
+helm upgrade tk-doc tk-doc/tk-doc \
+  --namespace tk-doc \
+  --set image.tag=<new-image-tag>
+```
+
+### Releasing a new chart version
+
+1. Bump the chart version in `charts/tk-doc/Chart.yaml`.
+2. Merge the change to `main`.
+3. The [Release Charts](.github/workflows/helm-release.yml) workflow packages the chart, creates a GitHub release, and updates `index.yaml` on the `gh-pages` branch.
 
 ## 🛠 Tech Stack
 
