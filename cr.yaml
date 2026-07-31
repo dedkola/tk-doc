@@ -1,0 +1,23 @@
+# Configuration for helm/chart-releaser-action.
+# See https://github.com/helm/chart-releaser#config-file for all options.
+
+# GitHub repository owner.
+owner: dedkola
+
+# GitHub repository name.
+git-repo: tk-doc
+
+# URL of the Helm chart repository.
+charts-repo-url: https://dedkola.github.io/tk-doc
+
+# Path to the index file.
+index-path: "./index.yaml"
+
+# Path to the packaged charts.
+package-path: ".cr-release-packages"
+
+# Release name template.
+release-name-template: "{{ .Name }}-{{ .Version }}"
+
+# Skip existing packages if the release already exists.
+skip-existing: true
