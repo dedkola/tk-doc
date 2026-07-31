@@ -24,6 +24,7 @@ spec:
     {{- end }}
   {{- end }}
   rules:
+    {{- if .Values.ingress.hosts }}
     {{- range .Values.ingress.hosts }}
     - host: {{ .host | quote }}
       http:
@@ -37,5 +38,16 @@ spec:
                 port:
                   number: {{ .servicePort }}
           {{- end }}
+    {{- end }}
+    {{- else }}
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "tk-doc.fullname" . }}-service
+                port:
+                  number: {{ .Values.service.port }}
     {{- end }}
 {{- end }}

@@ -1,8 +1,19 @@
 1. Get the application URL by running these commands:
 {{- if .Values.ingress.enabled }}
+{{- if .Values.ingress.hosts }}
 {{- range $host := .Values.ingress.hosts }}
   {{- range .paths }}
   http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}{{ .path }}
+  {{- end }}
+{{- end }}
+{{- else }}
+  NOTE: No host is configured. The app is exposed on the default NGINX Ingress IP.
+  {{- if eq .Values.ingress.className "nginx" }}
+  export INGRESS_IP=$(kubectl get svc --namespace ingress-nginx ingress-nginx-controller -o jsonpath="{.status.loadBalancer.ingress[0].ip}")
+  echo "http://$INGRESS_IP"
+  {{- else }}
+  export INGRESS_IP=$(kubectl get svc --namespace {{ .Release.Namespace }} -l app.kubernetes.io/name={{ .Values.ingress.className }} -o jsonpath="{.items[0].status.loadBalancer.ingress[0].ip}")
+  echo "http://$INGRESS_IP"
   {{- end }}
 {{- end }}
 {{- else if contains "NodePort" .Values.service.type }}

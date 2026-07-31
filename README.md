@@ -452,14 +452,28 @@ helm install tk-doc tk-doc/tk-doc \
 
 The default image tag is the chart `appVersion`. Override it with the actual container tag you want to deploy.
 
-### Enable Ingress
+### k3s with NGINX Ingress + MetalLB (no domain)
 
-Ingress is disabled by default. To expose the app with NGINX Ingress and TLS:
+By default the app is exposed on the default NGINX Ingress IP with no domain or TLS:
+
+```bash
+helm install tk-doc tk-doc/tk-doc \
+  --namespace tk-doc \
+  --create-namespace \
+  --set image.tag=<your-image-tag>
+
+# Get the ingress IP
+kubectl get svc ingress-nginx-controller -n ingress-nginx \
+  -o jsonpath="{.status.loadBalancer.ingress[0].ip}"
+# open http://<that-ip>
+```
+
+### With a custom domain and TLS
 
 ```bash
 helm upgrade tk-doc tk-doc/tk-doc \
   --namespace tk-doc \
-  --set ingress.enabled=true \
+  --set image.tag=<new-image-tag> \
   --set ingress.hosts[0].host=docs.example.com \
   --set ingress.tls[0].secretName=docs-tls \
   --set ingress.tls[0].hosts[0]=docs.example.com

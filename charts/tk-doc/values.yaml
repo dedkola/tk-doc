@@ -64,17 +64,19 @@ service:
 
 ingress:
   # -- Enable ingress resource.
-  enabled: false
+  # For k3s with NGINX Ingress + MetalLB, leave hosts empty to expose the app
+  # on the default ingress IP with no domain.
+  enabled: true
   # -- Ingress class name.
   className: nginx
   # -- Ingress annotations.
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /
-  # -- Ingress hosts.
+  # -- Ingress hosts. Leave empty for the default backend (no domain).
   hosts: []
-  # -- Ingress TLS configuration.
+  # -- Ingress TLS configuration. Leave empty to disable HTTPS.
   tls: []
-  # Example:
+  # Example with a custom domain:
   # hosts:
   #   - host: docs.example.com
   #     paths:

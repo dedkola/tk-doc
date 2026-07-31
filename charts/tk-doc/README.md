@@ -26,7 +26,26 @@ helm install tk-doc tk-doc/tk-doc \
 
 See [`values.yaml`](values.yaml) for the full list of configurable values.
 
-### Common overrides
+### k3s with NGINX Ingress + MetalLB (no domain)
+
+The default values expose the app on the default NGINX Ingress IP with no domain:
+
+```bash
+helm install tk-doc tk-doc/tk-doc \
+  --namespace tk-doc \
+  --create-namespace \
+  --set image.tag=<your-image-tag>
+```
+
+Then get the ingress IP:
+
+```bash
+kubectl get svc ingress-nginx-controller -n ingress-nginx \
+  -o jsonpath="{.status.loadBalancer.ingress[0].ip}"
+# open http://<that-ip>
+```
+
+### With a custom domain and TLS
 
 ```bash
 helm install tk-doc tk-doc/tk-doc \
