@@ -37,7 +37,10 @@ jobs:
         run: |
           # Add any required Helm repositories here.
           # Example: helm repo add bitnami https://charts.bitnami.com/bitnami
-          helm repo update
+          # Only update if at least one repository is configured.
+          if helm repo list -o json 2>/dev/null | grep -q '\['; then
+            helm repo update
+          fi
 
       - name: Run chart-releaser
         uses: helm/chart-releaser-action@v1.7.0
