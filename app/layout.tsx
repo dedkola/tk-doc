@@ -1,7 +1,17 @@
 import dynamic from "next/dynamic";
 import { Geist, Geist_Mono } from "next/font/google";
+import type { Metadata, Viewport } from "next";
+import type { ReactNode } from "react";
 import SideNav from "@app/ui/interface/sidenav";
 import LayoutClient from "@app/ui/interface/layout-client";
+import { getAllMDXFiles, groupByFolder } from "@/lib/mdx-utils";
+import Header from "@/components/header";
+import { SearchProvider } from "@/app/ui/interface/search-context";
+import { ThemeProvider } from "@/components/ThemeProvider";
+import { BackToTop } from "@/components/BackToTop";
+import { KeyboardShortcutsHelp } from "@/components/KeyboardShortcutsHelp";
+import { siteConfig } from "@/config/site";
+import "./globals.css";
 
 const geistSans = Geist({
   subsets: ["latin"],
@@ -14,16 +24,6 @@ const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   display: "swap",
 });
-import { getAllMDXFiles, groupByFolder } from "@/lib/mdx-utils";
-import Header from "@/components/header";
-import { SearchProvider } from "@/app/ui/interface/search-context";
-import { ThemeProvider } from "@/components/ThemeProvider";
-import { BackToTop } from "@/components/BackToTop";
-import { KeyboardShortcutsHelp } from "@/components/KeyboardShortcutsHelp";
-import { siteConfig } from "@/config/site";
-import type { Metadata, Viewport } from "next";
-import "./globals.css";
-import type { ReactNode } from "react";
 // Dynamic imports for non-critical components
 const Footer = dynamic(() => import("@/components/footer"), {
   ssr: true,
