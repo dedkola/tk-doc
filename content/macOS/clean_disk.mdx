@@ -2,10 +2,9 @@
 title: macOS Disk Usage & Storage Investigation Commands
 description: A handy collection of commands to find what's using disk space on macOS.
 tags: [macOS, disk usage, storage, cleanup]
-
 ---
 
-# Filesystem Usage
+## Filesystem Usage
 
 Show filesystem usage:
 
@@ -21,7 +20,7 @@ df -h /
 
 ---
 
-# Top-Level Directories
+## Top-Level Directories
 
 Show largest directories on the root filesystem:
 
@@ -43,7 +42,7 @@ du -hd 1 ~/Library | sort -h
 
 ---
 
-# Drill Down Into Large Folders
+## Drill Down Into Large Folders
 
 Application Support:
 
@@ -95,7 +94,7 @@ du -hd 1 ~/Documents | sort -h
 
 ---
 
-# Largest Files
+## Largest Files
 
 Find files larger than 1 GB:
 
@@ -117,7 +116,7 @@ find ~ -type f -exec du -h {} + 2>/dev/null | sort -hr | head -50
 
 ---
 
-# Largest Directories
+## Largest Directories
 
 Top 50 largest directories:
 
@@ -127,7 +126,7 @@ find ~ -type d -exec du -sh {} + 2>/dev/null | sort -hr | head -50
 
 ---
 
-# Time Machine
+## Time Machine
 
 List local snapshots:
 
@@ -143,7 +142,7 @@ tmutil listlocalsnapshotdates
 
 ---
 
-# Docker
+## Docker
 
 Disk usage:
 
@@ -171,7 +170,7 @@ docker system prune -a --volumes
 
 ---
 
-# pnpm
+## pnpm
 
 Show store path:
 
@@ -193,7 +192,7 @@ pnpm store prune
 
 ---
 
-# Homebrew
+## Homebrew
 
 Cache size:
 
@@ -215,7 +214,7 @@ brew cleanup -s
 
 ---
 
-# Xcode
+## Xcode
 
 Developer folder:
 
@@ -249,7 +248,7 @@ xcrun simctl delete unavailable
 
 ---
 
-# Google Drive / Cloud Storage
+## Google Drive / Cloud Storage
 
 Cloud storage usage:
 
@@ -271,7 +270,7 @@ du -sh ~/Library/CloudStorage/*
 
 ---
 
-# APFS Snapshots
+## APFS Snapshots
 
 List APFS snapshots:
 
@@ -281,7 +280,7 @@ diskutil apfs listSnapshots /
 
 ---
 
-# Mounted Volumes
+## Mounted Volumes
 
 List mounted disks:
 
@@ -297,7 +296,7 @@ diskutil apfs list
 
 ---
 
-# Caches
+## Caches
 
 Show cache sizes:
 
@@ -313,7 +312,7 @@ sudo du -xhd 1 /Library/Caches | sort -h
 
 ---
 
-# Quick Summary
+## Quick Summary
 
 Top-level home usage:
 
@@ -359,7 +358,7 @@ brew cleanup
 
 ---
 
-# Tip
+## Tip
 
 If `du` reports **"Operation not permitted"**, grant your terminal **Full Disk Access**:
 
