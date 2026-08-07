@@ -17,15 +17,15 @@ export default function SideNavClient({
   const { setSearchQuery, setSidebarOpen } = useSearch();
 
   return (
-    <div className="h-full bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-700 flex flex-col">
+    <div className="h-full bg-sidebar border-r border-sidebar-border flex flex-col">
       <div className="flex-1 overflow-y-auto break-words whitespace-normal">
         <AccordionMenu groupedFiles={groupedFiles} />
       </div>
 
       {/* Top Tags Section */}
       {topTags.length > 0 && (
-        <div className="px-4 py-3 border-t border-slate-200 dark:border-slate-700">
-          <div className="mb-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
+        <div className="px-4 py-3 border-t border-sidebar-border">
+          <div className="mb-2 text-xs font-semibold text-sidebar-foreground/70">
             Top Tags
           </div>
           <div className="flex flex-wrap gap-2">
@@ -42,10 +42,10 @@ export default function SideNavClient({
               >
                 <Badge
                   variant="secondary"
-                  className="bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700 transition-colors"
+                  className="hover:bg-secondary/80 transition-colors"
                 >
                   {tag}{" "}
-                  <span className="ml-1 text-xs text-slate-500 dark:text-slate-400">
+                  <span className="ml-1 text-xs text-muted-foreground">
                     ({count})
                   </span>
                 </Badge>
