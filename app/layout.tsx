@@ -1,6 +1,19 @@
 import dynamic from "next/dynamic";
+import { Geist, Geist_Mono } from "next/font/google";
 import SideNav from "@app/ui/interface/sidenav";
 import LayoutClient from "@app/ui/interface/layout-client";
+
+const geistSans = Geist({
+  subsets: ["latin"],
+  variable: "--font-geist-sans",
+  display: "swap",
+});
+
+const geistMono = Geist_Mono({
+  subsets: ["latin"],
+  variable: "--font-geist-mono",
+  display: "swap",
+});
 import { getAllMDXFiles, groupByFolder } from "@/lib/mdx-utils";
 import Header from "@/components/header";
 import { SearchProvider } from "@/app/ui/interface/search-context";
@@ -77,7 +90,11 @@ export default function RootLayout({
   const groupedFiles = groupByFolder(allMDXFiles);
 
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html
+      lang="en"
+      suppressHydrationWarning
+      className={`${geistSans.variable} ${geistMono.variable}`}
+    >
       <head>
         <link
           rel="alternate"
@@ -86,7 +103,7 @@ export default function RootLayout({
           href="/feed.xml"
         />
       </head>
-      <body className="bg-background text-foreground antialiased selection:bg-blue-100 selection:text-blue-700 dark:selection:bg-blue-900 dark:selection:text-blue-200 flex min-h-screen flex-col">
+      <body className="bg-background text-foreground font-sans antialiased flex min-h-screen flex-col">
         <ThemeProvider>
           <Analytics />
           <SearchProvider>
