@@ -77,7 +77,7 @@ export default function SearchResults({ groupedFiles }: SearchResultsProps) {
           words.some((w) => part.toLowerCase() === w.toLowerCase()) ? (
             <span
               key={i}
-              className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200 font-medium px-0.5 rounded"
+              className="bg-primary/15 text-primary font-medium px-0.5 rounded"
             >
               {part}
             </span>
@@ -163,7 +163,7 @@ export default function SearchResults({ groupedFiles }: SearchResultsProps) {
                         <Badge
                           key={`${tag}-${index}`}
                           variant="secondary"
-                          className="text-[10px] px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 border-transparent font-medium"
+                          className="text-[10px] px-2 py-0.5 border-transparent font-medium"
                         >
                           #{tag}
                         </Badge>
