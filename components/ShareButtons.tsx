@@ -86,8 +86,7 @@ export function ShareButtons() {
       href: `mailto:?subject=${encodeURIComponent(
         title,
       )}&body=${encodeURIComponent(url)}`,
-      className:
-        "hover:text-slate-700 hover:bg-slate-100 dark:hover:text-slate-200 dark:hover:bg-slate-800",
+      className: "hover:text-foreground hover:bg-accent",
     },
   ];
 
@@ -112,7 +111,7 @@ export function ShareButtons() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className={`p-2 text-slate-400 rounded-full transition-all h-auto w-auto ${link.className}`}
+                  className={`p-2 text-muted-foreground rounded-full transition-all h-auto w-auto ${link.className}`}
                   onClick={() =>
                     window.open(link.href, "_blank", "noopener,noreferrer")
                   }
@@ -133,7 +132,7 @@ export function ShareButtons() {
               <Button
                 variant="ghost"
                 size="icon"
-                className="p-2 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-all h-auto w-auto"
+                className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-full transition-all h-auto w-auto"
                 onClick={copyToClipboard}
               >
                 {copied ? <Check size={20} /> : <Link size={20} />}
