@@ -59,11 +59,7 @@ export function RelatedArticles({
             {file.tags && file.tags.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-1">
                 {file.tags.slice(0, 3).map((tag) => (
-                  <Badge
-                    key={tag}
-                    variant="secondary"
-                    className="text-xs bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400"
-                  >
+                  <Badge key={tag} variant="secondary" className="text-xs">
                     {tag}
                   </Badge>
                 ))}
