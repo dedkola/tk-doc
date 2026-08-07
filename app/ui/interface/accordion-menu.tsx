@@ -107,18 +107,18 @@ export default function AccordionMenu({ groupedFiles }: AccordionMenuProps) {
             <div key={folderName} className="mb-1">
               <button
                 onClick={() => toggleFolder(folderName)}
-                className={`w-full flex items-center justify-between px-3 py-2 text-sm font-medium transition-colors group ${
+                className={`w-full flex items-center justify-between px-3 py-2 text-sm font-medium rounded-md transition-colors group ${
                   hasActivePage
-                    ? "text-blue-600"
-                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+                    ? "text-primary"
+                    : "text-muted-foreground hover:text-foreground hover:bg-accent"
                 }`}
               >
                 <div className="flex items-center gap-3">
                   <span
                     className={`transition-colors ${
                       hasActivePage
-                        ? "text-blue-600"
-                        : "text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300"
+                        ? "text-primary"
+                        : "text-muted-foreground/70 group-hover:text-muted-foreground"
                     }`}
                   >
                     {Icon}
@@ -126,12 +126,12 @@ export default function AccordionMenu({ groupedFiles }: AccordionMenuProps) {
                   {folderName}
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="px-1.5 py-0.5 text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-full border border-slate-200 dark:border-slate-700 group-hover:border-slate-300 dark:group-hover:border-slate-600 transition-colors">
+                  <span className="px-1.5 py-0.5 text-[10px] font-semibold bg-secondary text-muted-foreground rounded-full border border-border transition-colors">
                     {files.length}
                   </span>
                   <ChevronDown
                     size={14}
-                    className={`text-slate-400 transition-transform duration-200 ${
+                    className={`text-muted-foreground/70 transition-transform duration-200 ${
                       isOpen ? "rotate-0" : "-rotate-90"
                     }`}
                   />
@@ -157,10 +157,10 @@ export default function AccordionMenu({ groupedFiles }: AccordionMenuProps) {
                         key={file.slug.join("/")}
                         href={href}
                         ref={isActive ? activeLinkRef : null}
-                        className={`block pl-4 pr-3 py-2 text-sm transition-colors border-l-2 ${
+                        className={`block pl-4 pr-3 py-2 text-sm rounded-r-md transition-colors border-l-2 ${
                           isActive
-                            ? "text-blue-600 font-medium border-blue-600"
-                            : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 border-transparent"
+                            ? "text-primary font-medium border-primary bg-primary/5"
+                            : "text-muted-foreground hover:text-foreground hover:bg-accent border-transparent"
                         }`}
                         title={file.title}
                       >
@@ -176,7 +176,7 @@ export default function AccordionMenu({ groupedFiles }: AccordionMenuProps) {
       </nav>
 
       {/* Bottom Gradient Fade */}
-      <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-white dark:from-slate-900 to-transparent"></div>
+      <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-sidebar to-transparent"></div>
     </ScrollArea>
   );
 }

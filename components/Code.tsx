@@ -128,10 +128,10 @@ export function Code({ children = "", className = "" }: CodeProps) {
   };
 
   return (
-    <div className="group relative my-6 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 shadow-sm transition-all duration-300 hover:shadow-md">
+    <div className="group relative my-6 rounded-xl overflow-hidden border border-border bg-card shadow-xs transition-all duration-200 hover:shadow-sm">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
-        <div className="flex items-center gap-2 text-xs font-medium text-slate-500 dark:text-slate-400">
+      <div className="flex items-center justify-between px-4 py-3 bg-background border-b border-border">
+        <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
           {language === "bash" || language === "sh" ? (
             <Terminal size={14} />
           ) : (
@@ -141,7 +141,7 @@ export function Code({ children = "", className = "" }: CodeProps) {
         </div>
         <button
           onClick={handleCopy}
-          className="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+          className="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
           type="button"
         >
           {copied ? (
@@ -181,7 +181,7 @@ export function Code({ children = "", className = "" }: CodeProps) {
                     {...lineProps}
                     className={`table-row ${lineProps.className || ""}`}
                   >
-                    <span className="table-cell select-none text-right pr-4 w-8 text-slate-300 text-xs">
+                    <span className="table-cell select-none text-right pr-4 w-8 text-border text-xs">
                       {i + 1}
                     </span>
                     <span className="table-cell whitespace-pre">

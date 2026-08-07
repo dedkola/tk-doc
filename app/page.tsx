@@ -31,19 +31,22 @@ export default function Home() {
 
   return (
     <div className="bg-background">
-      <main className="container mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-12 space-y-16">
+      <main className="container mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-12 md:py-16 space-y-16 md:space-y-20">
         {/* ── Hero ── */}
-        <section className="text-center space-y-4 pt-4">
+        <section className="text-center space-y-5 pt-4">
           <div className="flex justify-center">
             <Logo />
           </div>
-          <p className="text-lg text-muted-foreground max-w-xl mx-auto">
+          <h1 className="text-3xl md:text-4xl font-semibold tracking-tight text-foreground max-w-2xl mx-auto">
+            {siteConfig.name}
+          </h1>
+          <p className="text-lg text-muted-foreground max-w-xl mx-auto leading-relaxed">
             {siteConfig.description}
           </p>
           <div className="flex items-center justify-center pt-2">
             <Link
               href="/docs"
-              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-blue-700 transition-colors"
+              className="inline-flex items-center gap-2 rounded-md bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground shadow-sm hover:bg-primary/90 active:scale-[0.98] transition-all duration-200"
             >
               Browse Docs
               <ArrowRight className="h-4 w-4" />
@@ -52,7 +55,7 @@ export default function Home() {
         </section>
 
         {/* ── Stats ── */}
-        <section className="grid grid-cols-3 gap-4">
+        <section className="grid grid-cols-3 gap-3 md:gap-4">
           {[
             {
               icon: FileText,
@@ -66,13 +69,18 @@ export default function Home() {
             },
             { icon: Tags, label: "Tags", value: stats.totalTags },
           ].map(({ icon: Icon, label, value }) => (
-            <Card key={label} className="text-center py-6">
-              <div className="flex flex-col items-center gap-1">
-                <Icon className="h-5 w-5 text-blue-500 mb-1" />
+            <Card
+              key={label}
+              className="text-center py-5 md:py-6 hover:shadow-sm transition-shadow"
+            >
+              <div className="flex flex-col items-center gap-1.5">
+                <Icon className="h-5 w-5 text-primary/80" />
                 <span className="text-2xl font-bold text-foreground">
                   {value}
                 </span>
-                <span className="text-sm text-muted-foreground">{label}</span>
+                <span className="text-xs md:text-sm text-muted-foreground">
+                  {label}
+                </span>
               </div>
             </Card>
           ))}
@@ -80,13 +88,13 @@ export default function Home() {
 
         {/* ── Recently Updated ── */}
         <section>
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center justify-between mb-5">
             <h2 className="text-xl font-semibold text-foreground">
               Recently Updated
             </h2>
             <Link
               href="/docs"
-              className="text-sm text-muted-foreground hover:text-blue-600 dark:hover:text-blue-400 transition-colors flex items-center gap-1"
+              className="text-sm text-muted-foreground hover:text-primary transition-colors flex items-center gap-1"
             >
               View all <ArrowRight className="h-3.5 w-3.5" />
             </Link>
@@ -96,14 +104,11 @@ export default function Home() {
               <Link
                 key={file.slug.join("/")}
                 href={`/docs/${file.slug.join("/")}`}
-                className="group block rounded-lg border border-border p-4 hover:border-blue-500/50 hover:shadow-sm transition-all"
+                className="group block rounded-lg border border-border bg-card p-4 hover:border-primary/30 hover:shadow-sm transition-all duration-200"
               >
-                <div className="flex items-center gap-2 mb-2">
+                <div className="flex items-center gap-2 mb-2.5">
                   {file.folder && (
-                    <Badge
-                      variant="secondary"
-                      className="text-xs bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400"
-                    >
+                    <Badge variant="secondary" className="text-xs">
                       {file.folder}
                     </Badge>
                   )}
@@ -116,11 +121,11 @@ export default function Home() {
                     )}
                   </span>
                 </div>
-                <h3 className="font-medium text-foreground group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-2">
+                <h3 className="font-medium text-foreground group-hover:text-primary transition-colors line-clamp-2">
                   {file.title}
                 </h3>
                 {file.description && (
-                  <p className="mt-1 text-sm text-muted-foreground line-clamp-2">
+                  <p className="mt-1.5 text-sm text-muted-foreground line-clamp-2">
                     {file.description}
                   </p>
                 )}
@@ -131,7 +136,7 @@ export default function Home() {
 
         {/* ── Categories ── */}
         <section>
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center justify-between mb-5">
             <h2 className="text-xl font-semibold text-foreground">
               Browse by Category
             </h2>
@@ -151,7 +156,7 @@ export default function Home() {
                       <li key={file.slug.join("/")}>
                         <Link
                           href={`/docs/${file.slug.join("/")}`}
-                          className="text-sm text-muted-foreground hover:text-blue-600 dark:hover:text-blue-400 transition-colors truncate block"
+                          className="text-sm text-muted-foreground hover:text-primary transition-colors truncate block"
                         >
                           {file.title}
                         </Link>
@@ -179,7 +184,7 @@ export default function Home() {
               <Link key={tag} href={`/docs?tag=${encodeURIComponent(tag)}`}>
                 <Badge
                   variant="secondary"
-                  className="cursor-pointer hover:bg-blue-100 hover:text-blue-700 dark:hover:bg-blue-900 dark:hover:text-blue-200 transition-colors"
+                  className="cursor-pointer hover:bg-primary/10 hover:text-primary transition-colors"
                 >
                   {tag}
                   <span className="ml-1 text-xs opacity-60">{count}</span>

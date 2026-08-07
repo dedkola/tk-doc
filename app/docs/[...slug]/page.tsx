@@ -289,7 +289,7 @@ export default async function Page({
                 >
                   <Badge
                     variant="secondary"
-                    className="bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                    className="hover:bg-secondary/80 transition-colors cursor-pointer"
                   >
                     {tag}
                   </Badge>

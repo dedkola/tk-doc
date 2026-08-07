@@ -29,30 +29,25 @@ export default function Error({
           </div>
         </div>
 
-        <h1 className="mb-2 text-3xl font-bold text-slate-900 dark:text-slate-100">
+        <h1 className="mb-2 text-3xl font-bold text-foreground">
           Something went wrong!
         </h1>
 
-        <p className="mb-6 text-slate-600 dark:text-slate-400">
+        <p className="mb-6 text-muted-foreground">
           We encountered an unexpected error. Please try again or return to the
           homepage.
         </p>
 
         {siteConfig.debug?.showErrorDetails && error.message && (
-          <div className="mb-6 rounded-lg bg-slate-100 dark:bg-slate-800 p-4 text-left">
-            <p className="text-sm font-mono text-slate-800 dark:text-slate-200 wrap-break-word">
+          <div className="mb-6 rounded-lg bg-muted p-4 text-left">
+            <p className="text-sm font-mono text-foreground wrap-break-word">
               {error.message}
             </p>
           </div>
         )}
 
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
-          <Button
-            onClick={reset}
-            className="bg-blue-600 hover:bg-blue-700 text-white"
-          >
-            Try again
-          </Button>
+          <Button onClick={reset}>Try again</Button>
 
           <Link href="/">
             <Button variant="outline" className="w-full sm:w-auto">

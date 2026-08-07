@@ -33,7 +33,7 @@ export function InlineCode({ children }: { children: ReactNode }) {
     <code
       onClick={handleClick}
       className={`rounded bg-muted px-1.5 py-0.5 text-sm font-mono text-foreground cursor-pointer transition-colors hover:bg-muted-foreground/20 ${
-        copied ? "ring-2 ring-green-400/50" : ""
+        copied ? "ring-2 ring-primary/40" : ""
       }`}
       title="Click to copy"
     >

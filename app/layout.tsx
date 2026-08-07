@@ -1,4 +1,7 @@
 import dynamic from "next/dynamic";
+import { Geist, Geist_Mono } from "next/font/google";
+import type { Metadata, Viewport } from "next";
+import type { ReactNode } from "react";
 import SideNav from "@app/ui/interface/sidenav";
 import LayoutClient from "@app/ui/interface/layout-client";
 import { getAllMDXFiles, groupByFolder } from "@/lib/mdx-utils";
@@ -8,9 +11,19 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 import { BackToTop } from "@/components/BackToTop";
 import { KeyboardShortcutsHelp } from "@/components/KeyboardShortcutsHelp";
 import { siteConfig } from "@/config/site";
-import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import type { ReactNode } from "react";
+
+const geistSans = Geist({
+  subsets: ["latin"],
+  variable: "--font-geist-sans",
+  display: "swap",
+});
+
+const geistMono = Geist_Mono({
+  subsets: ["latin"],
+  variable: "--font-geist-mono",
+  display: "swap",
+});
 // Dynamic imports for non-critical components
 const Footer = dynamic(() => import("@/components/footer"), {
   ssr: true,
@@ -77,7 +90,11 @@ export default function RootLayout({
   const groupedFiles = groupByFolder(allMDXFiles);
 
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html
+      lang="en"
+      suppressHydrationWarning
+      className={`${geistSans.variable} ${geistMono.variable}`}
+    >
       <head>
         <link
           rel="alternate"
@@ -86,7 +103,7 @@ export default function RootLayout({
           href="/feed.xml"
         />
       </head>
-      <body className="bg-background text-foreground antialiased selection:bg-blue-100 selection:text-blue-700 dark:selection:bg-blue-900 dark:selection:text-blue-200 flex min-h-screen flex-col">
+      <body className="bg-background text-foreground font-sans antialiased flex min-h-screen flex-col">
         <ThemeProvider>
           <Analytics />
           <SearchProvider>
