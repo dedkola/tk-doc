@@ -19,7 +19,7 @@ export default function Header() {
   } = useSearch();
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
 
-  // Ensure clicking the logo or Home link always takes user to a clean homepage
+  // Ensure clicking the logo always takes user to a clean homepage
   const handleGoHome = () => {
     setSearchQuery("");
     setSelectedTag(null);
