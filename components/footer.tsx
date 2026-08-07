@@ -39,15 +39,7 @@ export default function Footer() {
                   Browse Docs
                 </Link>
               </li>
-              <li>
-                <Link
-                  href="/docs/component-examples"
-                  className="text-muted-foreground hover:text-primary transition-colors"
-                >
-                  Components
-                </Link>
-              </li>
-            </ul>
+              </ul>
           </div>
 
           {/* Resources */}
