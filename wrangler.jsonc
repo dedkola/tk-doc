@@ -1,0 +1,9 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "tk-doc",
+  "compatibility_date": "2026-08-08",
+  "assets": {
+    "directory": "./out",
+    "not_found_handling": "404-page",
+  },
+}
