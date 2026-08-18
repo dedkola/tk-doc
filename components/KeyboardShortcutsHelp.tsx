@@ -10,7 +10,7 @@ import {
 import { Kbd } from "@/components/ui/Kbd";
 
 const shortcuts = [
-  { keys: ["⌘", "K"], description: "Open search" },
+  { keys: ["/"], description: "Open search" },
   { keys: ["?"], description: "Show keyboard shortcuts" },
   { keys: ["Esc"], description: "Close dialog / clear search" },
   { keys: ["↑", "↓"], description: "Navigate search results" },

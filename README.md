@@ -70,7 +70,7 @@ Perfect for technical documentation, API references, knowledge bases, and develo
 
 ### 🔍 Enhanced UX
 
-- **Command Palette** - Quick search with `Cmd+K` / `Ctrl+K`
+- **Command Palette** - Quick search with `/`
 - **Keyboard Shortcuts** - Press `?` to view all available keyboard shortcuts
 - **Back to Top** - Floating button appears on scroll for quick navigation
 - **Click-to-Copy Inline Code** - Click any inline `code` snippet to copy it to clipboard

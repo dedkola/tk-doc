@@ -18,7 +18,13 @@ export default function Search({ placeholder, onSearch, value }: SearchProps) {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+      const target = e.target as HTMLElement;
+      const isTyping =
+        target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.isContentEditable;
+
+      if (e.key === "/" && !e.metaKey && !e.ctrlKey && !e.altKey && !isTyping) {
         e.preventDefault();
         inputRef.current?.focus();
       }

@@ -65,7 +65,7 @@ export default function Header() {
             />
             <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
               <span className="text-muted-foreground text-xs border border-border rounded px-1.5 py-0.5">
-                ⌘K
+                /
               </span>
             </div>
           </div>
