@@ -10,7 +10,8 @@
     "build": "next build",
     "build:worker": "CF_PAGES=1 pnpm run build",
     "start": "next start",
-    "lint": "eslint app components config hooks lib scripts types eslint.config.mjs next.config.mjs postcss.config.mjs",
+    "lint": "pnpm run check:code-fences && eslint app components config hooks lib scripts types eslint.config.mjs next.config.mjs postcss.config.mjs",
+    "check:code-fences": "node scripts/check-code-fences.mjs",
     "format": "prettier --write app components config hooks lib scripts types .github .devcontainer README.md DOCKER-BUILD-PUSH.md compose.yaml package.json eslint.config.mjs next.config.mjs postcss.config.mjs tsconfig.json .prettierrc.json pnpm-workspace.yaml",
     "format:check": "prettier --check app components config hooks lib scripts types .github .devcontainer README.md DOCKER-BUILD-PUSH.md compose.yaml package.json eslint.config.mjs next.config.mjs postcss.config.mjs tsconfig.json .prettierrc.json pnpm-workspace.yaml"
   },

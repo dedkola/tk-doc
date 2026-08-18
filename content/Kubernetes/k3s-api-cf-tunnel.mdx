@@ -61,7 +61,7 @@ kubectl -n codelearn create token codeforge-sa --duration=8760h
 
 Alternative — non-expiring Secret-bound token (if your cluster supports it):
 
-```bash
+```yaml
 apiVersion: v1
 kind: Secret
 metadata:

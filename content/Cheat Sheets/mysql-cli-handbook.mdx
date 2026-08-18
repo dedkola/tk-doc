@@ -506,7 +506,7 @@ SELECT * FROM performance_schema.replication_group_members;
 
 ### Key Variables to Tune
 
-```bash
+```ini
 # In my.cnf
 [mysqld]
 # Connection
@@ -647,7 +647,9 @@ util.loadDump('/backup/dump')
 
 ## Security Best Practices
 
-```bash
+### SQL Hardening
+
+```sql
 # Remove anonymous users
 DELETE FROM mysql.user WHERE User='';
 
@@ -666,7 +668,11 @@ ALTER USER 'appuser'@'localhost' REQUIRE SSL;
 
 # Audit plugin (MySQL Enterprise)
 INSTALL PLUGIN audit_log SONAME 'audit_log.so';
+```
 
+### Connection Logging
+
+```ini
 # Log all connections
 [mysqld]
 general_log = 1
@@ -708,7 +714,7 @@ mysql -u root -p -e "SHOW SLAVE STATUS\G"    # Older versions
 
 ### Within MySQL Client
 
-```bash
+```sql
 # Vertical output (for wide rows)
 SELECT * FROM users WHERE id = 1\G
 
@@ -719,7 +725,11 @@ SELECT * FROM users\T
 SELECT * FROM users INTO OUTFILE '/tmp/users.csv'
   FIELDS TERMINATED BY ',' ENCLOSED BY '"'
   LINES TERMINATED BY '\n';
+```
 
+### HTML and XML Output from the Shell
+
+```bash
 # HTML output
 mysql -u root -p --html -e "SELECT * FROM mydb.users;" > users.html
 

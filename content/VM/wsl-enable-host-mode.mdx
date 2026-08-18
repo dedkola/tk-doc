@@ -48,19 +48,19 @@ Mirrored mode creates a bridge between Windows and WSL network interfaces, allow
 
 Path to Configuration file
 
-```bash copy
+```plaintext copy
 C:\Users\<user>\.wslconfig
 ```
 
 ### Run in terminal
 
-```bash copy
+```plaintext copy
 .wslconfig
 ```
 
 ### Enable host mode networking
 
-```bash copy
+```ini copy
 [wsl2]
 networkingMode=mirrored
 ```
@@ -69,7 +69,7 @@ networkingMode=mirrored
 
 ### Complete .wslconfig Example
 
-```bash
+```ini
 [wsl2]
 # Enable mirrored networking mode
 networkingMode=mirrored
@@ -115,7 +115,7 @@ WSL automatically configures the following Linux kernel network settings in mirr
 
 Some Windows services use specific ports that should not be forwarded to WSL. You can exclude ports using the `ignoredPorts` setting:
 
-```bash
+```ini
 [wsl2]
 networkingMode=mirrored
 
@@ -194,7 +194,11 @@ avahi-browse -a -t
 ```bash
 # Workaround 1: Use host networking
 docker run --network host <image>
+```
 
+Add the ignored ports to `.wslconfig`:
+
+```ini
 # Workaround 2: Add ports to ignoredPorts in .wslconfig
 [wsl2]
 networkingMode=mirrored

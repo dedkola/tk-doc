@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { Highlight, themes, Prism as PrismLib } from "prism-react-renderer";
 import { useTheme } from "next-themes";
+import { prismLanguageAliases } from "@/config/code-languages.mjs";
 
 // ESM imports are hoisted and run before top-level code.
 // Language components from `prismjs` expect a global `Prism` to exist at load time.
@@ -14,6 +15,35 @@ if (typeof window !== "undefined") {
 }
 
 import { Copy, Check, Terminal, FileCode } from "lucide-react";
+
+const fluxGrammar = {
+  comment: {
+    pattern: /\/\/.*/,
+    greedy: true,
+  },
+  string: {
+    pattern: /(["'])(?:\\.|(?!\1)[^\\\r\n])*\1/,
+    greedy: true,
+  },
+  duration: {
+    pattern: /\b\d+(?:ns|us|ms|s|m|h|d|w|mo|y)\b/,
+    alias: "number",
+  },
+  keyword:
+    /\b(?:and|bool|bytes|duration|else|exists|filter|float|from|if|import|in|int|not|option|or|package|return|string|then|time|uint|with)\b/,
+  function: /\b[A-Za-z_]\w*(?=\s*\()/,
+  number: /\b(?:0x[\da-f]+|\d+(?:\.\d+)?)\b/i,
+  boolean: /\b(?:false|true)\b/,
+  operator: /\|>|=>|==|!=|<=|>=|=~|!~|[-+*/%<>=]/,
+  punctuation: /[{}[\]();,.:]/,
+};
+
+function registerAdditionalLanguages() {
+  for (const [alias, source] of Object.entries(prismLanguageAliases)) {
+    PrismLib.languages[alias] = PrismLib.languages[source];
+  }
+  PrismLib.languages.flux = fluxGrammar;
+}
 
 interface CodeProps {
   children?: React.ReactNode;
@@ -35,6 +65,13 @@ export function Code({ children = "", className = "" }: CodeProps) {
       import("prismjs/components/prism-docker"),
       import("prismjs/components/prism-yaml"),
       import("prismjs/components/prism-json"),
+      import("prismjs/components/prism-ini"),
+      import("prismjs/components/prism-nginx"),
+      import("prismjs/components/prism-powershell"),
+      import("prismjs/components/prism-apacheconf"),
+      import("prismjs/components/prism-batch"),
+      import("prismjs/components/prism-toml"),
+      import("prismjs/components/prism-promql"),
       import("prismjs/components/prism-markdown"),
       import("prismjs/components/prism-python"),
       import("prismjs/components/prism-sql"),
@@ -44,6 +81,7 @@ export function Code({ children = "", className = "" }: CodeProps) {
       import("prismjs/components/prism-php"),
     ])
       .then(() => {
+        registerAdditionalLanguages();
         setLanguagesLoaded(true);
       })
       .catch((e) => {
