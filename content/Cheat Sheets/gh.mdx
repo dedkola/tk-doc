@@ -1,0 +1,653 @@
+---
+title: GitHub CLI (gh) Handbook
+description: Quick reference for the GitHub CLI — authentication, repositories, pull requests, issues, releases, workflows, codespaces, and more.
+tags: [github, gh, cli, cheat-sheet, devops, git]
+keywords:
+  [
+    gh cli,
+    github cli,
+    gh commands,
+    github command line,
+    gh cheat sheet,
+    gh pr,
+    gh issue,
+    gh release,
+    gh workflow,
+  ]
+publishedAt: 2026-08-18
+---
+
+## Installation & Setup
+
+### Install GitHub CLI
+
+```bash
+# macOS
+brew install gh
+
+# Windows (winget)
+winget install --id GitHub.cli
+
+# Windows (Chocolatey)
+choco install gh
+
+# Ubuntu / Debian
+sudo mkdir -p -m 755 /etc/apt/keyrings \
+  && wget -qO- https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null \
+  && sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
+  && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
+  && sudo apt update \
+  && sudo apt install gh -y
+
+# Fedora
+sudo dnf install gh
+
+# Arch Linux
+sudo pacman -S github-cli
+
+# Verify installation
+gh --version
+```
+
+### Shell Autocomplete
+
+```bash
+# Bash
+gh completion -s bash | sudo tee /etc/bash_completion.d/gh_completion > /dev/null
+
+# Zsh
+gh completion -s zsh > ~/.zfunc/_gh
+
+# Fish
+gh completion -s fish > ~/.config/fish/completions/gh.fish
+```
+
+### Update GitHub CLI
+
+```bash
+gh extension upgrade gh-copilot   # update a single extension
+gh extension upgrade --all        # update all extensions
+brew upgrade gh                   # macOS with Homebrew
+```
+
+---
+
+## Authentication
+
+### Login & Logout
+
+```bash
+gh auth login                     # interactive login (HTTPS or SSH)
+gh auth login --web               # login via browser
+gh auth login --with-token < token.txt   # login with personal access token
+gh auth login --hostname github.example.com  # GitHub Enterprise Server
+gh auth status                    # show current authentication status
+gh auth logout                    # log out of GitHub
+gh auth refresh                   # refresh stored credentials
+gh auth refresh --scopes write:packages,delete:packages  # add extra scopes
+```
+
+### Token Scopes Reference
+
+| Scope              | Purpose                              |
+| ------------------ | ------------------------------------ |
+| `repo`             | Full control of private repositories |
+| `repo:invite`      | Access repository invitations        |
+| `public_repo`      | Access public repositories           |
+| `read:org`         | Read organization membership         |
+| `write:org`        | Manage organization membership       |
+| `read:user`        | Read user profile data               |
+| `gist`             | Create and manage gists              |
+| `workflow`         | Manage GitHub Actions workflows      |
+| `delete_repo`      | Delete repositories                  |
+| `write:packages`   | Upload packages to GitHub Packages   |
+| `admin:public_key` | Manage public SSH keys               |
+
+---
+
+## Configuration
+
+### View & Set Configuration
+
+```bash
+gh config list                    # show all config values
+gh config get editor              # get a specific config value
+gh config set editor "code --wait"  # set default editor
+gh config set git_protocol ssh    # use SSH for git operations
+gh config set git_protocol https  # use HTTPS for git operations
+gh config set prompt disabled     # disable interactive prompts
+```
+
+### Common Configuration Options
+
+| Option         | Values                | Description                             |
+| -------------- | --------------------- | --------------------------------------- |
+| `git_protocol` | `https`, `ssh`        | Protocol used for git operations        |
+| `editor`       | editor command        | Default editor for interactive commands |
+| `prompt`       | `enabled`, `disabled` | Enable/disable interactive prompts      |
+| `pager`        | pager command         | Program used to paginate output         |
+
+---
+
+## Repositories
+
+### Create & Clone
+
+```bash
+gh repo create my-repo            # create a new public repo
+gh repo create my-repo --private  # create a private repo
+gh repo create my-repo --internal # create an internal repo (Enterprise)
+gh repo create my-org/my-repo --private --clone  # create in org and clone
+gh repo create --source=. --public --push        # push current directory
+
+gh repo clone owner/repo          # clone a repository
+gh repo clone owner/repo my-dir   # clone into custom directory
+gh repo fork owner/repo           # fork a repository
+gh repo fork owner/repo --clone   # fork and clone locally
+gh repo fork owner/repo --org my-org  # fork into an organization
+```
+
+### View & Manage
+
+```bash
+gh repo view                      # view current repository info
+gh repo view owner/repo           # view specific repository
+gh repo view --web                # open repository in browser
+gh repo view --branch main        # view specific branch
+
+gh repo list                      # list your repositories
+gh repo list owner --limit 50     # list repositories for a user/org
+gh repo list --source             # list only source repos (no forks)
+gh repo list --fork               # list only forks
+
+gh repo delete owner/repo         # delete a repository
+gh repo archive owner/repo        # archive a repository
+gh repo unarchive owner/repo      # unarchive a repository
+gh repo rename my-new-name        # rename current repository
+gh repo edit --description "New description"  # update repo description
+```
+
+### Sync & Remotes
+
+```bash
+gh repo set-default owner/repo    # set default repository for current dir
+gh repo sync                      # sync current branch with upstream
+gh repo sync owner/repo --branch main  # sync specific branch
+gh repo sync --force              # force sync (overwrite local changes)
+```
+
+---
+
+## Pull Requests
+
+### Create Pull Requests
+
+```bash
+gh pr create                      # create PR interactively
+gh pr create --title "Fix login" --body "Closes #123"
+gh pr create --fill               # auto-fill title/body from commits
+gh pr create --fill-first         # use first commit for title/body
+gh pr create --draft              # create as draft PR
+gh pr create --web                # open PR creation in browser
+gh pr create --base main --head feature-branch
+gh pr create --reviewer username1,username2
+gh pr create --assignee @me
+gh pr create --label bug,critical
+gh pr create --project "Q3 Roadmap"
+```
+
+### List & View
+
+```bash
+gh pr list                        # list open PRs
+gh pr list --state all            # list all PRs
+gh pr list --state merged         # list merged PRs
+gh pr list --state closed         # list closed PRs
+gh pr list --author @me           # authored by you
+gh pr list --assignee @me         # assigned to you
+gh pr list --review-requested @me # requesting your review
+gh pr list --label bug            # filter by label
+gh pr list --limit 50             # limit results
+gh pr list --json number,title,author,state  # JSON output
+
+gh pr view 42                     # view PR details
+gh pr view 42 --web               # open PR in browser
+gh pr view --comments             # view PR with comments
+```
+
+### Checkout & Review
+
+```bash
+gh pr checkout 42                 # checkout PR locally
+gh pr checkout 42 --branch pr-42  # checkout into named branch
+gh pr checkout 42 --recurse-submodules  # also update submodules
+gh pr checkout 42 --force         # reset branch and checkout PR
+
+gh pr diff 42                     # view PR diff
+gh pr diff 42 --color always      # force color output
+gh pr diff 42 --patch             # output in patch format
+
+gh pr review 42 --approve         # approve PR
+gh pr review 42 --request-changes -b "Needs tests"
+gh pr review 42 --comment -b "Looks good, one question"
+gh pr review 42 --body "Approved"  # non-interactive approval
+gh pr checks 42                   # view PR check status
+```
+
+### Merge & Close
+
+```bash
+gh pr merge 42                    # merge PR interactively
+gh pr merge 42 --merge            # create a merge commit
+gh pr merge 42 --squash           # squash and merge
+gh pr merge 42 --rebase           # rebase and merge
+gh pr merge 42 --auto             # enable auto-merge
+gh pr merge 42 --delete-branch    # delete branch after merging
+gh pr merge 42 --admin            # use admin privileges to merge
+
+gh pr close 42                    # close PR without merging
+gh pr close 42 --delete-branch    # close and delete branch
+gh pr reopen 42                   # reopen closed PR
+gh pr ready 42                    # mark draft PR as ready
+```
+
+### Update PRs
+
+```bash
+gh pr edit 42 --title "New title"
+gh pr edit 42 --body "Updated description"
+gh pr edit 42 --add-label enhancement
+gh pr edit 42 --remove-label bug
+gh pr edit 42 --add-assignee username
+gh pr edit 42 --add-reviewer username
+gh pr comment 42 --body "Great work!"
+```
+
+---
+
+## Issues
+
+### Create Issues
+
+```bash
+gh issue create                   # create issue interactively
+gh issue create --title "Bug report" --body "Description here"
+gh issue create --label bug,urgent
+gh issue create --assignee @me
+gh issue create --milestone v1.0
+gh issue create --project "Backlog"
+```
+
+### List & View
+
+```bash
+gh issue list                     # list open issues
+gh issue list --state all         # list all issues
+gh issue list --state closed      # list closed issues
+gh issue list --label bug         # filter by label
+gh issue list --assignee @me      # assigned to you
+gh issue list --author @me        # created by you
+gh issue list --limit 100         # limit results
+gh issue list --search "error in production"
+
+gh issue view 42                  # view issue details
+gh issue view 42 --web            # open issue in browser
+gh issue view 42 --comments       # view with comments
+```
+
+### Manage Issues
+
+```bash
+gh issue edit 42 --title "Updated title"
+gh issue edit 42 --add-label fixed
+gh issue edit 42 --remove-label bug
+gh issue edit 42 --add-assignee username
+gh issue edit 42 --milestone v1.1
+gh issue close 42                 # close issue
+gh issue close 42 --reason completed  # close with reason
+gh issue reopen 42                # reopen issue
+gh issue comment 42 --body "Still investigating"
+gh issue delete 42                # delete issue
+```
+
+### Lock & Pin
+
+```bash
+gh issue lock 42                  # lock issue conversation
+gh issue lock 42 --reason spam    # lock with reason
+gh issue unlock 42                # unlock issue conversation
+gh issue pin 42                   # pin issue
+gh issue unpin 42                 # unpin issue
+```
+
+---
+
+## Releases
+
+### Create Releases
+
+```bash
+gh release create v1.0.0          # create release from tag
+gh release create v1.0.0 --title "Version 1.0.0"
+gh release create v1.0.0 --notes "Release notes"
+gh release create v1.0.0 --generate-notes  # auto-generate from PRs
+gh release create v1.0.0 --draft  # create draft release
+gh release create v1.0.0 --prerelease
+gh release create v1.0.0 ./app.zip ./checksums.txt  # upload assets
+gh release create v1.0.0 --target main  # use specific commit/branch
+```
+
+### Manage Releases
+
+```bash
+gh release list                   # list releases
+gh release view v1.0.0            # view release details
+gh release view v1.0.0 --web      # open release in browser
+gh release download v1.0.0        # download all assets
+gh release download v1.0.0 --pattern "*.zip"
+gh release download v1.0.0 --archive tar.gz
+gh release edit v1.0.0 --draft=false  # publish draft
+gh release delete v1.0.0          # delete release
+gh release upload v1.0.0 asset.zip  # upload asset to existing release
+gh release delete-asset v1.0.0 asset.zip  # delete an asset
+```
+
+---
+
+## GitHub Actions Workflows
+
+### List & View
+
+```bash
+gh workflow list                  # list workflows
+gh workflow list --all            # include disabled workflows
+gh workflow view deploy.yml       # view workflow details
+gh workflow view deploy.yml --web # open workflow in browser
+gh workflow view deploy.yml --yaml  # view workflow YAML
+```
+
+### Run & Manage
+
+```bash
+gh workflow run deploy.yml        # trigger workflow manually
+gh workflow run deploy.yml --ref main
+gh workflow run deploy.yml -f env=production -f version=1.2.3
+gh workflow run deploy.yml --raw-field config="$(cat config.json)"
+
+gh workflow enable deploy.yml     # enable workflow
+gh workflow disable deploy.yml    # disable workflow
+gh workflow delete deploy.yml     # delete workflow
+```
+
+### Workflow Runs
+
+```bash
+gh run list                       # list recent workflow runs
+gh run list --workflow deploy.yml # list runs for specific workflow
+gh run list --branch main         # filter by branch
+gh run list --status failed       # filter by status
+gh run list --limit 20
+
+gh run view 1234567890            # view run summary
+gh run view 1234567890 --log      # view full logs
+gh run view 1234567890 --log-failed  # view only failed job logs
+gh run view 1234567890 --web      # open run in browser
+gh run view --job 9876543210      # view specific job
+
+gh run watch 1234567890           # watch run in real-time
+gh run rerun 1234567890           # rerun failed jobs
+gh run rerun --failed             # rerun all failed jobs
+gh run cancel 1234567890          # cancel a run
+gh run delete 1234567890          # delete a run
+gh run download 1234567890        # download artifacts
+gh run download 1234567890 --name dist  # download specific artifact
+```
+
+---
+
+## Codespaces
+
+### Create & Manage
+
+```bash
+gh codespace create               # create a codespace
+gh codespace create --repo owner/repo
+gh codespace create --branch main
+gh codespace create --machine basicLinux32gb
+gh codespace list                 # list your codespaces
+gh codespace list --owner owner
+
+gh codespace code my-codespace    # open in VS Code
+gh codespace code --web my-codespace  # open in browser
+gh codespace ssh my-codespace     # SSH into codespace
+gh codespace logs my-codespace    # view codespace logs
+
+gh codespace stop my-codespace    # stop codespace
+gh codespace delete my-codespace  # delete codespace
+gh codespace delete --all         # delete all codespaces
+```
+
+---
+
+## Gists
+
+```bash
+gh gist create file.txt           # create private gist from file
+gh gist create file.txt --public  # create public gist
+gh gist create -d "My snippet" file.txt  # with description
+gh gist create --filename sample.js < code.js
+gh gist list                      # list your gists
+gh gist view <gist-id>            # view a gist
+gh gist view <gist-id> --files    # list gist files
+gh gist edit <gist-id>            # edit a gist
+gh gist delete <gist-id>          # delete a gist
+gh gist clone <gist-id>           # clone a gist locally
+```
+
+---
+
+## Search
+
+```bash
+gh search repos "topic:kubernetes" # search repositories
+gh search repos "language:go stars:>1000"
+gh search code "function main" --repo owner/repo
+gh search code "TODO" --extension js
+gh search issues "bug" --repo owner/repo
+gh search issues --assignee @me --state open
+gh search prs "feature" --repo owner/repo
+gh search prs --review-requested=@me --state=open
+gh search commits "fix authentication"
+```
+
+---
+
+## Organizations & Teams
+
+```bash
+gh org list                       # list your organizations
+gh org view my-org                # view organization details
+gh org view my-org --web          # open org in browser
+
+gh team list --org my-org         # list teams in organization
+gh team view my-org/my-team       # view team details
+gh team create my-org/my-team --name "Platform Team"
+```
+
+---
+
+## Projects
+
+```bash
+gh project list                   # list your projects
+gh project list --owner my-org    # list organization projects
+gh project view 1                 # view project details
+gh project view 1 --web           # open project in browser
+gh project create --title "Roadmap" --owner my-org
+gh project edit 1 --title "New Title"
+gh project delete 1               # delete project
+```
+
+---
+
+## Secrets & Variables
+
+### Repository Secrets
+
+```bash
+gh secret set MY_SECRET           # set secret (prompts for value)
+gh secret set MY_SECRET < secret.txt  # set from file
+gh secret set MY_SECRET --env production  # set environment secret
+gh secret set MY_SECRET --org my-org --visibility all
+gh secret list                    # list repo secrets
+gh secret delete MY_SECRET        # delete repo secret
+```
+
+### Variables
+
+```bash
+gh variable set MY_VAR --body "value"
+gh variable set MY_VAR --env production --body "prod-value"
+gh variable list                  # list variables
+gh variable get MY_VAR            # get variable value
+gh variable delete MY_VAR         # delete variable
+```
+
+### Codespaces & Dependabot Secrets
+
+```bash
+gh secret set MY_SECRET --user    # user-level secret for Codespaces
+gh secret set MY_SECRET --codespaces
+gh secret set MY_SECRET --dependabot
+```
+
+---
+
+## SSH & GPG Keys
+
+```bash
+gh ssh-key list                   # list SSH keys
+gh ssh-key add ~/.ssh/id_ed25519.pub  # add SSH key
+gh ssh-key add ~/.ssh/id_ed25519.pub --title "MacBook Pro"
+gh ssh-key delete <key-id>        # delete SSH key
+
+gh gpg-key list                   # list GPG keys
+gh gpg-key add key.asc            # add GPG key
+gh gpg-key delete <key-id>        # delete GPG key
+```
+
+---
+
+## Extensions
+
+### Manage Extensions
+
+```bash
+gh extension list                 # list installed extensions
+gh extension install owner/gh-extension  # install extension
+gh extension install https://github.com/owner/gh-extension
+gh extension remove owner/gh-extension
+gh extension upgrade owner/gh-extension
+gh extension upgrade --all        # upgrade all extensions
+gh extension search copilot       # search for extensions
+gh extension create my-extension  # scaffold a new extension
+```
+
+### Popular Extensions
+
+| Extension            | Purpose                          |
+| -------------------- | -------------------------------- |
+| `github/gh-copilot`  | GitHub Copilot in the CLI        |
+| `seachicken/gh-poi`  | Delete local branches safely     |
+| `meiji163/gh-notify` | GitHub notifications in terminal |
+| `rednaw/exclamation` | Bulk add issues/PRs to projects  |
+
+---
+
+## Direct API Access
+
+```bash
+gh api user                       # GET current user
+gh api repos/owner/repo/issues    # list issues
+gh api repos/owner/repo/issues -f title="Bug" -f body="Details"  # create issue
+gh api repos/owner/repo/issues/1 -X PATCH -f state=closed  # close issue
+gh api repos/owner/repo --method DELETE
+gh api graphql -f query='{ viewer { login } }'
+gh api repos/owner/repo/releases --jq '.[0].tag_name'  # with jq filter
+gh api --paginate repos/owner/repo/issues  # paginate automatically
+gh api --preview mercy-preview ...  # enable preview API
+```
+
+---
+
+## Useful Aliases
+
+```bash
+# Add to your shell config
+alias ghpr='gh pr create --fill'
+alias ghpc='gh pr checkout'
+alias ghpm='gh pr merge --squash --delete-branch'
+alias ghil='gh issue list --assignee @me'
+alias ghrl='gh release list --limit 10'
+alias ghwl='gh workflow list'
+alias ghrw='gh run watch'
+```
+
+---
+
+## Output Formatting
+
+```bash
+gh pr list --json number,title,author,state  # JSON output
+gh pr list --json number,title --jq '.[] | "\(.number): \(.title)"'
+gh issue list --template '{{range .}}{{.number}} {{.title}}{{\n}}{{end}}'
+gh repo list --limit 5 --web  # open results in browser
+gh ... --silent               # suppress output
+```
+
+### Common JSON Fields
+
+```bash
+gh pr view 42 --json number,title,body,state,author,headRepository,baseRefName
+gh issue view 42 --json number,title,body,state,labels,assignees
+gh release view v1.0.0 --json tagName,name,body,publishedAt,assets
+```
+
+---
+
+## Environment Variables
+
+| Variable                | Description                                           |
+| ----------------------- | ----------------------------------------------------- |
+| `GH_TOKEN`              | Authentication token (alternative to `gh auth login`) |
+| `GITHUB_TOKEN`          | Fallback authentication token                         |
+| `GH_HOST`               | Default GitHub host (for Enterprise Server)           |
+| `GH_REPO`               | Default repository (`owner/repo`)                     |
+| `GH_EDITOR`             | Default editor override                               |
+| `GH_PAGER`              | Default pager override                                |
+| `GH_DEBUG`              | Set to `1` or `api` to enable debug logging           |
+| `GH_NO_UPDATE_NOTIFIER` | Set to `1` to disable update checks                   |
+
+---
+
+## Tips & Best Practices
+
+```bash
+# Use --web to open any view in browser when you need the UI
+gh pr view 42 --web
+
+# Combine gh with git for powerful workflows
+git checkout -b feature && gh pr create --fill
+
+# Auto-fill PRs from conventional commits
+gh pr create --fill
+
+# Review PRs from terminal with diffs and comments
+gh pr checkout 42 && gh pr diff && gh pr review
+
+# Use jq with --json for scripting
+gh pr list --json number,title --jq '.[] | "#\(.number) \(.title)"'
+
+# Set default repo to avoid typing owner/repo repeatedly
+cd my-repo && gh repo set-default owner/repo
+```

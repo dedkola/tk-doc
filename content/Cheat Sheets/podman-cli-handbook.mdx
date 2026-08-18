@@ -1,0 +1,963 @@
+---
+title: Podman CLI Handbook
+description: Quick reference for essential Podman commands — daemonless containers, rootless operation, image management, pods, volumes, networks, Quadlet, Podman Compose, and more.
+tags: [podman, cli, containers, rootless, daemonless, cheat-sheet, podman-compose]
+keywords: [podman commands, podman cheat sheet, podman cli reference, podman quick reference, rootless containers, podman compose, podman quadlet]
+publishedAt: 2026-08-18
+---
+
+
+
+## Installation & Setup
+
+### Install Podman
+
+```bash
+# Ubuntu / Debian
+sudo apt update
+sudo apt install -y podman
+
+# Fedora
+sudo dnf install -y podman
+
+# macOS (Homebrew — installs a lightweight Linux VM via Podman Machine)
+brew install podman
+podman machine init
+podman machine start
+
+# Verify installation
+podman --version
+podman info
+```
+
+### Rootless Setup (Linux)
+
+```bash
+# Enable user namespaces (required on some distros)
+sudo sysctl -w user.max_user_namespaces=28633
+
+# Ensure subuid/subgid mappings exist for your user
+grep $USER /etc/subuid
+grep $USER /etc/subgid
+# If missing:
+sudo usermod --add-subuids 100000-165535 --add-subgids 100000-165535 $USER
+
+# Test rootless
+podman run --rm hello-world
+```
+
+### Shell Autocomplete
+
+```bash
+# Bash
+mkdir -p ~/.local/share/bash-completion/completions
+podman completion bash > ~/.local/share/bash-completion/completions/podman
+
+# Zsh
+mkdir -p ~/.zsh/completions
+podman completion zsh > ~/.zsh/completions/_podman
+echo 'fpath=(~/.zsh/completions $fpath)' >> ~/.zshrc
+echo 'autoload -Uz compinit && compinit' >> ~/.zshrc
+
+# Fish
+mkdir -p ~/.config/fish/completions
+podman completion fish > ~/.config/fish/completions/podman.fish
+```
+
+### Useful Aliases
+
+```bash
+alias p=podman
+alias pps='podman ps'
+alias ppsa='podman ps -a'
+alias pi='podman images'
+alias pex='podman exec -it'
+alias plogs='podman logs -f'
+alias prm='podman rm'
+alias prmi='podman rmi'
+alias pdn='podman run -d --name'
+
+# Docker compatibility alias
+alias docker=podman
+alias docker-compose=podman-compose
+```
+
+---
+
+## Important Paths & Config Files
+
+### Configuration
+
+```bash
+~/.config/containers/                    # User-level config directory
+~/.config/containers/containers.conf     # Main user config
+~/.config/containers/storage.conf        # Storage driver config
+~/.config/containers/registries.conf     # Registry mirrors & search
+~/.config/containers/policy.json         # Image signature policy
+/etc/containers/containers.conf          # System-wide config
+/etc/containers/storage.conf             # System-wide storage config
+/etc/containers/registries.conf          # System-wide registries
+/etc/containers/registries.d/            # Registry credential configs
+```
+
+### Data & Storage Paths
+
+```bash
+~/.local/share/containers/storage/       # Rootless storage root
+/var/lib/containers/storage/             # Rootful storage root
+~/.local/share/containers/storage/overlay/  # OverlayFS layers (rootless)
+~/.local/share/containers/storage/volumes/  # Named volumes (rootless)
+~/.local/share/containers/storage/libpod/   # Container runtime state
+~/.local/share/containers/storage/tmp/      # Temporary build files
+```
+
+### Machine Paths (macOS / WSL)
+
+```bash
+~/.local/share/containers/podman/machine/   # Podman Machine VM images
+~/.config/containers/podman/machine/        # Machine config & sockets
+```
+
+### Log Locations
+
+```bash
+# Podman does not store container logs to files by default.
+# Use journal logging or the k8s-file driver:
+
+# View logs via CLI
+podman logs <container>
+
+# Configure journald logging (default on systemd hosts)
+# In containers.conf:
+# [containers]
+# log_driver = "journald"
+
+# Configure k8s-file logging (default for rootless)
+# [containers]
+# log_driver = "k8s-file"
+# Log files at:
+# ~/.local/share/containers/storage/overlay-containers/<id>/userdata/ctr.log
+```
+
+### Environment Variables
+
+```bash
+CONTAINERS_CONF=~/.config/containers/containers.conf   # Override config path
+CONTAINERS_STORAGE_CONF=~/.config/containers/storage.conf  # Override storage config
+CONTAINER_REGISTRIES_CONF=~/.config/containers/registries.conf  # Override registries
+PODMAN_USERNS="keep-id"               # Map host UID to container UID
+PODMAN_HOST=unix://$XDG_RUNTIME_DIR/podman/podman.sock  # Remote connection
+```
+
+---
+
+## System & Info
+
+### Podman System Commands
+
+```bash
+podman version                        # Client and server version
+podman info                           # System-wide information
+podman system df                      # Show disk usage
+podman system df -v                   # Verbose disk usage
+podman system info                    # Same as podman info
+podman system prune                   # Remove unused data
+podman system prune -a                # Also remove unused images
+podman system prune -a --volumes      # Remove everything unused
+podman system reset                   # DANGER: remove ALL podman data
+podman system service                 # Start Podman API service (REST)
+podman system service --time=0 &      # Run service indefinitely (background)
+podman machine list                   # List Podman Machines (macOS/WSL)
+podman machine inspect                # Show machine details
+```
+
+---
+
+## Container Lifecycle
+
+### Run Containers
+
+```bash
+podman run nginx                                  # Run container (foreground)
+podman run -d nginx                               # Run in detached mode
+podman run -d --name my-nginx nginx               # Run with custom name
+podman run -d -p 8080:80 nginx                    # Map host port 8080 → container 80
+podman run -d -p 127.0.0.1:8080:80 nginx          # Bind to specific interface
+podman run -it ubuntu /bin/bash                   # Interactive shell
+podman run --rm alpine echo "hello"               # Remove container after exit
+podman run -d --restart=unless-stopped nginx       # Restart policy
+podman run -d -e MY_VAR=value nginx               # Set environment variable
+podman run -d --env-file .env nginx               # Load env vars from file
+podman run -d -v mydata:/data nginx               # Mount named volume
+podman run -d -v $(pwd):/app nginx                # Bind mount current directory
+podman run -d --network my-net nginx              # Connect to specific network
+podman run --memory=512m --cpus=1.5 nginx         # Set resource limits
+podman run -d -w /app node:20 npm start           # Set working directory
+podman run -d --user 1000:1000 nginx              # Run as specific user/group
+podman run -d --read-only nginx                   # Read-only root filesystem
+podman run -d --pod my-pod nginx                  # Run inside a pod
+podman run --userns=keep-id -v $(pwd):/app dev     # Keep host UID mapping
+```
+
+### List Containers
+
+```bash
+podman ps                            # List running containers
+podman ps -a                         # List all containers (including stopped)
+podman ps -q                         # List only container IDs
+podman ps -s                         # Show container sizes
+podman ps -l                         # Show last created container
+podman ps --format "table {{.ID}}\t{{.Names}}\t{{.Status}}\t{{.Ports}}"  # Custom format
+podman ps -f status=exited           # Filter by status
+podman ps -f name=my-app             # Filter by name
+podman ps -f ancestor=nginx          # Filter by image
+podman container ls                  # Same as podman ps
+```
+
+### Start / Stop / Restart
+
+```bash
+podman start my-container            # Start a stopped container
+podman start -ai my-container        # Start and attach with interactive TTY
+podman stop my-container             # Graceful stop (SIGTERM → SIGKILL after 10s)
+podman stop -t 30 my-container       # Custom grace period (30 seconds)
+podman restart my-container          # Restart container
+podman pause my-container            # Pause all processes (freeze)
+podman unpause my-container          # Unpause container
+podman kill my-container             # Force stop (SIGKILL)
+podman kill -s SIGHUP my-container   # Send specific signal
+podman wait my-container             # Block until container stops, print exit code
+```
+
+### Remove Containers
+
+```bash
+podman rm my-container               # Remove a stopped container
+podman rm -f my-container            # Force remove (even if running)
+podman rm -v my-container            # Remove with associated anonymous volumes
+podman rm $(podman ps -aq)           # Remove all stopped containers
+podman container prune               # Remove all stopped containers
+podman container prune -f            # Remove without confirmation
+```
+
+### Execute Commands in Running Containers
+
+```bash
+podman exec my-container ls /        # Run command in container
+podman exec -it my-container /bin/sh        # Interactive shell
+podman exec -it my-container /bin/bash      # Interactive bash
+podman exec -it -u root my-container sh     # Exec as root
+podman exec -e MY_VAR=value my-container env  # With environment variable
+podman exec -w /app my-container pwd        # With working directory
+```
+
+### Inspect Containers
+
+```bash
+podman inspect my-container                             # Full container details (JSON)
+podman inspect -f '{{.State.Status}}' my-container      # Get specific field
+podman inspect -f '{{.NetworkSettings.IPAddress}}' my-container   # Get container IP
+podman inspect -f '{{.HostConfig.RestartPolicy.Name}}' my-container  # Get restart policy
+podman inspect -f '{{json .Mounts}}' my-container       # Volume mounts (JSON)
+podman stats                         # Live resource usage (CPU, memory, I/O)
+podman stats --no-stream             # One-time snapshot
+podman stats my-container            # Stats for specific container
+podman top my-container              # Running processes inside container
+podman diff my-container             # Changed files in container filesystem
+podman port my-container             # Show port mappings
+```
+
+### Copy Files
+
+```bash
+podman cp file.txt my-container:/tmp/file.txt   # Host → Container
+podman cp my-container:/tmp/file.txt ./file.txt  # Container → Host
+podman cp my-container:/var/log/ ./logs/         # Copy directory
+```
+
+---
+
+## Image Management
+
+### List & Search Images
+
+```bash
+podman images                        # List local images
+podman images -a                     # Include intermediate images
+podman images -q                     # IDs only
+podman images --digests              # Show digests
+podman images --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}"  # Custom format
+podman images --filter dangling=true           # Show dangling images
+podman images --filter reference=nginx         # Filter by name
+podman search nginx                  # Search registries
+podman search --limit 5 nginx        # Limit search results
+podman search --filter is-official=true nginx  # Official images only
+```
+
+### Pull & Push Images
+
+```bash
+podman pull nginx                    # Pull latest tag
+podman pull nginx:1.27               # Pull specific tag
+podman pull nginx:1.27@sha256:abc... # Pull by digest
+podman pull --all-tags nginx         # Pull all tags
+podman push myuser/myimage:latest    # Push to registry
+podman push myuser/myimage:v1.0      # Push specific tag
+```
+
+### Build Images
+
+```bash
+podman build -t myapp:latest .                   # Build from Containerfile/Dockerfile
+podman build -t myapp:v1.0 -f Containerfile.prod .  # Use specific file
+podman build --no-cache -t myapp .               # Build without cache
+podman build --build-arg VERSION=1.0 -t myapp .  # Pass build argument
+podman build --target builder -t myapp .         # Multi-stage: specific target
+podman build --platform linux/amd64 -t myapp .   # Build for specific platform
+podman build --platform linux/amd64,linux/arm64 -t myuser/myapp --manifest myuser/myapp .  # Multi-arch manifest
+```
+
+### Tag & Remove Images
+
+```bash
+podman tag myapp:latest myuser/myapp:v1.0        # Tag an image
+podman tag myapp:latest registry.example.com/myapp:v1.0  # Tag for private registry
+podman rmi myapp:latest              # Remove an image
+podman rmi $(podman images -q)       # Remove all images
+podman rmi $(podman images -f dangling=true -q)  # Remove dangling images
+podman image prune                   # Remove dangling images
+podman image prune -a                # Remove all unused images
+```
+
+### Save & Load Images (Offline Transfer)
+
+```bash
+podman save -o myapp.tar myapp:latest            # Export image to tar file
+podman save myapp:latest | gzip > myapp.tar.gz   # Export compressed
+podman load -i myapp.tar             # Import image from tar file
+podman load < myapp.tar.gz           # Import compressed
+podman export my-container > container.tar       # Export container filesystem
+podman import container.tar myimage:latest       # Import as image
+```
+
+### Image History & Layers
+
+```bash
+podman history myapp:latest          # Show image layers and commands
+podman history --no-trunc myapp      # Full command output (not truncated)
+podman manifest inspect nginx:latest # Inspect image manifest (multi-arch info)
+```
+
+---
+
+## Pod Management
+
+Podman's unique feature — pods group related containers sharing network namespaces (like Kubernetes pods).
+
+### Basic Pod Commands
+
+```bash
+podman pod create --name my-pod                 # Create an empty pod
+podman pod create --name my-pod -p 8080:80      # Create pod with port mapping
+podman pod create --name my-pod --share net     # Create pod sharing network only
+podman pod ls                         # List all pods
+podman pod ps                         # Same as podman pod ls
+podman pod inspect my-pod             # Show pod details
+podman pod start my-pod               # Start all containers in pod
+podman pod stop my-pod                # Stop all containers in pod
+podman pod restart my-pod             # Restart all containers in pod
+podman pod rm my-pod                  # Remove pod (must be stopped)
+podman pod rm -f my-pod               # Force remove pod
+podman pod prune                      # Remove all stopped pods
+podman pod top my-pod                 # Show processes in pod
+podman pod stats                      # Live resource stats for all pods
+podman pod logs my-pod                # Logs from all containers in pod
+```
+
+### Run Containers Inside Pods
+
+```bash
+# Create pod and run first container (creates the pod automatically)
+podman run -d --name web -p 8080:80 --pod new:my-pod nginx
+
+# Add container to existing pod
+podman run -d --name redis --pod my-pod redis:alpine
+
+# Run command in a pod container
+podman exec -it my-pod web /bin/sh
+```
+
+---
+
+## Volumes
+
+### Manage Volumes
+
+```bash
+podman volume create mydata          # Create a named volume
+podman volume ls                     # List all volumes
+podman volume inspect mydata         # Show volume details (mountpoint, driver)
+podman volume rm mydata              # Remove a volume
+podman volume rm $(podman volume ls -q)  # Remove all volumes
+podman volume prune                  # Remove all unused volumes
+podman volume prune -f               # Remove without confirmation
+```
+
+### Using Volumes with Containers
+
+```bash
+# Named volume
+podman run -d -v mydata:/var/lib/data postgres
+
+# Bind mount (host directory)
+podman run -d -v /host/path:/container/path nginx
+
+# Read-only mount
+podman run -d -v mydata:/data:ro nginx
+
+# tmpfs mount (in-memory, Linux only)
+podman run -d --tmpfs /tmp:rw,size=100m nginx
+
+# Mount syntax (modern — preferred)
+podman run -d --mount source=mydata,target=/data nginx
+podman run -d --mount type=bind,source=$(pwd),target=/app nginx
+podman run -d --mount type=tmpfs,target=/tmp,tmpfs-size=100m nginx
+
+# SELinux-labeled mounts (RHEL/Fedora)
+podman run -d -v mydata:/data:Z nginx        # Private unshared label
+podman run -d -v mydata:/data:z nginx        # Shared label
+```
+
+---
+
+## Networks
+
+### Manage Networks
+
+```bash
+podman network create my-net                     # Create bridge network
+podman network create --driver bridge my-net      # Explicit bridge driver
+podman network create --subnet=172.20.0.0/16 my-net  # Custom subnet
+podman network ls                    # List all networks
+podman network inspect my-net        # Show network details
+podman network rm my-net             # Remove a network
+podman network prune                 # Remove all unused networks
+```
+
+### Connect & Disconnect Containers
+
+```bash
+podman network connect my-net my-container       # Add container to network
+podman network disconnect my-net my-container    # Remove container from network
+
+# Run container on specific network
+podman run -d --network my-net --name app1 nginx
+
+# Container DNS — containers on same user-defined network resolve each other by name
+podman run -d --network my-net --name db postgres
+podman run -d --network my-net --name app nginx
+# Inside "app": ping db  → resolves to the db container's IP
+```
+
+### Default Network Drivers
+
+| Driver | Description |
+|--------|-------------|
+| `bridge` | Default. Isolated network on a single host |
+| `host` | Container shares host network (no isolation) |
+| `none` | No networking |
+| `macvlan` | Assign MAC address, appear as physical device |
+| `slirp4netns` | User-mode networking for rootless containers |
+| `pasta` | High-performance rootless networking (default in recent Podman) |
+
+---
+
+## Logs & Debugging
+
+### Container Logs
+
+```bash
+podman logs my-container             # Show all logs (stdout + stderr)
+podman logs -f my-container          # Follow/stream logs
+podman logs --tail 100 my-container  # Last 100 lines
+podman logs --since 1h my-container  # Logs from last hour
+podman logs --since 30m my-container # Logs from last 30 minutes
+podman logs -t my-container          # Show timestamps
+podman logs my-container 2>&1 | grep "error"  # Filter logs with grep
+```
+
+### Debugging Containers
+
+```bash
+# Inspect container state
+podman inspect my-container
+podman inspect -f '{{.State.ExitCode}}' my-container    # Check exit code
+podman inspect -f '{{.State.OOMKilled}}' my-container   # Check if OOM killed
+
+# Resource usage
+podman stats                         # Live CPU, memory, I/O
+podman top my-container              # Show running processes
+podman diff my-container             # Show filesystem changes
+
+# Debug with temporary container
+podman run --rm -it --network container:my-container nicolaka/netshoot  # Network debugging
+podman run --rm -it --pid container:my-container busybox ps aux         # Process debugging
+
+# Generate a Kubernetes YAML from a running container
+podman generate kube my-container > pod.yaml
+
+# Generate YAML for a pod
+podman generate kube my-pod > pod.yaml
+```
+
+### Troubleshooting Checklist
+
+```bash
+# Container won't start?
+podman logs my-container             # Check application logs
+podman inspect my-container          # Check State.Error and State.ExitCode
+
+# Rootless permission issues?
+podman unshare cat /proc/self/uid_map   # Check user namespace mapping
+podman info | grep rootless              # Verify rootless mode
+
+# Can't connect to container?
+podman port my-container             # Verify port mappings
+podman inspect -f '{{.NetworkSettings.IPAddress}}' my-container  # Get container IP
+podman network inspect bridge        # Check network config
+
+# Disk space issues?
+podman system df                     # Check disk usage
+podman system prune -a --volumes     # Clean up everything unused
+
+# SELinux denials?
+sudo ausearch -m avc --recent        # Check recent SELinux denials
+sudo setsebool -P container_manage_cgroup true  # Fix cgroup issues
+
+# DNS resolution issues in rootless?
+podman run --rm alpine nslookup google.com   # Test DNS inside container
+cat /etc/resolv.conf                        # Check host DNS config
+```
+
+---
+
+## Podman Compose
+
+### Basic Commands
+
+```bash
+# Install podman-compose
+pip install podman-compose
+# OR on macOS
+brew install podman-compose
+
+podman-compose up                    # Start all services (foreground)
+podman-compose up -d                 # Start in detached mode
+podman-compose up -d --build         # Build images before starting
+podman-compose up -d --force-recreate  # Recreate containers even if unchanged
+podman-compose down                  # Stop and remove containers, networks
+podman-compose down -v               # Also remove volumes
+podman-compose stop                  # Stop services (don't remove)
+podman-compose start                 # Start stopped services
+podman-compose restart               # Restart all services
+podman-compose restart web           # Restart specific service
+```
+
+### Build & Images
+
+```bash
+podman-compose build                 # Build all services
+podman-compose build web             # Build specific service
+podman-compose build --no-cache      # Build without cache
+podman-compose pull                  # Pull all service images
+```
+
+### Status & Logs
+
+```bash
+podman-compose ps                    # List running services
+podman-compose ps -a                 # List all services
+podman-compose logs                  # View logs from all services
+podman-compose logs -f               # Follow logs
+podman-compose logs web              # Logs for specific service
+podman-compose logs --tail 50 web    # Last 50 lines
+```
+
+### Execute & Run
+
+```bash
+podman-compose exec web sh           # Shell into running service
+podman-compose exec web bash         # Bash into running service
+podman-compose exec -u root web sh   # Shell as root
+podman-compose run web npm test      # Run one-off command
+podman-compose run --rm web npm test # Run and remove after
+```
+
+---
+
+## Registry & Login
+
+### Authentication
+
+```bash
+podman login                         # Login to Docker Hub (interactive)
+podman login -u myuser               # Login with username
+podman login registry.example.com    # Login to private registry
+podman logout                        # Logout from Docker Hub
+podman logout registry.example.com   # Logout from private registry
+```
+
+### Credential Helpers
+
+```bash
+# Usepass (recommended)
+podman login --authfile ~/.docker/config.json
+
+# Skopeo for image inspection (works with Podman)
+skopeo inspect docker://nginx:latest
+skopeo inspect docker://registry.example.com/myapp:v1.0
+```
+
+### Working with Registries
+
+```bash
+# Docker Hub
+podman pull nginx:latest
+podman push myuser/myapp:v1.0
+
+# Private registry
+podman pull registry.example.com/myapp:latest
+podman push registry.example.com/myapp:latest
+
+# Run a local registry
+podman run -d -p 5000:5000 --name registry registry:2
+podman tag myapp localhost:5000/myapp:latest
+podman push localhost:5000/myapp:latest
+
+# Copy images between registries (using skopeo)
+skopeo copy docker://nginx:latest docker://registry.example.com/nginx:latest
+skopeo copy docker-archive:myapp.tar docker://registry.example.com/myapp:latest
+```
+
+---
+
+## Podman Machine (macOS / WSL)
+
+Podman Machine creates and manages a lightweight Linux VM for rootless Podman on non-Linux hosts.
+
+```bash
+podman machine init                  # Create a new machine
+podman machine init --cpus 4 --memory 8192 --disk-size 100  # Custom resources
+podman machine list                  # List machines
+podman machine start                 # Start the machine
+podman machine stop                  # Stop the machine
+podman machine rm                    # Remove the machine
+podman machine ssh                   # SSH into the machine
+podman machine ssh -- ls /etc/os-release  # Run command on machine
+podman machine inspect               # Show machine details
+podman machine stop && podman machine start  # Restart machine
+podman machine set --cpus 2          # Update machine resources
+```
+
+### macOS-Specific Tips
+
+```bash
+# The machine creates a Docker-compatible socket
+export DOCKER_HOST=unix://$HOME/.local/share/containers/podman/machine/podman/podman.sock
+
+# Enable Docker compatibility (auto-sets DOCKER_HOST)
+podman machine set --docker-host
+
+# Podman Machine uses QEMU or Apple Virtualization on macOS
+# For best performance on Apple Silicon, use the default Apple VZ driver
+podman machine init --user-mode-networking  # Use user-mode networking (recommended)
+```
+
+---
+
+## Containerfile Quick Reference
+
+Podman uses `Containerfile` (preferred) or `Dockerfile` interchangeably.
+
+### Common Instructions
+
+| Instruction | Description |
+|------------|-------------|
+| `FROM` | Base image |
+| `WORKDIR` | Set working directory |
+| `COPY` | Copy files from host to image |
+| `ADD` | Copy files (supports URLs and tar extraction) |
+| `RUN` | Execute command during build |
+| `CMD` | Default command when container starts |
+| `ENTRYPOINT` | Main executable (CMD becomes arguments) |
+| `ENV` | Set environment variable |
+| `ARG` | Build-time variable |
+| `EXPOSE` | Document which ports the container listens on |
+| `VOLUME` | Create mount point for volumes |
+| `USER` | Set user for subsequent instructions |
+| `LABEL` | Add metadata to image |
+| `HEALTHCHECK` | Define health check command |
+| `.containerignore` | Exclude files from build context |
+
+### Example Multi-Stage Containerfile
+
+```dockerfile
+# Build stage
+FROM node:20-alpine AS builder
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+RUN npm run build
+
+# Production stage
+FROM node:20-alpine
+WORKDIR /app
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/node_modules ./node_modules
+EXPOSE 3000
+USER node
+CMD ["node", "dist/index.js"]
+```
+
+---
+
+## Quadlet (Systemd Integration)
+
+Quadlet generates systemd units from container definitions — the recommended way to manage Podman containers as system services.
+
+### Quadlet File Locations
+
+```bash
+# User services
+~/.config/containers/systemd/
+
+# System services
+/etc/containers/systemd/
+
+# Generator (auto-generates units from .container/.volume/.network files)
+# Located in /usr/lib/systemd/system-generators/podman-system-generator
+```
+
+### Example: Web App Service
+
+```ini
+# ~/.config/containers/systemd/webapp.container
+[Container]
+Image=docker.io/library/nginx:latest
+PublishPort=8080:80
+Volume=webapp-data.volume:/usr/share/nginx/html:ro
+Network=webapp.network
+AutoUpdate=registry
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=default.target
+```
+
+### Example: Volume & Network
+
+```ini
+# ~/.config/containers/systemd/webapp.volume
+[Volume]
+VolumeName=webapp-data
+
+# ~/.config/containers/systemd/webapp.network
+[Network]
+NetworkName=webapp
+Subnet=172.30.0.0/24
+```
+
+### Systemd Commands
+
+```bash
+# After placing .container files:
+systemctl daemon-reload --user
+systemctl start webapp.service
+systemctl status webapp.service
+systemctl stop webapp.service
+systemctl enable webapp.service      # Start on boot
+systemctl disable webapp.service
+
+# Update all Quadlet-managed containers
+podman auto-update                    # Apply pending updates
+podman auto-update --dry-run          # Preview updates
+
+# Generate systemd from running container (legacy approach)
+podman generate systemd --new --name my-container > my-container.service
+```
+
+---
+
+## Cleanup & Maintenance
+
+### Prune Commands
+
+```bash
+podman container prune               # Remove stopped containers
+podman image prune                   # Remove dangling images
+podman image prune -a                # Remove all unused images
+podman volume prune                  # Remove unused volumes
+podman network prune                 # Remove unused networks
+podman pod prune                     # Remove all stopped pods
+podman system prune                  # Remove all unused objects
+podman system prune -a --volumes     # Nuclear option — remove everything unused
+```
+
+### Disk Usage
+
+```bash
+podman system df                     # Summary of disk usage
+podman system df -v                  # Detailed disk usage per object
+```
+
+### Storage Management
+
+```bash
+podman system info | grep store      # Check storage driver and root
+podman container storage              # Show storage info
+podman reset                         # Reset podman (remove all data)
+```
+
+---
+
+## Kubernetes Integration
+
+Podman can generate Kubernetes YAML from running containers and pods.
+
+```bash
+# Generate YAML from a running container
+podman generate kube my-container > pod.yaml
+
+# Generate YAML from a pod
+podman generate kube my-pod > pod.yaml
+
+# Play a Kubernetes YAML (creates containers/pods from YAML)
+podman play kube pod.yaml            # Start from YAML
+podman play kube --down pod.yaml     # Stop and remove from YAML
+podman play kube --replace pod.yaml  # Replace existing resources
+
+# Generate a full deployment
+podman generate kube --type deployment my-pod > deployment.yaml
+
+# Test a Pod YAML locally before deploying to K8s
+podman play kube my-deployment.yaml
+podman ps -a
+podman play kube --down my-deployment.yaml
+```
+
+---
+
+## Useful Patterns
+
+### Health Checks
+
+```bash
+# In Containerfile
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+  CMD curl -f http://localhost/ || exit 1
+
+# In podman run
+podman run -d --health-cmd="curl -f http://localhost/ || exit 1" \
+  --health-interval=30s --health-timeout=5s --health-retries=3 nginx
+
+# Check health status
+podman inspect -f '{{.State.Health.Status}}' my-container
+```
+
+### Resource Limits
+
+```bash
+podman run -d --memory=256m nginx                # Memory limit
+podman run -d --memory=256m --memory-swap=512m nginx  # Memory + swap
+podman run -d --cpus=1.5 nginx                   # CPU limit (1.5 cores)
+podman run -d --cpu-shares=512 nginx             # Relative CPU weight
+podman run -d --pids-limit=100 nginx             # Process count limit
+```
+
+### Restart Policies
+
+| Policy | Description |
+|--------|-------------|
+| `no` | Never restart (default) |
+| `on-failure[:max]` | Restart on non-zero exit code |
+| `always` | Always restart |
+| `unless-stopped` | Always restart unless manually stopped |
+
+```bash
+podman run -d --restart=unless-stopped nginx
+podman update --restart=always my-container      # Update running container
+```
+
+### Rootless Tips
+
+```bash
+# Map host UID to root inside container (useful for dev)
+podman run --userns=keep-id -u root -v $(pwd):/app dev
+
+# Share podman socket with Docker CLI
+podman system service --time=0 &
+export DOCKER_HOST=unix:///run/user/$(id -u)/podman/podman.sock
+docker ps   # Now Docker CLI works with Podman
+
+# Access privileged ports (< 1024) without root
+sudo sysctl net.ipv4.ip_unprivileged_port_start=80
+# Or bind to a high port and use a reverse proxy
+```
+
+---
+
+## Output Formatting
+
+### Common Format Options
+
+| Flag | Description |
+|------|-------------|
+| `--format "table ..."` | Table with custom columns |
+| `--format "{{json .}}"` | JSON output |
+| `--format "{{.ID}}"` | Specific field |
+| `-q` / `--quiet` | IDs only |
+| `--no-trunc` | Don't truncate output |
+
+### Format Examples
+
+```bash
+# Custom container list
+podman ps --format "table {{.ID}}\t{{.Names}}\t{{.Status}}\t{{.Ports}}"
+
+# Get all container IPs
+podman inspect -f '{{.Name}} - {{.NetworkSettings.IPAddress}}' $(podman ps -q)
+
+# Image sizes sorted
+podman images --format "{{.Repository}}:{{.Tag}} {{.Size}}" | sort -k2 -h
+
+# JSON output for scripting
+podman inspect --format '{{json .Config.Env}}' my-container | jq .
+```
+
+---
+
+## Docker vs Podman Quick Reference
+
+| Feature | Docker | Podman |
+|---------|--------|--------|
+| Daemon | Required (`dockerd`) | Daemonless |
+| Root access | Default requires root | Rootless by default |
+| CLI compatibility | `docker` | `podman` (drop-in replacement) |
+| Compose | `docker compose` | `podman-compose` or `podman compose` |
+| Pods | Not supported | Built-in pod support |
+| Systemd | Separate integration | Quadlet (native systemd units) |
+| Kubernetes YAML | Not built-in | `podman generate kube` / `podman play kube` |
+| Socket | `/var/run/docker.sock` | `podman.sock` (per user) |
+| Security | Namespace isolation | User namespaces + SELinux |
+
+```bash
+# Docker → Podman alias mapping
+alias docker=podman
+alias docker-compose=podman-compose
+
+# Or create a full compatibility wrapper
+podman --remote=false  # Force local Podman (ignore DOCKER_HOST)
+```
