@@ -1,0 +1,615 @@
+---
+title: PHP-FPM CLI Handbook
+description: Quick reference for essential PHP-FPM commands — configuration, pool management, process management, performance tuning, security, integration with Nginx/Apache, and more.
+tags: [php-fpm, php, cgi, fastcgi, cheat-sheet, nginx]
+keywords:
+  [
+    php-fpm commands,
+    php-fpm cheat sheet,
+    php-fpm configuration,
+    php-fpm pool,
+    php performance tuning,
+    php-fpm administration,
+  ]
+publishedAt: 2026-08-18
+---
+
+## Installation & Setup
+
+### Install PHP-FPM
+
+```bash
+# Ubuntu / Debian (PHP 8.2)
+sudo apt update
+sudo apt install -y php8.2-fpm php8.2-cli php8.2-common php8.2-mysql php8.2-pgsql \
+  php8.2-sqlite3 php8.2-redis php8.2-mbstring php8.2-xml php8.2-curl php8.2-gd \
+  php8.2-zip php8.2-intl php8.2-bcmath php8.2-opcache php8.2-readline
+
+# Fedora / RHEL
+sudo dnf install -y php-fpm php-cli php-common php-mysqlnd php-pgsql \
+  php-sqlite3 php-redis php-mbstring php-xml php-curl php-gd \
+  php-zip php-intl php-bcmath php-opcache php-readline
+
+# macOS (Homebrew)
+brew install php
+brew services start php
+
+# Verify
+php -v
+php-fpm -v
+```
+
+### Start & Stop
+
+```bash
+# Linux (systemd)
+sudo systemctl start php8.2-fpm
+sudo systemctl stop php8.2-fpm
+sudo systemctl restart php8.2-fpm
+sudo systemctl reload php8.2-fpm             # Graceful reload (re-read config)
+sudo systemctl enable php8.2-fpm
+sudo systemctl status php8.2-fpm
+
+# Check PHP-FPM status
+sudo systemctl status php8.2-fpm
+
+# Process management
+sudo php-fpm -t                             # Test configuration syntax
+sudo php-fpm -tt                            # Test with additional details
+```
+
+---
+
+## Important Paths & Config Files
+
+```bash
+# Ubuntu / Debian
+/etc/php/8.2/fpm/php.ini                     # Main PHP config
+/etc/php/8.2/fpm/pool.d/                     # Pool configurations
+/etc/php/8.2/fpm/pool.d/www.conf             # Default pool
+/etc/php/8.2/fpm/php-fpm.conf                # FPM master config
+/var/run/php/php8.2-fpm.sock                # Default Unix socket
+/var/log/php8.2-fpm.log                     # FPM log file
+/etc/logrotate.d/php8.2-fpm                  # Log rotation
+
+# Fedora / RHEL
+/etc/php.ini                                 # Main PHP config
+/etc/php.d/                                  # Additional PHP configs
+/etc/php-fpm.d/                              # Pool configurations
+/etc/php-fpm.d/www.conf                      # Default pool
+/etc/php-fpm.conf                            # FPM master config
+/run/php-fpm/www.sock                       # Default Unix socket
+/var/log/php-fpm/                            # Log directory
+
+# macOS (Homebrew)
+/opt/homebrew/etc/php.ini                    # Apple Silicon
+/opt/homebrew/etc/php-fpm.d/                 # Pool configs
+/opt/homebrew/etc/php-fpm.conf               # FPM config
+
+# Show loaded config files
+php --ini
+php -i | grep "Loaded Configuration File"
+php -i | grep "Additional .ini files"
+```
+
+### Key Configuration (php.ini)
+
+```ini
+; /etc/php/8.2/fpm/php.ini
+
+; Memory and execution
+memory_limit = 256M
+max_execution_time = 30
+max_input_time = 60
+max_input_vars = 3000
+
+; File uploads
+upload_max_filesize = 64M
+post_max_size = 64M
+max_file_uploads = 20
+
+; Error handling
+error_reporting = E_ALL
+display_errors = Off                        ; DANGEROUS in production
+display_startup_errors = Off                ; DANGEROUS in production
+log_errors = On
+error_log = /var/log/php8.2-fpm.log
+log_errors_max_len = 1024
+
+; OPcache
+opcache.enable=1
+opcache.memory_consumption=256
+opcache.interned_strings_buffer=16
+opcache.max_accelerated_files=10000
+opcache.revalidate_freq=2
+opcache.save_comments=1
+opcache.fast_shutdown=1
+opcache.enable_cli=0
+
+; Session
+session.save_handler = files
+session.save_path = "/var/lib/php/sessions"
+session.gc_maxlifetime = 1440
+session.gc_probability = 1
+session.gc_divisor = 100
+
+; Date
+date.timezone = UTC
+
+; Security
+expose_php = Off
+allow_url_fopen = On
+allow_url_include = Off
+disable_functions = exec,passthru,shell_exec,system,proc_open,popen
+```
+
+---
+
+## FPM Pool Configuration
+
+### Default Pool (www.conf)
+
+```ini
+; /etc/php/8.2/fpm/pool.d/www.conf
+
+[www]
+; Process user/group
+user = www-data
+group = www-data
+
+; Socket configuration
+listen = /var/run/php/php8.2-fpm.sock
+listen.owner = www-data
+listen.group = www-data
+listen.mode = 0660
+
+; TCP socket alternative
+; listen = 127.0.0.1:9000
+
+; Process manager
+pm = dynamic                              ; static, dynamic, or ondemand
+pm.max_children = 50                     ; Max simultaneous processes
+pm.start_servers = 5                     ; Processes at startup
+pm.min_spare_servers = 3                 ; Min idle processes
+pm.max_spare_servers = 10                ; Max idle processes
+pm.max_requests = 500                    ; Restart after N requests (memory leak prevention)
+
+; Status page
+pm.status_path = /fpm-status
+ping.path = /fpm-ping
+
+; Logging
+access.log = /var/log/php8.2-fpm-access.log
+access.format = "%R - %u %t \"%m %r%Q%q\" %s %f %{mili}d %{kilo}M %C%%"
+
+; Slow log
+slowlog = /var/log/php8.2-fpm-slow.log
+request_slowlog_timeout = 5s
+
+; Security
+security.limit_extensions = .php
+
+; Environment variables
+env[HOSTNAME] = $HOSTNAME
+env[PATH] = /usr/local/bin:/usr/bin:/bin
+env[TMP] = /tmp
+env[TMPDIR] = /tmp
+env[TEMP] = /tmp
+```
+
+### Create Custom Pool
+
+```bash
+# Create new pool: /etc/php/8.2/fpm/pool.d/myapp.conf
+cat > /etc/php/8.2/fpm/pool.d/myapp.conf << 'EOF'
+[myapp]
+user = myapp
+group = myapp
+
+listen = /var/run/php/myapp.sock
+listen.owner = www-data
+listen.group = www-data
+listen.mode = 0660
+
+pm = dynamic
+pm.max_children = 20
+pm.start_servers = 5
+pm.min_spare_servers = 3
+pm.max_spare_servers = 10
+pm.max_requests = 500
+
+php_admin_value[error_log] = /var/log/php8.2-fpm/myapp-error.log
+php_admin_flag[log_errors] = on
+php_value[session.save_handler] = files
+php_value[session.save_path] = "/var/lib/php/sessions/myapp"
+php_admin_value[upload_max_filesize] = 128M
+php_admin_value[post_max_size] = 128M
+php_admin_value[memory_limit] = 512M
+EOF
+
+# Test and reload
+sudo php-fpm -t
+sudo systemctl reload php8.2-fpm
+```
+
+---
+
+## Process Management
+
+### Status & Monitoring
+
+```bash
+# FPM status
+sudo php-fpm -t                             # Test configuration
+sudo php-fpm -tt                            # Test with extra info
+
+# Check running processes
+ps aux | grep php-fpm
+
+# Count PHP-FPM workers
+ps aux | grep "php-fpm: pool" | wc -l
+
+# Check socket exists
+ls -la /var/run/php/php8.2-fpm.sock
+
+# Check open files
+ls /proc/$(pidof -s php-fpm)/fd | wc -l
+
+# Check connections
+ss -tlnp | grep 9000                       # If using TCP socket
+```
+
+### Reload Without Downtime
+
+```bash
+# Graceful reload (re-reads config, spawns new workers, kills old ones)
+sudo systemctl reload php8.2-fpm
+
+# Equivalent to:
+sudo kill -USR2 $(cat /var/run/php/php8.2-fpm.pid)
+```
+
+### Kill Workers
+
+```bash
+# Kill all PHP-FPM workers (DANGEROUS — kills all PHP processes)
+sudo systemctl stop php8.2-fpm
+
+# Kill specific pool worker
+sudo kill <worker-pid>
+
+# Restart specific pool (reload config)
+sudo systemctl reload php8.2-fpm
+```
+
+---
+
+## Useful Patterns
+
+### Status Page
+
+```ini
+; In pool config (www.conf)
+pm.status_path = /fpm-status
+ping.path = /fpm-ping
+```
+
+```nginx
+# Nginx config to expose status page
+location /fpm-status {
+    allow 127.0.0.1;
+    deny all;
+    fastcgi_pass unix:/var/run/php/php8.2-fpm.sock;
+    fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+    include fastcgi_params;
+}
+
+location /fpm-ping {
+    allow 127.0.0.1;
+    deny all;
+    fastcgi_pass unix:/var/run/php/php8.2-fpm.sock;
+    fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+    include fastcgi_params;
+}
+```
+
+```bash
+# Get FPM status
+curl http://127.0.0.1/fpm-status
+
+# Get FPM ping
+curl http://127.0.0.1/fpm-ping
+
+# JSON status
+curl -H "Accept: application/json" http://127.0.0.1/fpm-status
+```
+
+### Slow Log Analysis
+
+```bash
+# Check slow log
+tail -50 /var/log/php8.2-fpm-slow.log
+
+# Find slow requests (script, time)
+grep "script_filename" /var/log/php8.2-fpm-slow.log | sort | uniq -c | sort -rn | head -20
+
+# Average slow request time
+grep "pool www" /var/log/php8.2-fpm-slow.log | awk '{print $NF}' | sort -n | tail -10
+```
+
+### Health Check
+
+```bash
+# Simple health check script
+#!/bin/bash
+if curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1/fpm-ping | grep -q "pong"; then
+    echo "PHP-FPM is healthy"
+else
+    echo "PHP-FPM is DOWN"
+    sudo systemctl restart php8.2-fpm
+fi
+```
+
+---
+
+## OPcache
+
+### Configuration
+
+```ini
+; /etc/php/8.2/fpm/php.ini
+opcache.enable=1
+opcache.memory_consumption=256            ; 64-512MB
+opcache.interned_strings_buffer=16        ; 8-64MB
+opcache.max_accelerated_files=10000       ; 2000-100000
+opcache.revalidate_freq=2                 ; 0 = check every request
+opcache.save_comments=1                   ; Required for many frameworks
+opcache.fast_shutdown=1
+opcache.enable_cli=0                      ; Usually 0 for FPM
+opcache.jit=1255                          ; PHP 8.0+ JIT
+opcache.jit_buffer_size=256M
+```
+
+### Manage OPcache
+
+```php
+// Clear OPcache (from PHP script)
+opcache_reset();                           // Clear entire cache
+opcache_invalidate('/path/to/file.php');   // Clear specific file
+opcache_get_status();                      // Get OPcache stats
+
+// Clear OPcache via CLI
+php -r "opcache_reset();"                  // Clear from command line
+```
+
+```php
+// OPcache status page (add to a file accessible via web)
+<?php
+header('Content-Type: application/json');
+echo json_encode(opcache_get_status(), JSON_PRETTY_PRINT);
+```
+
+---
+
+## Troubleshooting
+
+```bash
+# PHP-FPM won't start
+sudo php-fpm -t                             # Check configuration syntax
+sudo systemctl status php8.2-fpm           # Check service status
+sudo journalctl -u php8.2-fpm -n 50        # Check logs
+sudo cat /var/log/php8.2-fpm.log | tail -50  # Check FPM log
+
+# 502 Bad Gateway (Nginx + PHP-FPM)
+# Check socket exists: ls -la /var/run/php/php8.2-fpm.sock
+# Check permissions: ls -la /var/run/php/
+# Check worker process is running: ps aux | grep php-fpm
+# Restart: sudo systemctl restart php8.2-fpm
+
+# Too many open files (EMFILE)
+# Increase worker_rlimit_nofile in php-fpm.conf
+# Increase systemd LimitNOFILE
+sudo systemctl edit php8.2-fpm
+# [Service]
+# LimitNOFILE=65535
+
+# PHP process hanging
+# Increase request_slowlog_timeout
+# Check slow log for long-running scripts
+tail -f /var/log/php8.2-fpm-slow.log
+
+# Memory exhaustion (Allowed memory size exhausted)
+php_admin_value[memory_limit] = 512M     ; Increase in pool config
+php -i | grep memory_limit               ; Check current limit
+
+# File permission issues
+ls -la /var/run/php/                      # Check socket ownership
+ls -la /var/log/php8.2-fpm.log           # Check log permissions
+chown www-data:www-data /var/run/php/     # Fix socket permissions
+```
+
+---
+
+## Integration with Nginx
+
+### FastCGI Pass (Unix Socket)
+
+```nginx
+server {
+    listen 80;
+    server_name example.com;
+    root /var/www/example.com/public;
+    index index.php index.html;
+
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location ~ \.php$ {
+        fastcgi_pass unix:/var/run/php/php8.2-fpm.sock;
+        fastcgi_index index.php;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        include fastcgi_params;
+
+        # Timeouts
+        fastcgi_connect_timeout 60s;
+        fastcgi_send_timeout 60s;
+        fastcgi_read_timeout 60s;
+
+        # Buffers
+        fastcgi_buffer_size 128k;
+        fastcgi_buffers 4 256k;
+        fastcgi_busy_buffers_size 256k;
+    }
+
+    # Deny access to .htaccess
+    location ~ /\.ht {
+        deny all;
+    }
+}
+```
+
+### FastCGI Pass (TCP Socket)
+
+```nginx
+server {
+    listen 80;
+    server_name example.com;
+    root /var/www/example.com/public;
+
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location ~ \.php$ {
+        fastcgi_pass 127.0.0.1:9000;
+        fastcgi_index index.php;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        include fastcgi_params;
+    }
+}
+```
+
+---
+
+## Integration with Apache
+
+### Apache + PHP-FPM (mod_proxy_fcgi)
+
+```apache
+# /etc/apache2/sites-available/example.com.conf
+<VirtualHost *:80>
+    ServerName example.com
+    DocumentRoot /var/www/example.com/public
+
+    <Directory /var/www/example.com/public>
+        AllowOverride All
+        Require all granted
+    </Directory>
+
+    # Proxy PHP to PHP-FPM
+    <FilesMatch \.php$>
+        SetHandler "proxy:unix:/var/run/php/php8.2-fpm.sock|fcgi://localhost"
+    </FilesMatch>
+
+    # Or use TCP socket
+    # <FilesMatch \.php$>
+    #     SetHandler "proxy:fcgi://127.0.0.1:9000"
+    # </FilesMatch>
+</VirtualHost>
+```
+
+```bash
+# Enable modules
+sudo a2enmod proxy_fcgi setenvif
+sudo a2enconf php8.2-fpm
+sudo systemctl restart apache2
+```
+
+---
+
+## Performance Tuning
+
+### Process Manager Modes
+
+| Mode       | Description                          | Best For            |
+| ---------- | ------------------------------------ | ------------------- |
+| `static`   | Fixed number of workers              | Predictable load    |
+| `dynamic`  | Workers adjust based on load         | Most workloads      |
+| `ondemand` | Workers spawn on demand, idle killed | Low-traffic servers |
+
+```ini
+; Static mode (consistent, higher memory)
+pm = static
+pm.max_children = 50
+
+; Dynamic mode (adaptive)
+pm = dynamic
+pm.max_children = 50
+pm.start_servers = 10
+pm.min_spare_servers = 5
+pm.max_spare_servers = 15
+pm.max_requests = 500
+
+; Ondemand mode (lowest memory, highest latency)
+pm = ondemand
+pm.max_children = 50
+pm.process_idle_timeout = 10s
+pm.max_requests = 500
+```
+
+### Worker Calculation
+
+```bash
+# General rule: max_children = (Available RAM - OS/Other processes) / PHP per worker
+# Check PHP per-worker memory:
+php -i | grep memory_limit                # Per-script limit
+# Typical PHP-FPM worker uses 20-50MB RSS
+
+# Example: 4GB server, 1GB for OS/other
+# Available: 3GB = 3072MB
+# Per worker: ~30MB
+# max_children = 3072 / 30 ≈ 100
+# But set lower: 50-70 for headroom
+```
+
+### Memory Monitoring
+
+```bash
+# Check per-process memory
+ps aux | grep "php-fpm: pool" | awk '{sum+=$6; count++} END {print "Total:", sum/1024, "MB, Per-worker:", (sum/count)/1024, "MB"}'
+
+# Monitor PHP memory usage
+php -r "echo memory_get_peak_usage() . ' bytes' . PHP_EOL;"
+```
+
+---
+
+## Useful Commands
+
+```bash
+# PHP version and modules
+php -v
+php -m                                   # List loaded modules
+php -i | grep -i opcache                 # Check OPcache config
+php --ini                                # Show loaded ini files
+
+# PHP-FPM specific
+php-fpm -t                               # Test config
+php-fpm -tt                              # Test with extra info
+php-fpm -h                               # Help
+
+# Socket status
+ss -tlnp | grep 9000                    # TCP socket
+ls -la /var/run/php/                     # Unix socket
+
+# Log monitoring
+tail -f /var/log/php8.2-fpm.log         # FPM log
+tail -f /var/log/php8.2-fpm-access.log  # Access log
+tail -f /var/log/php8.2-fpm-slow.log    # Slow log
+
+# Check active connections
+curl -s http://127.0.0.1/fpm-status | grep "active processes"
+```
+
+---

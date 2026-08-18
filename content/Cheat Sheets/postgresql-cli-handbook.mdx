@@ -1,0 +1,755 @@
+---
+title: PostgreSQL CLI Handbook
+description: Quick reference for essential PostgreSQL commands — psql client, database operations, user roles, backups, replication, extensions, performance tuning, and more.
+tags: [postgresql, postgres, psql, database, sql, cheat-sheet]
+keywords: [postgresql commands, postgresql cheat sheet, psql commands, postgres quick reference, database administration, postgres backup]
+publishedAt: 2026-08-18
+---
+
+
+
+## Installation & Setup
+
+### Install PostgreSQL
+
+```bash
+# Ubuntu / Debian
+sudo apt update
+sudo apt install -y postgresql postgresql-contrib
+
+# Fedora / RHEL
+sudo dnf install -y postgresql-server postgresql-contrib
+sudo postgresql-setup --initdb
+
+# macOS (Homebrew)
+brew install postgresql@16
+brew services start postgresql@16
+
+# Verify installation
+psql --version
+pg_config --version
+```
+
+### Start & Connect
+
+```bash
+# Ubuntu/Debian — runs as postgres user
+sudo systemctl status postgresql
+sudo systemctl start postgresql
+sudo systemctl enable postgresql
+
+# Connect as postgres superuser
+sudo -u postgres psql
+
+# Connect with specific host/user/database
+psql -h localhost -U postgres -d mydb
+psql postgresql://user:password@host:5432/dbname
+
+# Connect and run query
+psql -U postgres -d mydb -c "SELECT version();"
+
+# Execute SQL file
+psql -U postgres -d mydb -f script.sql
+
+# macOS
+brew services start postgresql@16
+psql postgres
+```
+
+### Shell Autocomplete
+
+```bash
+# Bash (via Homebrew or manual)
+mkdir -p ~/.local/share/bash-completion/completions
+psql --completion 2>/dev/null > ~/.local/share/bash-completion/completions/psql
+
+# Zsh — already included with Homebrew install
+# Fish
+mkdir -p ~/.config/fish/completions
+psql --completion fish > ~/.config/fish/completions/psql.fish
+```
+
+### Useful Aliases
+
+```bash
+alias pg='psql -U postgres'
+alias pgd='psql -U postgres -d'
+alias pgls='psql -U postgres -l'
+```
+
+---
+
+## Important Paths & Config Files
+
+### Configuration Files
+
+```bash
+/etc/postgresql/<version>/main/postgresql.conf   # Main config (Debian/Ubuntu)
+/etc/postgresql/<version>/main/pg_hba.conf       # Client auth config (Debian/Ubuntu)
+/etc/postgresql/<version>/main/pg_ident.conf     # Ident mapping (Debian/Ubuntu)
+
+# RHEL / Fedora / Homebrew
+/var/lib/pgsql/data/postgresql.conf
+/var/lib/pgsql/data/pg_hba.conf
+
+# Show config location from within psql
+SHOW config_file;
+SHOW hba_file;
+SHOW data_directory;
+SHOW log_directory;
+```
+
+### Data & Log Paths
+
+```bash
+/var/lib/postgresql/data/              # Default data directory (RHEL/Fedora)
+/var/lib/postgresql/<version>/main/    # Data directory (Debian/Ubuntu)
+/var/log/postgresql/                   # Log directory (Debian/Ubuntu)
+/var/run/postgresql/                   # Socket directory (Debian/Ubuntu)
+/var/run/postgresql/.s.PGSQL.5432     # Unix socket
+
+# macOS (Homebrew)
+/usr/local/var/postgres@16/           # Data directory
+/usr/local/var/log/postgres@16.log    # Log file
+/tmp/.s.PGSQL.5432                   # Unix socket
+```
+
+### Key Configuration
+
+```ini
+# postgresql.conf
+listen_addresses = '*'                 # Listen on all interfaces
+port = 5432                           # Default port
+max_connections = 200                  # Max simultaneous connections
+shared_buffers = 256MB                 # ~25% of system RAM
+effective_cache_size = 1GB            # ~75% of system RAM
+work_mem = 4MB                        # Per-query memory for sorts/hashes
+maintenance_work_mem = 64MB           # Memory for VACUUM, CREATE INDEX
+wal_buffers = 16MB                    # WAL buffer size
+checkpoint_completion_target = 0.9    # Spread checkpoints
+random_page_cost = 1.1               # SSD optimization (1.0-1.5)
+log_statement = 'all'                 # Log all statements
+log_duration = on                     # Log query durations
+log_min_duration_statement = 1000     # Log queries > 1s
+logging_collector = on                # Enable log file collection
+
+# pg_hba.conf — trust local connections (dev only)
+# TYPE  DATABASE  USER      ADDRESS         METHOD
+# local  all       postgres                  trust
+# host   all       all       127.0.0.1/32    md5
+# host   all       all       ::1/128         md5
+# host   mydb      appuser   10.0.0.0/24     md5
+```
+
+---
+
+## psql Client Meta-Commands
+
+### Database & Connection
+
+```bash
+\l                              # List databases
+\l+                             # List databases with details
+\c mydb                         # Connect to database
+\c dbname username host port    # Full connection string
+\conninfo                       # Show current connection info
+\q                              # Quit psql
+\r                              # Reconnect to current database
+```
+
+### Table & Schema
+
+```bash
+\t                              # List tables in current schema
+\t+ tablename                   # Describe table (verbose)
+\dt                             # List tables in current schema
+\dt+                            # List tables with sizes and descriptions
+\dt public.*                    # List tables in specific schema
+\ds                             # List sequences
+\d tablename                    # Describe table (columns, types, indexes)
+\d+ tablename                   # Describe table (verbose, with storage)
+\dS tablename                   # Show system columns too
+\di                             # List indexes
+\di+                            # List indexes with definitions
+\dv                             # List views
+\dv+                            # List views with definitions
+\dvW                            # List materialized views
+\dy                             # List event triggers
+\df                             # List functions
+\df+ function_name              # Show function definition
+\dn                             # List schemas
+\dn+                            # List schemas with descriptions
+\dp                             # List table privileges
+\du                             # List roles (users)
+\du+                            # List roles with details
+\du username                    # Show specific role
+\dy                             # List event triggers
+\encoding                       # Show client encoding
+```
+
+### Query Output
+
+```bash
+\x                              # Toggle expanded output (vertical rows)
+\x on                           # Enable expanded mode
+\x off                          # Disable expanded mode
+\t                              # Toggle tuple-only mode (no headers)
+\pset format aligned            # Aligned table format
+\pset format csv                # CSV format
+\pset format json               # JSON format (PostgreSQL 12+)
+\pset format tsop               # Tab-separated
+\pset format unaligned          # No separators
+\a                              # Toggle between aligned and unaligned
+\H                              # Toggle HTML output
+\o output.html                  # Send output to file
+\o | grep pattern               # Pipe output to shell command
+```
+
+### Query & Buffer
+
+```bash
+\e                              # Open current buffer in editor
+\e filename.sql                 # Open file in editor
+\i filename.sql                 # Execute SQL file
+\ir filename.sql                # Execute file (relative to working dir)
+\g                              # Re-execute last query
+\g filename.sql                 # Save last query to file
+\g | grep pattern               # Pipe query result to shell
+\p                              # Print current query buffer
+\r                              # Reset (clear) query buffer
+\w filename.sql                 # Write buffer to file
+```
+
+### History
+
+```bash
+\s                              # Print command history
+\s filename                     # Save history to file
+\!                              # Escape to shell
+```
+
+---
+
+## Database Operations
+
+### Create & Drop Databases
+
+```sql
+CREATE DATABASE mydb;                          -- Create database
+CREATE DATABASE mydb                           -- With encoding and locale
+  WITH ENCODING = 'UTF8'
+  LC_COLLATE = 'en_US.UTF-8'
+  LC_CTYPE = 'en_US.UTF-8'
+  TEMPLATE template0;
+
+CREATE DATABASE mydb OWNER myuser;             -- With specific owner
+DROP DATABASE mydb;                            -- Delete database
+DROP DATABASE IF EXISTS mydb;                  -- Drop if exists
+DROP DATABASE mydb WITH (FORCE);               -- Force drop (PostgreSQL 13+)
+
+-- From shell (psql not connected)
+createdb mydb                                  -- Create database
+createdb -U postgres -E UTF8 mydb             -- With encoding
+dropdb mydb                                   -- Drop database
+dropdb -U postgres mydb
+```
+
+### Copy Database
+
+```bash
+pg_dump -U postgres mydb | psql -U postgres newdb
+```
+
+---
+
+## User & Role Management
+
+PostgreSQL uses roles for all user and group management.
+
+### Create & Manage Roles
+
+```sql
+-- Create user (role with LOGIN)
+CREATE ROLE myuser WITH LOGIN PASSWORD 'password123';
+CREATE USER myuser WITH PASSWORD 'password123';  -- Same as above (alias)
+
+-- Create role with more options
+CREATE ROLE admin_role WITH LOGIN PASSWORD 'admin123'
+  CREATEDB CREATEREFRESHMATERIALIZEDVIEW
+  SUPERUSER;  -- DANGEROUS
+
+-- Modify role
+ALTER ROLE myuser WITH PASSWORD 'newpassword';
+ALTER ROLE myuser WITH LOGIN;                 -- Enable login
+ALTER ROLE myuser WITH NOLOGIN;              -- Disable login
+ALTER ROLE myuser CONNECTION LIMIT 10;        -- Limit connections
+ALTER ROLE myuser VALID UNTIL '2025-12-31';  -- Expiration date
+
+-- Drop role
+DROP ROLE IF EXISTS myuser;
+
+-- Create group role and assign
+CREATE ROLE dev_team;
+GRANT dev_team TO alice;
+GRANT dev_team TO bob;
+REVOKE dev_team FROM bob;
+```
+
+### Grant & Revoke Privileges
+
+```sql
+-- Grant privileges
+GRANT CONNECT ON DATABASE mydb TO myuser;          -- Allow connection
+GRANT USAGE ON SCHEMA public TO myuser;           -- Allow schema access
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO myuser;  -- Read all tables
+GRANT SELECT, INSERT, UPDATE, DELETE ON users TO myuser;  -- CRUD on table
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO myuser;
+GRANT ALL PRIVILEGES ON DATABASE mydb TO myuser;
+GRANT CREATE ON SCHEMA public TO myuser;
+
+-- Grant on future tables (auto-grant for new tables)
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+  GRANT SELECT ON TABLES TO myuser;
+
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO myuser;
+
+-- Revoke privileges
+REVOKE INSERT, UPDATE, DELETE ON users FROM myuser;
+REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM myuser;
+
+-- Show privileges
+\dp tablename                        -- Table privileges
+\du username                         -- Role privileges
+SELECT * FROM pg_roles;              -- All roles
+SELECT * FROM pg_tables WHERE schemaname = 'public';  -- All tables
+```
+
+---
+
+## Backup & Restore
+
+### pg_dump (Logical Backup)
+
+```bash
+# Backup single database
+pg_dump -U postgres mydb > mydb_backup.sql
+
+# Backup with custom format (compressible, parallel restore)
+pg_dump -U postgres -Fc mydb > mydb_backup.dump
+
+# Backup with specific format
+pg_dump -U postgres -Fp mydb > mydb_backup.sql     # Plain SQL
+pg_dump -U postgres -Fc mydb > mydb_backup.dump    # Custom
+pg_dump -U postgres -Fd mydb -j 4 -f /backup/mydb  # Directory (parallel)
+
+# Backup specific tables
+pg_dump -U postgres -t users -t orders mydb > tables_backup.sql
+
+# Backup with compression
+pg_dump -U postgres mydb | gzip > mydb_backup.sql.gz
+
+# Backup schema only
+pg_dump -U postgres --schema-only mydb > mydb_schema.sql
+
+# Backup data only
+pg_dump -U postgres --data-only mydb > mydb_data.sql
+
+# Backup roles and tablespaces
+pg_dumpall -U postgres --globals-only > globals.sql
+
+# Backup all databases
+pg_dumpall -U postgres > all_databases.sql
+```
+
+### pg_restore (Restore)
+
+```bash
+# Restore from custom format
+pg_restore -U postgres -d mydb mydb_backup.dump
+
+# Restore with parallel jobs
+pg_restore -U postgres -d mydb -j 4 mydb_backup.dump
+
+# Restore specific tables
+pg_restore -U postgres -d mydb -t users mydb_backup.dump
+
+# Restore from plain SQL
+psql -U postgres -d mydb < mydb_backup.sql
+
+# Restore compressed backup
+gunzip < mydb_backup.sql.gz | psql -U postgres -d mydb
+
+# Restore all databases
+psql -U postgres < all_databases.sql
+```
+
+### pg_basebackup (Physical Backup)
+
+```bash
+# Base backup for replication
+pg_basebackup -U replicator -D /backup/base -Fp -Xs -P -R
+
+# With compression
+pg_basebackup -U replicator -D /backup/base -Ft -z -Xs -P
+
+# With WAL streaming
+pg_basebackup -U replicator -D /backup/base -Fp -Xs -P \
+  --wal-method=stream
+```
+
+---
+
+## Replication
+
+### Streaming Replication Setup
+
+```sql
+-- On primary: create replication user
+CREATE ROLE replicator WITH REPLICATION LOGIN PASSWORD 'repl_password';
+
+-- primary server postgresql.conf
+-- wal_level = replica
+-- max_wal_senders = 5
+-- wal_keep_size = 1GB
+-- synchronous_standby_names = ''   # Async replication
+-- primary_conninfo = 'host=...'
+
+-- primary pg_hba.conf
+-- host   replication  replicator  10.0.0.0/24  md5
+```
+
+```bash
+# On replica: base backup
+pg_basebackup -h primary-host -U replicator -D /var/lib/postgresql/data \
+  -Fp -Xs -P -R
+
+# The -R flag creates standby.signal and writes primary_conninfo
+# Edit postgresql.conf on replica:
+# primary_conninfo = 'host=primary-host user=replicator password=...'
+
+# Start replica
+sudo systemctl start postgresql
+```
+
+### Check Replication
+
+```sql
+-- On primary
+SELECT client_addr, state, sent_lsn, write_lsn, replay_lsn,
+       replay_lag
+FROM pg_stat_replication;
+
+-- On replica
+SELECT * FROM pg_stat_wal_receiver;
+
+-- Check if replica is in recovery mode
+SELECT pg_is_in_recovery();  -- Returns true on replica
+```
+
+### Logical Replication (PostgreSQL 10+)
+
+```sql
+-- On publisher
+CREATE PUBLICATION my_pub FOR TABLE users, orders;
+CREATE PUBLICATION my_pub FOR ALL TABLES;
+
+-- On subscriber
+CREATE SUBSCRIPTION my_sub
+  CONNECTION 'host=publisher-host dbname=mydb user=replicator password=...'
+  PUBLICATION my_pub;
+
+-- Check subscription status
+SELECT * FROM pg_stat_subscription;
+SELECT * FROM pg_replication_slots;
+```
+
+---
+
+## Performance Tuning
+
+### Monitor Queries
+
+```sql
+-- Active queries
+SELECT pid, now() - pg_stat_activity.query_start AS duration, query, state
+FROM pg_stat_activity
+WHERE state != 'idle'
+ORDER BY duration DESC;
+
+-- Long-running queries
+SELECT pid, now() - pg_stat_activity.query_start AS duration, query
+FROM pg_stat_activity
+WHERE state = 'active' AND now() - pg_stat_activity.query_start > interval '5 minutes';
+
+-- Kill a query
+SELECT pg_cancel_backend(<pid>);      -- Cancel query
+SELECT pg_terminate_backend(<pid>);   -- Terminate connection
+
+-- Query plans (EXPLAIN)
+EXPLAIN SELECT * FROM users WHERE id = 1;
+EXPLAIN ANALYZE SELECT * FROM users WHERE id = 1;  -- With actual execution
+EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) SELECT * FROM users WHERE id = 1;
+
+-- Index usage
+SELECT schemaname, relname, indexrelname, idx_scan, idx_tup_read, idx_tup_fetch
+FROM pg_stat_user_indexes
+ORDER BY idx_scan DESC;
+
+-- Unused indexes
+SELECT schemaname, relname, indexrelname, idx_scan
+FROM pg_stat_user_indexes
+WHERE idx_scan = 0 AND schemaname NOT IN ('pg_catalog', 'pg_toast');
+
+-- Table bloat
+SELECT
+  schemaname, tablename,
+  pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) AS total_size,
+  pg_size_pretty(pg_relation_size(schemaname||'.'||tablename)) AS table_size,
+  pg_size_pretty(pg_indexes_size(schemaname || '.'::regclass)) AS index_size
+FROM pg_tables
+WHERE schemaname = 'public'
+ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
+
+-- Cache hit ratio
+SELECT
+  sum(blks_hit) AS cache_hit,
+  sum(blks_read) AS disk_read,
+  round(sum(blks_hit)::numeric / nullif(sum(blks_hit) + sum(blks_read), 0) * 100, 2) AS hit_ratio
+FROM pg_stat_database;
+```
+
+### VACUUM & ANALYZE
+
+```sql
+VACUUM;                                -- Clean up dead tuples
+VACUUM VERBOSE;                        -- With detailed output
+VACUUM ANALYZE;                        -- Clean up + update statistics
+VACUUM ANALYZE users;                  -- Specific table
+VACUUM FULL users;                     -- Full vacuum (reclaims disk, locks table)
+VACUUM FREEZE users;                   -- Prevent transaction ID wraparound
+
+-- Check bloat and vacuum status
+SELECT relname, n_dead_tup, n_live_tup,
+       round(n_dead_tup::numeric / nullif(n_live_tup, 0) * 100, 2) AS dead_ratio,
+       last_vacuum, last_autovacuum, last_analyze, last_autoanalyze
+FROM pg_stat_user_tables
+ORDER BY n_dead_tup DESC;
+
+-- Force autovacuum
+SELECT pg_catalog.set_config('autovacuum', 'on', false);
+```
+
+### Key Configuration Variables
+
+```ini
+# postgresql.conf — tune for your hardware
+
+# Memory (set based on system RAM)
+shared_buffers = 256MB                  # ~25% of RAM
+effective_cache_size = 1GB              # ~75% of RAM
+work_mem = 4MB                          # Per-sort/hash operation
+maintenance_work_mem = 64MB             # For VACUUM, CREATE INDEX
+
+# Checkpoints
+checkpoint_completion_target = 0.9
+max_wal_size = 1GB
+min_wal_size = 80MB
+
+# Write-ahead log
+wal_buffers = 16MB
+wal_level = replica                     # minimal, replica, logical
+fsync = on                              # DANGEROUS to turn off
+
+# Planner
+random_page_cost = 1.1                 # SSD = 1.0-1.5
+effective_io_concurrency = 200         # SSD = 200
+default_statistics_target = 100        # Higher = more accurate, slower ANALYZE
+
+# Autovacuum
+autovacuum_max_workers = 3
+autovacuum_naptime = 1min
+```
+
+---
+
+## Extensions
+
+### Manage Extensions
+
+```sql
+-- List available extensions
+SELECT * FROM pg_available_extensions;
+
+-- List installed extensions
+SELECT * FROM pg_extension;
+
+-- Install extension
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";        -- UUID generation
+CREATE EXTENSION IF NOT EXISTS "pg_trgm";          -- Trigram similarity
+CREATE EXTENSION IF NOT EXISTS "hstore";            -- Key-value store
+CREATE EXTENSION IF NOT EXISTS "btree_gin";         -- GIN index operators
+CREATE EXTENSION IF NOT EXISTS "btree_gist";        -- GiST index operators
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";          -- Cryptographic functions
+CREATE EXTENSION IF NOT EXISTS "pg_stat_statements";  -- Query statistics
+CREATE EXTENSION IF NOT EXISTS "postgis";           -- Geospatial (if installed)
+
+-- Remove extension
+DROP EXTENSION IF EXISTS pg_trgm;
+```
+
+### Useful Extensions
+
+| Extension | Purpose |
+|-----------|---------|
+| `uuid-ossp` | UUID v4 generation |
+| `pg_trgm` | Fuzzy text search with trigrams |
+| `pgcrypto` | Encryption, hashing |
+| `hstore` | Key-value data type |
+| `pg_stat_statements` | Query performance analysis |
+| `btree_gin` / `btree_gist` | Additional index operators |
+| `postgis` | Geospatial queries |
+| `pgvector` | Vector similarity search |
+| `pg_partman` | Table partitioning management |
+
+---
+
+## Useful Queries
+
+### Schema Introspection
+
+```sql
+-- Database size
+SELECT pg_size_pretty(pg_database_size('mydb'));
+
+-- All tables with sizes
+SELECT
+  schemaname, tablename,
+  pg_size_pretty(pg_total_relation_size(schemaname || '.' || tablename)) AS total_size,
+  pg_size_pretty(pg_relation_size(schemaname || '.' || tablename)) AS table_size
+FROM pg_tables
+WHERE schemaname = 'public'
+ORDER BY pg_total_relation_size(schemaname || '.' || tablename) DESC;
+
+-- Table column info
+SELECT column_name, data_type, is_nullable, column_default,
+       character_maximum_length
+FROM information_schema.columns
+WHERE table_schema = 'public' AND table_name = 'users'
+ORDER BY ordinal_position;
+
+-- List all sequences
+SELECT sequence_name, data_type, start_value, increment
+FROM information_schema.sequences
+WHERE sequence_schema = 'public';
+
+-- Active locks
+SELECT pid, relation, mode, granted, locktype
+FROM pg_locks
+WHERE NOT granted;
+
+-- Connections by database
+SELECT datname, numbackends, numbackends
+FROM pg_stat_database
+WHERE datname NOT LIKE 'template%';
+```
+
+---
+
+## Troubleshooting
+
+```bash
+# Connection refused
+sudo systemctl status postgresql        # Check if running
+sudo journalctl -u postgresql           # Check logs
+sudo cat /var/log/postgresql/error.log  # Error log
+
+# Too many connections
+psql -U postgres -c "SELECT count(*) FROM pg_stat_activity;"
+psql -U postgres -c "ALTER SYSTEM SET max_connections = 300;"
+sudo systemctl restart postgresql
+
+# Table is locked
+SELECT pid, relation, mode, granted FROM pg_locks WHERE NOT granted;
+SELECT pg_cancel_backend(<pid>);
+
+# Replication lag
+psql -U postgres -c "SELECT * FROM pg_stat_replication;"
+
+# Check disk space
+psql -U postgres -c "SELECT pg_size_pretty(pg_database_size('mydb'));"
+
+# Reset password (emergency access)
+# Edit pg_hba.conf: trust local connections temporarily
+# Restart PostgreSQL
+# ALTER USER postgres WITH PASSWORD 'newpassword';
+# Restore pg_hba.conf to md5/scram-sha-256
+```
+
+---
+
+## Command-Line Utilities
+
+```bash
+# Database management
+createdb mydb                          # Create database
+dropdb mydb                            # Drop database
+createuser myuser                      # Create user
+dropuser myuser                        # Drop user
+
+# Backup & restore
+pg_dump mydb > backup.sql              # Dump to SQL
+pg_dump -Fc mydb > backup.dump         # Dump custom format
+pg_restore -d mydb backup.dump         # Restore custom format
+pg_dumpall > all.sql                   # Dump all databases
+
+# Monitoring
+pg_top                                # Top-like monitoring
+pg_isready -h localhost               # Check if PostgreSQL is ready
+pg_lsclusters                         # List clusters (Debian/Ubuntu)
+
+# Table maintenance
+vacuumdb -U postgres mydb             # VACUUM entire database
+vacuumdb -U postgres --analyze mydb   # VACUUM + ANALYZE
+reindexdb -U postgres mydb            # Reindex all indexes
+reindexdb -U postgres -t users mydb   # Reindex specific table
+```
+
+---
+
+## Output Formatting
+
+### In psql
+
+```bash
+# Expanded mode (vertical rows — great for wide tables)
+\x on
+\x off
+
+# Custom prompts
+\set PROMPT1 '%/%R%# '             # user@database>
+\set PROMPT2 '... '                 # Continuation prompt
+
+# CSV output to file
+\copy (SELECT * FROM users) TO '/tmp/users.csv' WITH CSV HEADER
+
+# JSON output
+\pset format json
+SELECT * FROM users;
+
+# Timing
+\timing on                          # Show query execution time
+
+# Colors
+\pset pager off                     # Disable pager for short results
+```
+
+### Command-Line
+
+```bash
+# One-liner queries
+psql -U postgres -t -A -c "SELECT count(*) FROM users;"   # No headers, unaligned
+psql -U postgres -c "SELECT * FROM users;" -F, -A         # CSV (comma-separated)
+psql -U postgres -X -c "SELECT * FROM users;"             # No .psqlrc settings
+psql -U postgres -h 10.0.0.5 mydb -c "\dt"               # Remote query
+```

@@ -1,0 +1,647 @@
+---
+title: Proxmox CLI Handbook
+description: Quick reference for essential Proxmox VE commands — VM and container management, storage, networking, backups, clustering, and more.
+tags: [proxmox, pve, virtualization, cli, cheat-sheet, kvm, lxc]
+keywords: [proxmox commands, proxmox cheat sheet, proxmox cli reference, pve quick reference, vm management, lxc containers, proxmox backup]
+publishedAt: 2026-08-18
+---
+
+
+
+## Installation & Setup
+
+### Install Proxmox VE
+
+```bash
+# ISO installation (recommended)
+# Download from https://www.proxmox.com/en/downloads
+# Boot from ISO and follow installer
+
+# After install, remove enterprise repo (if no subscription)
+rm /etc/apt/sources.list.d/pve-enterprise.list
+
+# Add no-subscription repo
+echo "deb http://download.proxmox.com/debian/pve bookworm pve-no-subscription" > \
+  /etc/apt/sources.list.d/pve-no-subscription.list
+
+# Update
+apt update && apt full-upgrade -y
+
+# Remove enterprise repo warning (optional)
+apt install -y pve-manager
+
+# Verify
+pveversion
+pveversion -v
+```
+
+### Connect to Web UI & CLI
+
+```bash
+# Web UI
+https://<proxmox-host>:8006
+
+# SSH
+ssh root@<proxmox-host>
+
+# Proxmox shell (in web UI)
+# Or use the CLI directly via SSH
+```
+
+### License / Subscription
+
+```bash
+# Check subscription status
+pvesubscription get
+
+# Disable subscription nag (after updates)
+cat /etc/apt/apt.conf.d/no-nag > /dev/null
+# Or remove the Enterprise repo
+```
+
+---
+
+## Important Paths & Config Files
+
+```bash
+/etc/pve/                               # Cluster-wide config directory
+/etc/pve/qemu-server/                   # VM configuration files
+/etc/pve/lxc/                           # Container configuration files
+/etc/pve/storage.cfg                    # Storage configuration
+/etc/pve/pve-cluster/corosync.conf      # Cluster config
+/etc/pve/firewall/                       # Cluster firewall rules
+/etc/pve/priv/                           # Private keys and secrets
+/etc/pve/status/                         # Cluster status
+/var/lib/vz/                             # Default local storage
+/var/log/pve/                            # Proxmox logs
+/var/log/pve/tasks/                      # Task logs
+/var/log/pveaccess/                      # Access logs
+/var/lib/pve-cluster/                    # Cluster database
+```
+
+---
+
+## Node Management
+
+### Status & Info
+
+```bash
+pveversion                               # Proxmox version
+pveversion -v                            # Detailed version
+pveam status                             # APT repository status
+cat /etc/os-release                      # OS version
+uptime                                   # System uptime
+pvesh get /nodes/$(hostname)/status      # Node status
+```
+
+### Service Management
+
+```bash
+systemctl status pve-cluster              # Cluster service
+systemctl status pvedaemon                # Proxmox daemon
+systemctl status pveproxy                 # Web UI proxy
+systemctl status pvestatd                 # Status daemon
+systemctl status pve-ha-lrm               # HA local resource manager
+systemctl restart pve-cluster             # Restart cluster
+systemctl restart pvedaemon               # Restart daemon
+systemctl restart pveproxy                # Restart web UI
+```
+
+---
+
+## Virtual Machine (VM) Management
+
+### Create VM
+
+```bash
+# Create VM from command line
+qm create 100 \
+  --name myvm \
+  --ostype l26 \
+  --cores 2 \
+  --memory 4096 \
+  --balloon 2048 \
+  --net0 virtio,bridge=vmbr0 \
+  --scsihw virtio-scsi-single \
+  --scsi0 local-lvm:32 \
+  --ide2 local:iso/ubuntu-22.04-server.iso,media=cdrom \
+  --boot order=scsi0;ide2 \
+  --bios ovmf \
+  --efidisk0 local-lvm:1 \
+  --machine q35
+
+# Import VM from OVA/OVF
+qm importovf 999 /path/to/ovm.ovf local-lvm --name imported-vm
+
+# Import disk (raw/qcow2)
+qm importdisk 100 /path/to/disk.qcow2 local-lvm
+```
+
+### Start / Stop / Manage VM
+
+```bash
+qm start 100                            # Start VM
+qm stop 100                             # Stop VM (ACPI)
+qm shutdown 100                         # Graceful shutdown
+qm shutdown 100 --forceStop 1           # Graceful shutdown, force stop after 1 min
+qm suspend 100                          # Suspend (pause)
+qm resume 100                           # Resume from suspend
+qm reboot 100                           # Reboot VM
+qm reset 100                            # Hard reset
+qm destroy 100                          # Destroy VM (remove config + disks)
+qm destroy 100 --purge                  # Remove config, disks, and backups
+
+# Clone VM
+qm clone 100 101 --name myvm-clone
+qm clone 100 101 --full --name myvm-full-clone  # Full (independent) clone
+
+# Migrate VM (live migration)
+qm migrate 100 target-node --online     # Live migration
+qm migrate 100 target-node              # Offline migration
+```
+
+### VM Configuration
+
+```bash
+qm config 100                           # Show VM config
+qm set 100 --cores 4 --memory 8192      # Update CPU and memory
+qm set 100 --scsi0 local-lvm:64,resize=+32  # Expand disk by 32GB
+qm set 100 --net0 virtio,bridge=vmbr0,firewall=1  # Enable firewall on NIC
+qm set 100 --agent enabled              # Enable QEMU guest agent
+qm set 100 --ide2 local:iso/ubuntu.iso,media=cdrom  # Attach ISO
+qm set 100 --boot order=scsi0           # Set boot order
+qm set 100 --cpu host                   # Pass through host CPU
+qm set 100 --balloon 0                  # Disable ballooning
+
+# Remove device
+qm set 100 --delete scsi1               # Remove secondary disk
+qm set 100 --delete net1                # Remove second NIC
+
+# Resize disk
+qm resize 100 scsi0 +50G               # Add 50GB to disk
+
+# Backup VM
+vzdump 100 --storage local --compress zstd --mode snapshot
+
+# Move disk
+qm disk move 100 scsi0 local-lvm        # Move disk to different storage
+```
+
+### VM Disk Operations
+
+```bash
+# List disks
+qm disk list 100
+
+# Add disk
+qm set 100 --scsi1 local-lvm:32         # Add 32GB disk
+
+# Add raw disk file
+qm set 100 --scsi1 local:100/vm-100-disk-1.raw
+
+# Resize disk
+qm resize 100 scsi0 +20G                # Add 20GB
+
+# Import disk from external file
+qm importdisk 100 /path/to/disk.qcow2 local-lvm
+
+# Check disk health (from VM)
+smartctl -a /dev/sda
+```
+
+### VM Console
+
+```bash
+qm terminal 100                         # Serial console
+qm terminal 100 --iface serial0         # Specific serial interface
+
+# VNC / SPICE
+qm vncproxy 100                         # VNC proxy
+qm spiceproxy 100                       # SPICE proxy
+```
+
+---
+
+## LXC Container Management
+
+### Create Container
+
+```bash
+# Create container from template
+pveam available                          # List available templates
+pveam update                             # Update template list
+pveam install local:vztmpl/debian-12-standard_12.7-1_amd64.tar.zst
+
+pct create 200 local:vztmpl/debian-12-standard_12.7-1_amd64.tar.zst \
+  --hostname mycontainer \
+  --memory 1024 \
+  --swap 512 \
+  --cores 2 \
+  --net0 name=eth0,bridge=vmbr0,hwaddr=AA:BB:CC:DD:EE:FF,ip=dhcp \
+  --rootfs local-lvm:8 \
+  --storage local \
+  --unprivileged 1 \
+  --password secret123
+```
+
+### Start / Stop / Manage Container
+
+```bash
+pct start 200                            # Start container
+pct stop 200                             # Stop container
+pct reboot 200                           # Reboot container
+pct destroy 200                          # Destroy container (remove config + rootfs)
+pct destroy 200 --purge                  # Remove config, rootfs, and backups
+
+# Clone container
+pct clone 200 201 --hostname container-clone
+pct clone 200 201 --full                 # Full (independent) clone
+
+# Enter container
+pct enter 200                            # Enter container shell
+pct exec 200 -- ls /etc                  # Execute command in container
+pct exec 200 -- bash                     # Interactive bash
+
+# Migrate container
+pct migrate 200 target-node --online    # Live migration (if supported)
+```
+
+### Container Configuration
+
+```bash
+pct config 200                           # Show container config
+pct set 200 --memory 2048 --swap 1024   # Update memory
+pct set 200 --cores 4                    # Update CPU
+pct set 200 --rootfs local-lvm:16       # Expand rootfs to 16GB
+pct set 200 --net0 name=eth0,bridge=vmbr0,ip=10.0.0.100/24,gw=10.0.0.1  # Static IP
+pct set 200 --mp0 /mnt/data,mp=/mnt/data,bind=1,ro=0  # Add mount point
+pct set 200 --password newpassword       # Change root password
+pct set 200 --ostype debian              # Set OS type
+
+# Features
+pct set 200 --features nesting=1         # Enable nesting (Docker in LXC)
+pct set 200 --features fuse=1            # Enable FUSE mount
+
+# Remove device
+pct set 200 --delete net1                # Remove second NIC
+pct set 200 --delete mp0                 # Remove mount point
+```
+
+### Container Templates
+
+```bash
+pveam available                           # List available templates
+pveam update                              # Update template index
+pveam download local debian-12-standard  # Download template
+pveam list local                          # List local templates
+```
+
+---
+
+## Storage Management
+
+### Storage Configuration
+
+```bash
+# List storage
+pvesm status                              # Storage status
+pvesm list                                # List all storage volumes
+pvesm list local-lvm                     # List volumes in specific storage
+
+# Add storage
+# NFS
+pvesm add nfs nfs-storage \
+  --server 10.0.0.5 \
+  --export /volume1/data \
+  --content images,rootdir,vztmpl,backup \
+  --options vers=4.1
+
+# CIFS/SMB
+pvesm add cifs smb-storage \
+  --server 10.0.0.6 \
+  --share data \
+  --username admin \
+  --password secret \
+  --content images,backup
+
+# iSCSI
+pvesm add iscsi iscsi-storage \
+  --portal 10.0.0.7 \
+  --target iqn.2024-01.com.example:storage
+
+# ZFS
+pvesm add zfspool zfs-storage \
+  --pool rpool/data \
+  --content images,rootdir
+
+# Directory
+pvesm add dir local-backup \
+  --path /mnt/backup \
+  --content backup
+
+# GlusterFS
+pvesm add glusterfs gluster-storage \
+  --server gluster1 \
+  --volume gvol0
+
+# Remove storage
+pvesm remove nfs-storage
+```
+
+### Storage Status
+
+```bash
+pvesm status                              # All storage status
+pvesm status --type zfs                   # Filter by type
+pvesm list                                # List all volumes
+pvesm list local-lvm                     # List specific storage
+pvesm prune local                         # Prune old backups
+pvesm status | grep -v active             # Inactive storage
+```
+
+---
+
+## Backup & Restore
+
+### Backup VMs & Containers
+
+```bash
+# Backup VM
+vzdump 100 --storage local --compress zstd --mode snapshot
+
+# Backup container
+vzdump 200 --storage local --compress zstd --mode snapshot
+
+# Backup multiple VMs
+vzdump 100 101 102 --storage local --compress zstd
+
+# Backup all VMs
+vzdump --all --storage local --compress zstd
+
+# Scheduled backup (via web UI or API)
+# /etc/pve/vzdump.cron
+0 2 * * * root vzdump --all --storage local --compress zstd --mail root@example.com
+
+# Exclude VMs from backup
+vzdump --all --storage local --exclude 100,101
+
+# Backup modes
+# snapshot: Online backup (requires QEMU agent for quiesce)
+# suspend:  Offline backup (suspend, dump, resume)
+# stop:     Stop VM, backup, start (safest but downtime)
+```
+
+### Restore Backup
+
+```bash
+# Restore VM
+qmrestore /var/lib/vz/dump/vzdump-qemu-100-*.vma.zst 999
+
+# Restore container
+pctrestore /var/lib/vz/dump/vzdump-lxc-200-*.vma.zst 999
+```
+
+### List Backups
+
+```bash
+ls /var/lib/vz/dump/                      # List backup files
+vzdump --list                             # List backups with details
+```
+
+---
+
+## Networking
+
+### Network Configuration
+
+```bash
+# View network interfaces
+ip addr show
+ip route show
+brctl show                                # Bridge info (if bridge-utils installed)
+
+# Edit network config (Debian/Ubuntu style)
+cat /etc/network/interfaces
+
+# Restart networking
+systemctl restart networking
+
+# Proxmox firewall
+pve-firewall status                        # Firewall status
+pve-firewall enable                        # Enable firewall
+pve-firewall disable                       # Disable firewall
+```
+
+### Linux Bridge
+
+```bash
+# /etc/network/interfaces
+auto vmbr0
+iface vmbr0 inet static
+    address 10.0.0.1/24
+    gateway 10.0.0.1
+    bridge-ports eno1
+    bridge-stp off
+    bridge-fd 0
+```
+
+### VLAN Configuration
+
+```bash
+# /etc/network/interfaces with VLANs
+auto eno1
+iface eno1 inet manual
+
+auto vmbr0.100
+iface vmbr0.100 inet static
+    address 10.100.0.1/24
+    bridge-ports eno1.100
+    bridge-stp off
+    bridge-fd 0
+
+auto vmbr0.200
+iface vmbr0.200 inet static
+    address 10.200.0.1/24
+    bridge-ports eno1.200
+    bridge-stp off
+    bridge-fd 0
+```
+
+---
+
+## Clustering
+
+### Create & Manage Cluster
+
+```bash
+# Create cluster (first node)
+pvecm create mycluster
+
+# Join cluster (additional nodes)
+pvecm add <existing-node-ip>
+
+# Cluster status
+pvecm status
+pvecm nodes                               # List cluster nodes
+pvecm expected                           # Expected quorum votes
+pvecm qdevice setup                       # QDevice configuration
+
+# Remove node from cluster
+pvecm delnode <node-name>
+
+# Update cluster config
+pvecm updatecerts                         # Regenerate certificates
+```
+
+### HA (High Availability)
+
+```bash
+# HA resources (managed via web UI or API)
+ha-manager status                          # HA status
+ha-manager config                          # HA configuration
+
+# Add HA resource via API
+ha-manager add ha:vm:100 --group ha-group1
+
+# Remove HA resource
+ha-manager remove ha:vm:100
+
+# HA groups
+ha-manager group create ha-group1 node1,node2
+```
+
+---
+
+## Firewall
+
+```bash
+# Cluster-level firewall
+cat /etc/pve/firewall/cluster.fw          # Cluster firewall rules
+
+# Host-level firewall
+cat /etc/pve/nodes/<node>/host.fw        # Node firewall rules
+
+# VM-level firewall
+qm set 100 --firewall 1                  # Enable firewall for VM
+qm config 100 | grep firewall            # Check firewall status
+
+# Manage via API
+pvesh get /cluster/firewall/options      # Get firewall options
+pvesh set /cluster/firewall/options --enable 1  # Enable cluster firewall
+
+# IP Sets (groups)
+pvesh set /cluster/firewall/ipset/mygroup --cidr 10.0.0.0/24
+
+# Security groups
+pvesh set /cluster/firewall/securitygroups/web --comment "Web servers"
+```
+
+---
+
+## Updates & Package Management
+
+```bash
+# Update Proxmox
+apt update && apt full-upgrade -y
+
+# Check available updates
+pveam update
+apt list --upgradable
+
+# Update repository
+pveam update
+pveam status                              # Check repo status
+
+# Remove enterprise repo (if no subscription)
+rm /etc/apt/sources.list.d/pve-enterprise.list
+apt update
+
+# Proxmox VE version
+pveversion -v
+```
+
+---
+
+## Useful Commands
+
+### VM & Container Quick Reference
+
+```bash
+# List all VMs and containers
+qm list                                  # List VMs
+pct list                                 # List containers
+
+# Quick VM info
+qm status 100                            # VM status
+qm config 100                            # VM configuration
+qm guest cmd 100 get-network             # Get VM network info (requires agent)
+qm guest cmd 100 get-osinfo              # Get OS info
+
+# Quick container info
+pct status 200                           # Container status
+pct config 200                           # Container configuration
+pct exec 200 -- hostname                 # Get container hostname
+pct exec 200 -- df -h                    # Disk usage in container
+```
+
+### Backup Cron
+
+```bash
+# /etc/pve/vzdump.cron
+# Format: minute hour day-of-month month day-of-week user vzdump-params
+
+# Daily at 2 AM, all VMs, snapshot mode
+0 2 * * * root vzdump --all --storage local --compress zstd
+
+# Weekly full backup
+0 3 * * 0 root vzdump --all --storage backup-server --mode stop --compress zstd
+
+# Specific VMs
+0 2 * * * root vzdump 100 200 --storage local --compress zstd
+```
+
+---
+
+## Troubleshooting
+
+```bash
+# Service issues
+systemctl status pve-cluster              # Cluster service
+systemctl status pvedaemon                # Proxmox daemon
+systemctl status pveproxy                 # Web UI
+journalctl -u pveproxy -f                # Web UI logs
+journalctl -u pvedaemon -f               # Daemon logs
+
+# VM won't start
+qm config 100                            # Check VM config
+qm status 100                            # Check VM status
+cat /var/log/pve/tasks/active             # Check active tasks
+
+# Container won't start
+pct config 200                           # Check container config
+pct status 200                           # Check container status
+cat /var/log/pve/tasks/active             # Check active tasks
+
+# Storage issues
+pvesm status                             # Check storage status
+pvesm list                               # List volumes
+zpool status                              # Check ZFS pools (if using ZFS)
+lvs                                       # Check LVM volumes
+
+# Network issues
+ip addr show                              # Check interfaces
+ip route show                             # Check routes
+brctl show                                # Check bridges
+systemctl restart networking              # Restart networking
+
+# Cluster issues
+pvecm status                             # Cluster status
+pvecm nodes                              # Node status
+corosync-tool -s                         # Corosync status
+
+# Performance issues
+top                                       # CPU/memory usage
+iotop                                     # Disk I/O
+iftop                                     # Network traffic
+dmesg | tail                              # Kernel messages
+```

@@ -1,0 +1,613 @@
+---
+title: SQLite CLI Handbook
+description: Quick reference for essential SQLite commands — database operations, SQL syntax, pragmas, import/export, extensions, and more.
+tags: [sqlite, database, sql, cheat-sheet, embedded-db]
+keywords: [sqlite commands, sqlite cheat sheet, sqlite cli reference, sqlite quick reference, embedded database, sqlite administration]
+publishedAt: 2026-08-18
+---
+
+
+
+## Installation & Setup
+
+### Install SQLite
+
+```bash
+# Ubuntu / Debian
+sudo apt update
+sudo apt install -y sqlite3
+
+# Fedora / RHEL
+sudo dnf install -y sqlite
+
+# macOS (pre-installed or Homebrew)
+brew install sqlite
+
+# Verify
+sqlite3 --version
+```
+
+### Connect to SQLite
+
+```bash
+# Open/create database
+sqlite3 mydb.db
+
+# Open in-memory database
+sqlite3 :memory:
+
+# Open with specific options
+sqlite3 -header -csv mydb.db              # CSV output with headers
+sqlite3 -column -header mydb.db           # Column output with headers
+sqlite3 -json mydb.db                     # JSON output (SQLite 3.33+)
+sqlite3 -line mydb.db                     # Line output
+
+# Execute query and exit
+sqlite3 mydb.db "SELECT * FROM users;"
+
+# Execute multiple queries
+sqlite3 mydb.db "SELECT COUNT(*) FROM users; SELECT * FROM users LIMIT 5;"
+
+# Execute SQL file
+sqlite3 mydb.db < script.sql
+
+# Show help
+sqlite3 --help
+```
+
+---
+
+## SQLite Shell Commands
+
+### Database Operations
+
+```bash
+.open mydb.db                             # Open database
+.quit                                      # Exit
+.exit                                      # Same as .quit
+.headers on                                # Enable column headers
+.headers off                               # Disable column headers
+.mode column                               # Column-aligned output
+.mode csv                                  # CSV output
+.mode tsv                                  # Tab-separated output
+.mode line                                 # One line per row
+.mode list                                 # Separator-delimited (default)
+.mode json                                 # JSON output (SQLite 3.33+)
+.mode markdown                             # Markdown table
+.mode table                                # Box-drawing table
+.mode insert                               # SQL INSERT statements
+.mode quote                                # Quoted values
+.separator ","                             # Set CSV separator
+.width 10 20 30                            # Set column widths
+
+.output results.txt                        # Redirect output to file
+.output stdout                             # Redirect output to stdout
+.once filename.txt                         # Write next query to file
+
+.read script.sql                           # Execute SQL file
+.import data.csv tablename                 # Import CSV
+.import --csv data.csv tablename           # Explicit CSV import (SQLite 3.32+)
+.import --skip 1 data.csv tablename        # Skip header row
+
+.databases                                 # List databases
+.tables                                    # List tables
+.table tablename                           # Check if table exists
+.schema tablename                          # Show CREATE TABLE statement
+.schema                                    # Show all table schemas
+
+.indexes tablename                         # List indexes for table
+.indexes                                   # List all indexes
+
+.stats                                     # Show statistics
+.bail on                                   # Stop on errors
+.bail off                                  # Continue on errors
+.explain on                                # Explain mode (show opcodes)
+.explain off
+
+.timer on                                  # Show query execution time
+.timer off
+
+```
+
+### Useful Meta-Commands
+
+```bash
+.fullschema                                # Show complete schema (tables, views, triggers, indexes)
+.indices                                   # Same as .indexes
+.pragma                                    # Show all pragma values
+
+# Get table info
+PRAGMA table_info(users);                  # Column names, types, constraints
+PRAGMA table_xinfo(users);                 # Extended info (including hidden columns)
+
+# Get foreign key info
+PRAGMA foreign_key_list(users);
+
+# Database file info
+PRAGMA database_list;                      # List attached databases
+PRAGMA journal_mode;                       # Current journal mode
+PRAGMA page_count;                         # Number of pages
+PRAGMA page_size;                          # Page size in bytes
+PRAGMA freelist_count;                     # Free pages
+PRAGMA integrity_check;                    # Check database integrity
+```
+
+---
+
+## SQL Reference
+
+### Create Tables
+
+```sql
+-- Basic table
+CREATE TABLE users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  username TEXT NOT NULL UNIQUE,
+  email TEXT NOT NULL,
+  age INTEGER,
+  is_active BOOLEAN DEFAULT 1,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Table with constraints
+CREATE TABLE orders (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  total DECIMAL(10,2) NOT NULL,
+  status TEXT DEFAULT 'pending',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- Table with CHECK constraint
+CREATE TABLE products (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  price DECIMAL(10,2) CHECK (price >= 0),
+  quantity INTEGER CHECK (quantity >= 0)
+);
+
+-- Temporary table
+CREATE TEMPORARY TABLE tmp_results AS SELECT * FROM users WHERE is_active = 1;
+
+-- Create table with specific collation
+CREATE TABLE names (
+  name TEXT COLLATE NOCASE  -- Case-insensitive comparison
+);
+```
+
+### Alter Tables
+
+```sql
+-- Add column (SQLite 3.35+)
+ALTER TABLE users ADD COLUMN phone TEXT;
+
+-- Drop column (SQLite 3.35+)
+ALTER TABLE users DROP COLUMN phone;
+
+-- Rename table
+ALTER TABLE users RENAME TO members;
+
+-- Rename column (SQLite 3.25+)
+ALTER TABLE users RENAME COLUMN username TO login_name;
+```
+
+### Insert Data
+
+```sql
+-- Single row
+INSERT INTO users (username, email, age) VALUES ('alice', 'alice@example.com', 30);
+
+-- Multiple rows
+INSERT INTO users (username, email, age) VALUES
+  ('bob', 'bob@example.com', 25),
+  ('charlie', 'charlie@example.com', 35);
+
+-- Insert from SELECT
+INSERT INTO users_backup (username, email, age)
+  SELECT username, email, age FROM users WHERE is_active = 1;
+
+-- Insert or replace (upsert)
+INSERT OR REPLACE INTO users (username, email, age)
+  VALUES ('alice', 'alice@new.com', 31);
+
+-- Insert or ignore (skip duplicates)
+INSERT OR IGNORE INTO users (username, email, age)
+  VALUES ('alice', 'alice@example.com', 30);
+
+-- Insert on conflict (SQLite 3.24+)
+INSERT INTO users (username, email, age)
+  VALUES ('alice', 'alice@example.com', 30)
+  ON CONFLICT(username) DO UPDATE SET email = excluded.email, age = excluded.age;
+```
+
+### Query Data
+
+```sql
+-- Basic select
+SELECT * FROM users;
+SELECT id, username, email FROM users;
+
+-- Where clause
+SELECT * FROM users WHERE age > 25;
+SELECT * FROM users WHERE age BETWEEN 25 AND 35;
+SELECT * FROM users WHERE username LIKE 'alice%';
+SELECT * FROM users WHERE username IN ('alice', 'bob');
+SELECT * FROM users WHERE email IS NOT NULL;
+
+-- Order by
+SELECT * FROM users ORDER BY created_at DESC;
+SELECT * FROM users ORDER BY age ASC, username DESC;
+
+-- Limit and offset
+SELECT * FROM users LIMIT 10;
+SELECT * FROM users LIMIT 10 OFFSET 20;      -- Skip first 20
+SELECT * FROM users LIMIT 10, 20;             -- Alternative syntax
+
+-- Aggregate functions
+SELECT COUNT(*) FROM users;
+SELECT AVG(age) FROM users;
+SELECT MIN(age), MAX(age) FROM users;
+SELECT SUM(total) FROM orders WHERE status = 'completed';
+
+-- Group by
+SELECT status, COUNT(*) AS count, AVG(total) AS avg_total
+FROM orders
+GROUP BY status;
+
+-- Having
+SELECT status, COUNT(*) AS count
+FROM orders
+GROUP BY status
+HAVING COUNT(*) > 5;
+
+-- JOINs
+SELECT u.username, o.total, o.status
+FROM users u
+INNER JOIN orders o ON u.id = o.user_id;
+
+SELECT u.username, COALESCE(SUM(o.total), 0) AS total_spent
+FROM users u
+LEFT JOIN orders o ON u.id = o.user_id
+GROUP BY u.username;
+
+-- Subqueries
+SELECT * FROM users WHERE id IN (SELECT user_id FROM orders WHERE total > 100);
+
+-- EXISTS
+SELECT * FROM users u WHERE EXISTS (
+  SELECT 1 FROM orders o WHERE o.user_id = u.id AND o.total > 100
+);
+
+-- UNION
+SELECT username FROM users WHERE is_active = 1
+UNION
+SELECT username FROM users WHERE age > 30;
+
+-- Common Table Expression (CTE)
+WITH active_users AS (
+  SELECT * FROM users WHERE is_active = 1
+)
+SELECT * FROM active_users WHERE age > 25;
+
+-- Window functions (SQLite 3.25+)
+SELECT username, age,
+  RANK() OVER (ORDER BY age DESC) AS age_rank,
+  ROW_NUMBER() OVER (ORDER BY created_at) AS row_num,
+  SUM(total) OVER (PARTITION BY user_id) AS user_total
+FROM users;
+
+-- CASE expression
+SELECT username,
+  CASE
+    WHEN age < 25 THEN 'Young'
+    WHEN age BETWEEN 25 AND 40 THEN 'Adult'
+    ELSE 'Senior'
+  END AS age_group
+FROM users;
+```
+
+### Update Data
+
+```sql
+UPDATE users SET age = 31 WHERE username = 'alice';
+UPDATE users SET is_active = 0 WHERE age < 18;
+UPDATE users SET updated_at = CURRENT_TIMESTAMP WHERE id = 5;
+
+-- Update with JOIN-like behavior
+UPDATE orders SET status = 'expired'
+WHERE created_at < date('now', '-30 days') AND status = 'pending';
+
+-- Update or insert
+INSERT INTO settings (key, value) VALUES ('theme', 'dark')
+ON CONFLICT(key) DO UPDATE SET value = excluded.value;
+```
+
+### Delete Data
+
+```sql
+DELETE FROM users WHERE id = 5;
+DELETE FROM users WHERE is_active = 0;
+DELETE FROM orders WHERE created_at < date('now', '-365 days');
+
+-- Delete all rows (fast)
+DELETE FROM users;
+
+-- Delete with limit (requires specific approach)
+DELETE FROM users WHERE rowid IN (
+  SELECT rowid FROM users WHERE is_active = 0 LIMIT 1000
+);
+```
+
+---
+
+## PRAGMA (Database Configuration)
+
+### Performance PRAGMAs
+
+```sql
+-- Journal mode (affects durability vs performance)
+PRAGMA journal_mode = WAL;                 -- Write-Ahead Logging (recommended)
+PRAGMA journal_mode = DELETE;              -- Default, safest
+PRAGMA journal_mode = TRUNCATE;            -- Faster than DELETE
+PRAGMA journal_mode = MEMORY;              -- In-memory (dangerous)
+PRAGMA journal_mode = OFF;                 -- No journal (dangerous)
+
+-- Synchronous mode
+PRAGMA synchronous = FULL;                -- Safest (default)
+PRAGMA synchronous = NORMAL;              -- Good for WAL mode
+PRAGMA synchronous = OFF;                 -- Fastest (dangerous)
+
+-- Cache size
+PRAGMA cache_size = -64000;               -- 64MB (negative = KB)
+PRAGMA cache_size = 64000;                -- 64000 pages
+
+-- Memory-mapped I/O
+PRAGMA mmap_size = 268435456;             -- 256MB mmap
+
+-- Temp store
+PRAGMA temp_store = MEMORY;               -- Store temp tables in memory
+PRAGMA temp_store = FILE;                 -- Store temp tables on disk
+
+-- Page size
+PRAGMA page_size = 4096;                  -- Set page size (must be before creating tables)
+
+-- Auto vacuum
+PRAGMA auto_vacuum = INCREMENTAL;         -- Incremental vacuum
+PRAGMA auto_vacuum = FULL;                -- Full vacuum on every commit
+PRAGMA auto_vacuum = NONE;                -- No auto-vacuum
+
+-- Foreign keys
+PRAGMA foreign_keys = ON;                 -- Enable foreign key checks
+PRAGMA foreign_keys = OFF;                -- Disable (for bulk imports)
+
+-- Busy timeout
+PRAGMA busy_timeout = 5000;               -- Wait 5 seconds on lock
+
+-- Integrity check
+PRAGMA integrity_check;                   -- Check database integrity
+PRAGMA quick_check;                       -- Quick integrity check
+```
+
+### Schema PRAGMAs
+
+```sql
+-- Table info
+PRAGMA table_info(users);                  -- Column definitions
+PRAGMA table_xinfo(users);                -- Extended column info
+
+-- Foreign keys
+PRAGMA foreign_key_list(users);           -- Foreign key relationships
+
+-- Indexes
+PRAGMA index_list(users);                 -- Indexes on table
+PRAGMA index_info('idx_users_email');     -- Index details
+
+-- Database info
+PRAGMA database_list;                     -- Attached databases
+PRAGMA page_count;                        -- Total pages
+PRAGMA page_size;                         -- Page size
+PRAGMA freelist_count;                    -- Free pages
+PRAGMA journal_mode;                      -- Current journal mode
+PRAGMA encoding;                          -- Database encoding
+PRAGMA auto_vacuum;                       -- Auto-vacuum mode
+```
+
+---
+
+## Import & Export
+
+### Export Data
+
+```bash
+# Export to CSV
+sqlite3 mydb.db ".mode csv" ".headers on" ".output users.csv" "SELECT * FROM users;" ".quit"
+
+# Export to CSV (one-liner)
+sqlite3 -header -csv mydb.db "SELECT * FROM users;" > users.csv
+
+# Export to JSON
+sqlite3 -json mydb.db "SELECT * FROM users;" > users.json
+
+# Export to SQL
+sqlite3 mydb.db ".dump" > backup.sql
+
+# Export specific table
+sqlite3 mydb.db ".dump users" > users.sql
+
+# Export schema only
+sqlite3 mydb.db ".schema" > schema.sql
+```
+
+### Import Data
+
+```bash
+# Import CSV
+sqlite3 mydb.db ".import --csv users.csv users" "SELECT COUNT(*) FROM users;"
+
+# Import with headers (skip first row)
+sqlite3 mydb.db ".import --skip 1 --csv users.csv users"
+
+# Import from SQL
+sqlite3 mydb.db < backup.sql
+
+# Import from another SQLite database
+sqlite3 mydb.db ".read other.db"
+
+# Copy database
+sqlite3 mydb.db ".dump" | sqlite3 newdb.db
+```
+
+---
+
+## Useful Patterns
+
+### Database Maintenance
+
+```sql
+-- VACUUM (reclaim space, defragment)
+VACUUM;
+
+-- Analyze (update statistics for query planner)
+ANALYZE;
+
+-- Integrity check
+PRAGMA integrity_check;
+
+-- Reindex all indexes
+REINDEX;
+
+-- Incremental vacuum (keep N pages of freelist)
+PRAGMA incremental_vacuum(1000);
+```
+
+### Attach & Detach Databases
+
+```sql
+-- Attach another database
+ATTACH DATABASE 'other.db' AS other;
+
+-- Query attached database
+SELECT * FROM other.users;
+
+-- Detach
+DETACH DATABASE other;
+```
+
+### Create Index
+
+```sql
+-- Simple index
+CREATE INDEX idx_users_email ON users(email);
+
+-- Unique index
+CREATE UNIQUE INDEX idx_users_username ON users(username);
+
+-- Composite index
+CREATE INDEX idx_orders_user_status ON orders(user_id, status);
+
+-- Partial index (SQLite 3.8+)
+CREATE INDEX idx_active_users ON users(email) WHERE is_active = 1;
+
+-- Covering index (SQLite 3.8+)
+CREATE INDEX idx_cover ON users(email, username, age);
+
+-- Drop index
+DROP INDEX idx_users_email;
+
+-- List indexes
+.schema
+PRAGMA index_list(users);
+```
+
+### Useful SQLite Functions
+
+```sql
+-- Date/time functions
+SELECT datetime('now');                    -- Current timestamp
+SELECT date('now', '-1 day');              -- Yesterday
+SELECT strftime('%Y-%m-%d', 'now');        -- Format date
+SELECT julianday('now') - julianday('2024-01-01');  -- Days since date
+
+-- String functions
+SELECT upper('hello');                     -- HELLO
+SELECT lower('HELLO');                     -- hello
+SELECT length('hello');                    -- 5
+SELECT substr('hello', 1, 3);             -- hel
+SELECT replace('hello', 'l', 'L');        -- heLLo
+SELECT trim('  hello  ');                  -- hello
+SELECT group_concat(name, ', ') FROM users;  -- Comma-separated list
+
+-- Math functions
+SELECT abs(-5);                            -- 5
+SELECT round(3.14159, 2);                  -- 3.14
+SELECT min(1, 2, 3);                      -- 1
+SELECT max(1, 2, 3);                      -- 3
+
+-- Type functions
+SELECT typeof(42);                         -- integer
+SELECT typeof('hello');                    -- text
+SELECT typeof(3.14);                       -- real
+
+-- JSON functions (SQLite 3.9+)
+SELECT json_extract('{"name":"alice","age":30}', '$.name');  -- alice
+SELECT json_array(1, 2, 3);               -- [1,2,3]
+SELECT json_object('name', 'alice', 'age', 30);  -- {"name":"alice","age":30}
+
+-- Random
+SELECT abs(random());                      -- Random integer
+SELECT random() % 100;                     -- Random 0-99
+```
+
+---
+
+## Troubleshooting
+
+```bash
+# Database is locked
+PRAGMA busy_timeout = 5000;                # Increase timeout
+PRAGMA journal_mode = WAL;                 # Use WAL mode
+
+# Corruption
+PRAGMA integrity_check;                    # Check for corruption
+sqlite3 mydb.db ".recover" > recovered.sql  # Try to recover data
+sqlite3 recovered.db < recovered.sql       # Create new DB from recovered data
+
+# Database file permissions
+ls -la mydb.db                             # Check file permissions
+chmod 644 mydb.db                          # Fix permissions
+
+# WAL mode stuck
+PRAGMA wal_checkpoint(PASSIVE);            # Checkpoint WAL
+PRAGMA wal_checkpoint(TRUNCATE);           # Truncate WAL
+
+# Check database size
+SELECT page_count * page_size AS size FROM (SELECT pragma_page_count() AS page_count, pragma_page_size() AS page_size);
+
+# Performance issues
+PRAGMA compile_options;                    # Check compile options
+PRAGMA optimize;                           # Run optimizer
+```
+
+---
+
+## Output Formatting
+
+```bash
+# In sqlite3 shell
+.mode column                               # Column-aligned
+.mode csv                                  # CSV
+.mode json                                 # JSON (SQLite 3.33+)
+.mode markdown                             # Markdown
+.mode table                                # Box-drawing table
+.mode insert                               # SQL INSERT statements
+
+.headers on                                # Enable headers
+.width 20 30 15                            # Set column widths
+
+# Command-line formatting
+sqlite3 -header -csv mydb.db "SELECT * FROM users;" > users.csv
+sqlite3 -json mydb.db "SELECT * FROM users;" | jq .
+sqlite3 -column -header mydb.db "SELECT * FROM users;"
+```

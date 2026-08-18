@@ -1,0 +1,641 @@
+---
+title: InfluxDB CLI Handbook
+description: Quick reference for essential InfluxDB commands — InfluxQL, Flux, bucket management, retention policies, telegraf, performance tuning, and more.
+tags: [influxdb, influxql, flux, time-series, cheat-sheet, telegraf]
+keywords: [influxdb commands, influxdb cheat sheet, influxql reference, flux query, time-series database, influxdb administration]
+publishedAt: 2026-08-18
+---
+
+
+
+## Installation & Setup
+
+### Install InfluxDB
+
+```bash
+# Ubuntu / Debian (InfluxDB 2.x)
+curl -sL https://repos.influxdata.com/influxdata-archive.key | \
+  gpg --dearmor | sudo tee /usr/share/keyrings/influxdb-archive-keyring.gpg > /dev/null
+echo "deb [signed-by=/usr/share/keyrings/influxdb-archive-keyring.gpg] https://repos.influxdata.com/debian stable main" | \
+  sudo tee /etc/apt/sources.list.d/influxdata.list
+sudo apt update
+sudo apt install -y influxdb2
+
+# Fedora / RHEL
+sudo tee /etc/yum.repos.d/influxdata.repo << 'EOF'
+[influxdata]
+name=InfluxData Repository
+baseurl=https://repos.influxdata.com/rpm/8/$basearch/
+enabled=1
+gpgcheck=1
+gpgkey=https://repos.influxdata.com/influxdata-archive.key
+EOF
+sudo dnf install -y influxdb2
+
+# macOS (Homebrew)
+brew install influxdb@1.8       # InfluxDB 1.x
+brew install influxdb-cli       # InfluxDB CLI
+# OR for InfluxDB 2.x
+brew install influxdb
+
+# Docker
+docker run -d -p 8086:8086 \
+  -v influxdb-data:/var/lib/influxdb2 \
+  -v influxdb-config:/etc/influxdb2 \
+  influxdb:2.7
+
+# Verify
+influx version
+```
+
+### Initial Setup (InfluxDB 2.x)
+
+```bash
+# Setup (interactive)
+influx setup
+
+# Setup with flags
+influx setup \
+  --username admin \
+  --password secret123 \
+  --org myorg \
+  --bucket mybucket \
+  --retention 720h \
+  --force
+
+# Generate API token
+influx auth create --org myorg --description "read-write token" \
+  --read-bucket 0000000000000000 --write-bucket 0000000000000000
+
+# Verify token
+influx ping
+```
+
+### Connect to InfluxDB
+
+```bash
+# CLI connection
+influx --host http://localhost:8086 --org myorg --token mytoken --bucket mybucket
+
+# Or via config
+influx config create myconfig \
+  --host http://localhost:8086 \
+  --org myorg \
+  --token mytoken \
+  --default-bucket mybucket
+influx config set myconfig
+
+# REST API
+curl -H "Authorization: Token mytoken" http://localhost:8086/api/v2/ping
+```
+
+---
+
+## Important Paths & Config Files
+
+```bash
+# Linux
+/etc/influxdb/influxdb.conf          # InfluxDB 1.x config
+/etc/influxdb2/config.yml            # InfluxDB 2.x config
+/var/lib/influxdb/                   # Data directory (1.x)
+/var/lib/influxdb2/                  # Data directory (2.x)
+/var/log/influxdb/                   # Log directory
+
+# macOS (Homebrew)
+/usr/local/etc/influxdb.conf
+/opt/homebrew/etc/influxdb.conf      # Apple Silicon
+```
+
+### Key Configuration (influxdb.conf)
+
+```yaml
+# /etc/influxdb2/config.yml
+http-bind-address: ":8086"
+storage-path: "/var/lib/influxdb2"
+bolt-path: "/var/lib/influxdb2/influxd.bolt"
+engine-path: "/var/lib/influxdb2/engine"
+store: "bolt"
+bolt-path: "/var/lib/influxdb2/influxd.bolt"
+```
+
+---
+
+## InfluxDB 1.x (InfluxQL)
+
+### Create Database & Retention Policy
+
+```sql
+-- Create database
+CREATE DATABASE mydb
+
+-- Create with retention policy (auto-delete data after 30 days)
+CREATE DATABASE mydb WITH DURATION 30d REPLICATION 1 NAME "rp30d"
+
+-- Show databases
+SHOW DATABASES
+
+-- Show retention policies
+SHOW RETENTION POLICIES ON mydb
+
+-- Create retention policy
+CREATE RETENTION POLICY "rp_7d" ON mydb DURATION 7d REPLICATION 1 DEFAULT
+
+-- Modify retention policy
+ALTER RETENTION POLICY "rp_7d" ON mydb DURATION 30d
+
+-- Drop retention policy
+DROP RETENTION POLICY "rp_7d" ON mydb
+```
+
+### Write Data
+
+```sql
+-- Single point
+INSERT cpu,host=server01,region=us-west usage_idle=82.1,usage_user=12.4 1640000000000000000
+
+-- Multiple points
+INSERT cpu,host=server01,region=us-west usage_idle=82.1,usage_user=12.4
+INSERT cpu,host=server02,region=us-east usage_idle=90.3,usage_user=5.1
+
+-- Line protocol format:
+-- measurement,tag1=val1,tag2=val2 field1=value1,field2=value2 timestamp
+-- Tags: indexed, use for filtering (host, region, etc.)
+-- Fields: not indexed, use for actual values (cpu usage, temperature, etc.)
+-- Timestamp: nanoseconds (optional, auto-generated if omitted)
+```
+
+### Query Data
+
+```sql
+-- Select all
+SELECT * FROM cpu
+
+-- Last 1 hour
+SELECT * FROM cpu WHERE time > now() - 1h
+
+-- Last 24 hours, specific host
+SELECT mean("usage_idle") FROM cpu
+WHERE "host" = 'server01' AND time > now() - 24h
+
+-- Group by time interval (5-minute averages)
+SELECT mean("usage_idle") FROM cpu
+WHERE time > now() - 1h
+GROUP BY time(5m)
+
+-- Group by tags
+SELECT mean("usage_idle") FROM cpu
+WHERE time > now() - 1h
+GROUP BY "host"
+
+-- ORDER BY time DESC (most recent first)
+SELECT * FROM cpu ORDER BY time DESC LIMIT 10
+
+-- Fill null values
+SELECT mean("usage_idle") FROM cpu
+WHERE time > now() - 1h
+GROUP BY time(5m) FILL(linear)
+
+-- Moving average
+SELECT moving_average("usage_idle", 3) FROM cpu
+WHERE time > now() - 1h
+
+-- Top/bottom 5
+SELECT TOP("usage_idle", 5) FROM cpu WHERE time > now() - 1h
+SELECT BOTTOM("usage_idle", 5) FROM cpu WHERE time > now() - 1h
+
+-- Derivative
+SELECT derivative("usage_idle", 1m) FROM cpu WHERE time > now() - 1h
+
+-- Combine multiple measurements
+SELECT mean("usage_idle") AS avg_idle, mean("usage_user") AS avg_user
+FROM cpu
+WHERE time > now() - 1h
+GROUP BY time(5m)
+
+-- Show measurements in database
+SHOW MEASUREMENTS ON mydb
+
+-- Show tag keys
+SHOW TAG KEYS FROM cpu
+
+-- Show field keys
+SHOW FIELD KEYS FROM cpu
+
+-- Show series
+SHOW SERIES FROM cpu
+```
+
+### Continuous Queries (CQ)
+
+```sql
+-- Create continuous query (auto-downsample)
+CREATE CONTINUOUS QUERY "cq_5m_avg" ON mydb
+BEGIN
+  SELECT mean("usage_idle") AS "usage_idle"
+  INTO "rp_30d"."cpu_5m"
+  FROM "cpu"
+  GROUP BY time(5m), "host"
+END
+
+-- Show continuous queries
+SHOW CONTINUOUS QUERIES ON mydb
+
+-- Drop continuous query
+DROP CONTINUOUS QUERY "cq_5m_avg" ON mydb
+```
+
+### User Administration (1.x)
+
+```sql
+-- Create user
+CREATE USER "admin" WITH PASSWORD 'secret' WITH ALL PRIVILEGES
+CREATE USER "readonly" WITH PASSWORD 'secret'
+GRANT READ ON mydb TO "readonly"
+CREATE USER "appuser" WITH PASSWORD 'secret'
+GRANT WRITE ON mydb TO "appuser"
+
+-- Show users
+SHOW USERS
+
+-- Revoke privileges
+REVOKE ALL PRIVILEGES FROM "admin"
+REVOKE READ ON mydb FROM "readonly"
+
+-- Change password
+SET PASSWORD FOR "admin" = 'newpassword'
+```
+
+---
+
+## InfluxDB 2.x (Flux)
+
+### Bucket Management
+
+```bash
+# Create bucket
+influx bucket create --name mybucket --retention 30d --org myorg
+influx bucket create --name mybucket --retention 0 --org myorg  # Infinite retention
+
+# List buckets
+influx bucket list --org myorg
+
+# Delete bucket
+influx bucket delete --name mybucket --org myorg
+
+# Get bucket info
+influx bucket find --org myorg
+```
+
+### Write Data
+
+```bash
+# CLI write
+influx write --bucket mybucket --precision ns \
+  'cpu,host=server01 usage_idle=82.1,usage_user=12.4'
+influx write --bucket mybucket \
+  'cpu,host=server01 usage_idle=82.1,usage_user=12.4'
+influx write --bucket mybucket \
+  'cpu,host=server01 usage_idle=82.1,usage_user=12.4'
+
+# From file
+influx write --bucket mybucket --file data.lp
+```
+
+### Flux Query Language
+
+```flux
+// Basic query
+from(bucket: "mybucket")
+  |> range(start: -1h)
+  |> filter(fn: (r) => r._measurement == "cpu")
+  |> filter(fn: (r) => r._field == "usage_idle")
+  |> filter(fn: (r) => r.host == "server01")
+  |> mean()
+
+// Aggregate by time
+from(bucket: "mybucket")
+  |> range(start: -24h)
+  |> filter(fn: (r) => r._measurement == "cpu")
+  |> filter(fn: (r) => r._field == "usage_idle")
+  |> aggregateWindow(every: 5m, fn: mean, createEmpty: false)
+
+// Group by tag
+from(bucket: "mybucket")
+  |> range(start: -1h)
+  |> filter(fn: (r) => r._measurement == "cpu")
+  |> filter(fn: (r) => r._field == "usage_idle")
+  |> group(columns: ["host"])
+  |> mean()
+
+// Multiple fields
+from(bucket: "mybucket")
+  |> range(start: -1h)
+  |> filter(fn: (r) => r._measurement == "cpu")
+  |> filter(fn: (r) => r._field == "usage_idle" or r._field == "usage_user")
+  |> aggregateWindow(every: 5m, fn: mean, createEmpty: false)
+
+// Join two measurements
+import "join"
+cpu_data = from(bucket: "mybucket")
+  |> range(start: -1h)
+  |> filter(fn: (r) => r._measurement == "cpu")
+  |> filter(fn: (r) => r._field == "usage_idle")
+  |> aggregateWindow(every: 5m, fn: mean, createEmpty: false)
+
+mem_data = from(bucket: "mybucket")
+  |> range(start: -1h)
+  |> filter(fn: (r) => r._measurement == "mem")
+  |> filter(fn: (r) => r._field == "used_percent")
+  |> aggregateWindow(every: 5m, fn: mean, createEmpty: false)
+
+join.inner(left: cpu_data, right: mem_data, on: (l, r) => l._time == r._time and l.host == r.host)
+
+// Mathematical operations
+from(bucket: "mybucket")
+  |> range(start: -1h)
+  |> filter(fn: (r) => r._measurement == "cpu")
+  |> filter(fn: (r) => r._field == "usage_idle" or r._field == "usage_user")
+  |> map(fn: (r) => ({r with _value: 100.0 - r._value}))
+
+// Shift time
+from(bucket: "mybucket")
+  |> range(start: -1h)
+  |> filter(fn: (r) => r._measurement == "cpu")
+  |> timeShift(duration: -1h)
+
+// Moving average
+from(bucket: "mybucket")
+  |> range(start: -24h)
+  |> filter(fn: (r) => r._measurement == "cpu")
+  |> filter(fn: (r) => r._field == "usage_idle")
+  |> movingAverage(n: 3)
+
+// Top/Bottom N
+from(bucket: "mybucket")
+  |> range(start: -1h)
+  |> filter(fn: (r) => r._measurement == "cpu")
+  |> filter(fn: (r) => r._field == "usage_idle")
+  |> sort(columns: ["_value"], desc: true)
+  |> limit(n: 5)
+
+// Keep only specific fields
+from(bucket: "mybucket")
+  |> range(start: -1h)
+  |> filter(fn: (r) => r._measurement == "cpu")
+  |> keep(columns: ["_time", "_value", "host"])
+
+// Rename columns
+from(bucket: "mybucket")
+  |> range(start: -1h)
+  |> filter(fn: (r) => r._measurement == "cpu")
+  |> rename(columns: {"usage_idle": "idle_percent"})
+
+// Duplicate column
+from(bucket: "mybucket")
+  |> range(start: -1h)
+  |> filter(fn: (r) => r._measurement == "cpu")
+  |> duplicate(column: "usage_idle", as: "idle_pct")
+
+// Fill null values
+from(bucket: "mybucket")
+  |> range(start: -1h)
+  |> filter(fn: (r) => r._measurement == "cpu")
+  |> aggregateWindow(every: 5m, fn: mean)
+  |> fill(value: 0.0)
+
+// Unique values
+from(bucket: "mybucket")
+  |> range(start: -1h)
+  |> filter(fn: (r) => r._measurement == "cpu")
+  |> distinct(column: "host")
+
+// Write query results to another bucket
+from(bucket: "mybucket")
+  |> range(start: -1h)
+  |> filter(fn: (r) => r._measurement == "cpu")
+  |> filter(fn: (r) => r._field == "usage_idle")
+  |> aggregateWindow(every: 5m, fn: mean)
+  |> to(bucket: "archive", org: "myorg")
+```
+
+---
+
+## Task Management
+
+```bash
+# Create task (runs Flux query periodically)
+influx task create --org myorg \
+  --name "downsample_5m" \
+  --every 5m \
+  --flux '
+    from(bucket: "mybucket")
+      |> range(start: -10m)
+      |> filter(fn: (r) => r._measurement == "cpu")
+      |> aggregateWindow(every: 5m, fn: mean)
+      |> to(bucket: "archive")
+  '
+
+# List tasks
+influx task list --org myorg
+
+# Get task run history
+influx task run list --task-id <id>
+
+# Enable/disable task
+influx task enable --task-id <id>
+influx task disable --task-id <id>
+
+# Delete task
+influx task delete --task-id <id>
+```
+
+---
+
+## Telegraf
+
+### Telegraf Configuration
+
+```toml
+# /etc/telegraf/telegraf.conf
+[agent]
+  interval = "10s"
+  flush_interval = "10s"
+
+[[inputs.cpu]]
+  percpu = true
+  totalcpu = true
+  collect_cpu_freq = false
+
+[[inputs.mem]]
+  # no configuration
+
+[[inputs.disk]]
+  ignore_fs = ["tmpfs", "devtmpfs", "devfs", "iso9660", "overlay", "aufs", "squashfs"]
+
+[[inputs.system]]
+
+[[outputs.influxdb_v2]]
+  urls = ["http://localhost:8086"]
+  token = "$INFLUX_TOKEN"
+  organization = "myorg"
+  bucket = "mybucket"
+
+[[outputs.influxdb_v2]]
+  urls = ["http://localhost:8086"]
+  token = "$INFLUX_TOKEN"
+  organization = "myorg"
+  bucket = "mybucket"
+```
+
+### Telegraf Commands
+
+```bash
+# Test config
+telegraf --config /etc/telegraf/telegraf.conf --test
+
+# Run once
+telegraf --config /etc/telegraf/telegraf.conf --test
+
+# Print sample config
+telegraf --sample-config
+
+# Print config for specific input/output
+telegraf --sample-config --input-filter cpu --output-filter influxdb_v2
+
+# Service management
+sudo systemctl start telegraf
+sudo systemctl stop telegraf
+sudo systemctl restart telegraf
+sudo systemctl status telegraf
+```
+
+---
+
+## Backup & Restore
+
+### InfluxDB 2.x
+
+```bash
+# Backup
+influx backup /path/to/backup --bucket mybucket --org myorg
+influx backup /path/to/backup --full --org myorg  # All buckets + config
+
+# Restore
+influx restore /path/to/backup --org myorg
+influx restore /path/to/backup --bucket mybucket --org myorg
+```
+
+### InfluxDB 1.x
+
+```bash
+# Backup
+influxd backup /path/to/backup
+influxd backup -database mydb /path/to/backup
+
+# Restore
+influxd restore /path/to/backup
+influxd restore -database mydb /path/to/backup
+```
+
+---
+
+## Authentication & Security
+
+```bash
+# Create API token
+influx auth create --org myorg --description "read-only token" \
+  --read-bucket <bucket-id>
+
+# List tokens
+influx auth list --org myorg
+
+# Revoke token
+influx auth delete --id <token-id>
+
+# Create org
+influx org create --name myorg
+
+# List orgs
+influx org list
+```
+
+---
+
+## Useful Queries
+
+### Flux
+
+```javascript
+// Get all measurements in a bucket
+import "influxdata/influxdb/schema"
+schema.measurements(bucket: "mybucket")
+
+// Get tag keys
+import "influxdata/influxdb/schema"
+schema.tagKeys(bucket: "mybucket")
+schema.tagValues(bucket: "mybucket", tag: "host")
+
+// Get field keys
+schema.fieldKeys(bucket: "mybucket")
+
+// Check for null values
+from(bucket: "mybucket")
+  |> range(start: -1h)
+  |> filter(fn: (r) => r._measurement == "cpu")
+  |> count()
+
+// Rate of change
+from(bucket: "mybucket")
+  |> range(start: -1h)
+  |> filter(fn: (r) => r._measurement == "network")
+  |> filter(fn: (r) => r._field == "bytes_recv")
+  |> derivative(unit: 1s, nonNegative: true)
+```
+
+### InfluxQL
+
+```sql
+-- Check database size
+SHOW DATABASES
+SHOW RETENTION POLICIES ON mydb
+
+-- Show all measurements
+SHOW MEASUREMENTS ON mydb
+
+-- Show all tags
+SHOW TAG KEYS ON mydb
+
+-- Show all fields
+SHOW FIELD KEYS ON mydb
+
+-- Count points in measurement
+SELECT COUNT(*) FROM cpu WHERE time > now() - 1h
+```
+
+---
+
+## Troubleshooting
+
+```bash
+# Connection issues
+influx ping --host http://localhost:8086
+curl http://localhost:8086/health
+
+# Check logs
+sudo journalctl -u influxdb -f
+sudo tail -f /var/log/influxdb/influxdb.log
+
+# Check data directory
+du -sh /var/lib/influxdb2/
+ls -la /var/lib/influxdb2/
+
+# Delete data (dangerous)
+influx delete --bucket mybucket --start 1970-01-01T00:00:00Z --stop 2025-12-31T23:59:59Z
+
+# Reset password (1.x)
+# Edit influxdb.conf, set auth-enabled = false
+# Restart, create new admin, re-enable auth
+
+# Check engine status
+influx backup /tmp/backup-test --bucket test --org myorg
+```

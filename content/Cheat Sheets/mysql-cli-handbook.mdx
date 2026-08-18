@@ -1,0 +1,739 @@
+---
+title: MySQL CLI Handbook
+description: Quick reference for essential MySQL commands — server management, database operations, user administration, replication, backup, performance tuning, and more.
+tags: [mysql, cli, database, sql, cheat-sheet, mariadb]
+keywords:
+  [
+    mysql commands,
+    mysql cheat sheet,
+    mysql cli reference,
+    mysql quick reference,
+    database management,
+    mysql administration,
+  ]
+publishedAt: 2026-08-18
+---
+
+## Installation & Setup
+
+### Install MySQL Server
+
+```bash
+# Ubuntu / Debian
+sudo apt update
+sudo apt install -y mysql-server
+
+# Fedora / RHEL
+sudo dnf install -y mysql-server
+
+# macOS (Homebrew)
+brew install mysql
+brew services start mysql
+
+# Verify installation
+mysql --version
+```
+
+### Initial Secure Setup
+
+```bash
+# Interactive security script (sets root password, removes test DB, etc.)
+sudo mysql_secure_installation
+
+# Check if MySQL is running
+sudo systemctl status mysql
+sudo systemctl start mysql
+sudo systemctl enable mysql
+
+# On macOS
+brew services start mysql
+mysql.server start
+```
+
+### Connect to MySQL
+
+```bash
+mysql                                # Connect as current OS user (Unix socket)
+mysql -u root                        # Connect as root
+mysql -u root -p                     # Connect with password prompt
+mysql -u root -p -h 127.0.0.1       # Connect via TCP (specific host)
+mysql -u root -p -h 127.0.0.1 -P 3307  # Connect to specific port
+mysql -u root -p dbname              # Connect directly to a database
+mysql -u root -p --socket=/var/run/mysqld/mysqld.sock  # Specific socket
+mysql -u root -p -e "SELECT 1"      # Execute query and exit
+mysql -u root -p dbname < script.sql # Execute SQL file
+```
+
+---
+
+## Important Paths & Config Files
+
+### Configuration Files
+
+```bash
+/etc/mysql/my.cnf                    # Main config file (Ubuntu/Debian)
+/etc/mysql/mysql.conf.d/mysqld.cnf   # Server config (Ubuntu/Debian)
+/etc/mysql/conf.d/                    # Additional config snippets
+/etc/my.cnf                           # Main config (RHEL/Fedora)
+/etc/my.cnf.d/                        # Additional config snippets
+~/.my.cnf                             # User-specific config
+~/.mysql_history                      # Command history
+```
+
+### Data & Log Paths
+
+```bash
+/var/lib/mysql/                       # Data directory (default)
+/var/log/mysql/                       # Log directory
+/var/log/mysql/error.log              # Error log
+/var/run/mysqld/mysqld.sock           # Unix socket (default)
+/var/run/mysqld/mysqld.pid            # PID file
+
+# macOS (Homebrew)
+/usr/local/var/mysql/                 # Data directory
+/usr/local/etc/my.cnf                 # Config file
+/usr/local/var/log/mysql/error.log    # Error log
+```
+
+### Configuration Snippet
+
+```ini
+# ~/.my.cnf — convenience for local development
+[client]
+user=root
+password=mysecret
+host=localhost
+
+[mysql]
+auto-rehash
+prompt="\\u@\\h [\\d]> "
+```
+
+---
+
+## Server Management
+
+### Status & Variables
+
+```bash
+mysqladmin -u root -p status          # Server status
+mysqladmin -u root -p processlist     # Running processes
+mysqladmin -u root -p version         # Server version
+mysqladmin -u root -p variables       # All server variables
+mysqladmin -u root -p flush-logs      # Rotate logs
+mysqladmin -u root -p flush-hosts     # Clear host cache
+mysqladmin -u root -p flush-tables    # Flush open tables
+mysqladmin -u root -p flush-privileges  # Reload grants
+
+# In MySQL client
+SHOW STATUS;                          # Server status variables
+SHOW STATUS LIKE 'Threads%';          # Filter status
+SHOW VARIABLES;                       # All system variables
+SHOW VARIABLES LIKE 'max_connections';  # Specific variable
+SHOW PROCESSLIST;                     # Running queries
+SHOW FULL PROCESSLIST;                # Running queries (full text)
+SHOW ENGINE INNODB STATUS\G           # InnoDB engine status
+SHOW DATABASES;                       # List all databases
+SHOW SCHEMAS;                         # Same as SHOW DATABASES
+SHOW WARNINGS;                        # Last query warnings
+SHOW ERRORS;                          # Last query errors
+SHOW GRANTS FOR 'user'@'host';       # Show user privileges
+SHOW CREATE TABLE tablename;          # Show CREATE TABLE statement
+SHOW TABLE STATUS;                    # Table details (engine, rows, etc.)
+```
+
+---
+
+## Database Operations
+
+### Create & Drop Databases
+
+```sql
+CREATE DATABASE mydb;                          -- Create database
+CREATE DATABASE IF NOT EXISTS mydb;            -- Create if not exists
+CREATE DATABASE mydb CHARACTER SET utf8mb4     -- With charset & collation
+  COLLATE utf8mb4_unicode_ci;
+DROP DATABASE mydb;                            -- Delete database (DANGER)
+DROP DATABASE IF EXISTS mydb;                  -- Drop if exists
+
+SHOW CREATE DATABASE mydb;                     -- Show create statement
+ALTER DATABASE mydb CHARACTER SET utf8mb4      -- Change charset
+  COLLATE utf8mb4_unicode_ci;
+```
+
+### Use & Switch Databases
+
+```sql
+USE mydb;                            -- Switch to database
+SELECT DATABASE();                   -- Show current database
+```
+
+---
+
+## Table Operations
+
+### Create Tables
+
+```sql
+CREATE TABLE users (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  username VARCHAR(50) NOT NULL UNIQUE,
+  email VARCHAR(100) NOT NULL,
+  password_hash VARCHAR(255) NOT NULL,
+  is_active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_email (email),
+  INDEX idx_username (username)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Create table from another table structure
+CREATE TABLE users_backup LIKE users;
+CREATE TABLE users_copy AS SELECT * FROM users;
+
+-- Temporary table (session only)
+CREATE TEMPORARY TABLE tmp_users AS SELECT * FROM users WHERE is_active = 1;
+```
+
+### Alter Tables
+
+```sql
+ALTER TABLE users ADD COLUMN bio TEXT;                    -- Add column
+ALTER TABLE users ADD COLUMN phone VARCHAR(20) AFTER email;  -- Add after specific column
+ALTER TABLE users DROP COLUMN phone;                      -- Drop column
+ALTER TABLE users MODIFY COLUMN bio TEXT NOT NULL;        -- Modify column definition
+ALTER TABLE users CHANGE COLUMN bio biography TEXT;       -- Rename + modify
+ALTER TABLE users RENAME TO members;                      -- Rename table
+ALTER TABLE users ADD INDEX idx_bio (bio);                -- Add index
+ALTER TABLE users ADD UNIQUE INDEX idx_email (email);     -- Add unique index
+ALTER TABLE users DROP INDEX idx_bio;                     -- Drop index
+ALTER TABLE users ENGINE=InnoDB;                          -- Change storage engine
+```
+
+### Show Tables
+
+```sql
+SHOW TABLES;                          -- List tables in current DB
+SHOW TABLES FROM mydb;                -- List tables in specific DB
+DESCRIBE users;                       -- Show columns (short)
+SHOW COLUMNS FROM users;              -- Show columns (full)
+SHOW COLUMNS FROM users LIKE '%name%'; -- Filter columns
+SHOW CREATE TABLE users;              -- Full CREATE TABLE statement
+```
+
+### Drop Tables
+
+```sql
+DROP TABLE IF EXISTS users;           -- Remove table
+DROP TABLE IF EXISTS users, orders;   -- Remove multiple tables
+TRUNCATE TABLE users;                 -- Remove all rows (fast, resets AUTO_INCREMENT)
+DELETE FROM users;                    -- Remove all rows (slower, logged)
+```
+
+---
+
+## CRUD Operations
+
+### Insert Data
+
+```sql
+INSERT INTO users (username, email, password_hash) VALUES
+  ('alice', 'alice@example.com', 'hash1'),
+  ('bob', 'bob@example.com', 'hash2');
+
+INSERT INTO users SET username = 'charlie', email = 'charlie@example.com', password_hash = 'hash3';
+
+-- Insert from SELECT
+INSERT INTO users_backup (username, email, password_hash)
+  SELECT username, email, password_hash FROM users WHERE is_active = 1;
+```
+
+### Query Data
+
+```sql
+SELECT * FROM users;                              -- All columns, all rows
+SELECT id, username, email FROM users;            -- Specific columns
+SELECT DISTINCT email FROM users;                 -- Unique values
+SELECT COUNT(*) AS total FROM users;              -- Count rows
+SELECT * FROM users WHERE is_active = 1;          -- With condition
+SELECT * FROM users ORDER BY created_at DESC;     -- Sorted
+SELECT * FROM users LIMIT 10;                     -- First 10 rows
+SELECT * FROM users LIMIT 10 OFFSET 20;           -- Pagination
+SELECT * FROM users LIMIT 20, 10;                 -- Alternative pagination
+SELECT * FROM users WHERE username LIKE 'alice%'; -- Pattern matching
+SELECT * FROM users WHERE id IN (1, 3, 5);        -- IN list
+SELECT * FROM users WHERE email IS NOT NULL;      -- NULL check
+SELECT * FROM users WHERE created_at BETWEEN '2024-01-01' AND '2024-12-31';
+
+-- JOINs
+SELECT u.username, o.order_id, o.total
+FROM users u
+INNER JOIN orders o ON u.id = o.user_id;
+
+SELECT u.username, COALESCE(COUNT(o.order_id), 0) AS order_count
+FROM users u
+LEFT JOIN orders o ON u.id = o.user_id
+GROUP BY u.username;
+
+-- Subqueries
+SELECT * FROM users WHERE id IN (SELECT user_id FROM orders WHERE total > 100);
+
+-- Aggregate functions
+SELECT department, COUNT(*) AS count, AVG(salary) AS avg_salary
+FROM employees
+GROUP BY department
+HAVING COUNT(*) > 5
+ORDER BY avg_salary DESC;
+```
+
+### Update Data
+
+```sql
+UPDATE users SET is_active = 0 WHERE id = 5;
+UPDATE users SET updated_at = NOW() WHERE id = 5;
+UPDATE users SET email = 'new@example.com' WHERE username = 'alice';
+
+-- Multi-table update (MySQL specific)
+UPDATE users u
+INNER JOIN orders o ON u.id = o.user_id
+SET u.last_order = o.order_id
+WHERE o.created_at > '2024-01-01';
+```
+
+### Delete Data
+
+```sql
+DELETE FROM users WHERE id = 5;
+DELETE FROM users WHERE is_active = 0;
+DELETE FROM users ORDER BY created_at LIMIT 100;  -- Delete in batches
+
+-- Safely delete with LIMIT in production (avoid full table lock)
+-- Use a loop or: DELETE FROM users WHERE is_active = 0 LIMIT 1000;
+```
+
+---
+
+## User Administration
+
+### Create & Manage Users
+
+```sql
+-- Create user
+CREATE USER 'appuser'@'localhost' IDENTIFIED BY 'password123';
+CREATE USER 'appuser'@'%' IDENTIFIED BY 'password123';            -- Any host
+CREATE USER 'appuser'@'192.168.1.%' IDENTIFIED BY 'password123'; -- Specific subnet
+
+-- Modify user
+ALTER USER 'appuser'@'localhost' IDENTIFIED BY 'newpassword';
+RENAME USER 'oldname'@'localhost' TO 'newname'@'localhost';
+
+-- Drop user
+DROP USER IF EXISTS 'appuser'@'localhost';
+
+-- Change own password
+ALTER USER USER() IDENTIFIED BY 'newpassword';
+```
+
+### Grant & Revoke Privileges
+
+```sql
+-- Grant specific privileges
+GRANT SELECT, INSERT, UPDATE, DELETE ON mydb.* TO 'appuser'@'localhost';
+GRANT ALL PRIVILEGES ON mydb.* TO 'appuser'@'localhost';
+GRANT ALL PRIVILEGES ON *.* TO 'admin'@'localhost' WITH GRANT OPTION;
+
+-- Read-only user
+GRANT SELECT ON mydb.* TO 'readonly'@'localhost';
+
+-- Grant specific table access
+GRANT SELECT, INSERT ON mydb.users TO 'appuser'@'localhost';
+
+-- Apply grants
+FLUSH PRIVILEGES;
+
+-- Revoke privileges
+REVOKE INSERT, UPDATE ON mydb.* FROM 'appuser'@'localhost';
+REVOKE ALL PRIVILEGES ON mydb.* FROM 'appuser'@'localhost';
+
+-- Show grants
+SHOW GRANTS FOR 'appuser'@'localhost';
+
+-- Common privilege types
+-- ALL PRIVILEGES, SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, ALTER,
+-- INDEX, EXECUTE, RELOAD, PROCESS, REPLICATION SLAVE, REPLICATION CLIENT
+```
+
+---
+
+## Backup & Restore
+
+### mysqldump (Logical Backup)
+
+```bash
+# Backup single database
+mysqldump -u root -p mydb > mydb_backup.sql
+
+# Backup with specific options
+mysqldump -u root -p --single-transaction --routines --triggers --events mydb > mydb_backup.sql
+
+# Backup all databases
+mysqldump -u root -p --all-databases > all_databases.sql
+
+# Backup specific tables
+mysqldump -u root -p mydb users orders > tables_backup.sql
+
+# Backup with compression
+mysqldump -u root -p mydb | gzip > mydb_backup.sql.gz
+
+# Backup with schema only (no data)
+mysqldump -u root -p --no-data mydb > mydb_schema.sql
+
+# Backup with data only (no schema)
+mysqldump -u root -p --no-create-info mydb > mydb_data.sql
+
+# Backup with specific options for production
+mysqldump -u root -p \
+  --single-transaction \
+  --routines \
+  --triggers \
+  --events \
+  --set-gtid-purged=OFF \
+  --master-data=2 \
+  mydb > mydb_$(date +%Y%m%d).sql
+
+# Backup from remote server
+mysqldump -u root -p -h remote-host mydb > mydb_remote.sql
+
+# Restore
+mysql -u root -p mydb < mydb_backup.sql
+mysql -u root -p < all_databases.sql
+gunzip < mydb_backup.sql.gz | mysql -u root -p mydb
+```
+
+### mysqlpump (Parallel Backup)
+
+```bash
+# Parallel backup (faster for large databases)
+mysqlpump -u root -p --default-parallelism=4 mydb > mydb_pump.sql
+
+# Backup with specific users
+mysqlpump -u root -p --include-users=appuser,readonly > users_backup.sql
+```
+
+### xtrabackup (Physical Backup)
+
+```bash
+# Full backup
+xtrabackup --backup --target-dir=/backup/full --user=root --password=secret
+
+# Prepare backup
+xtrabackup --prepare --target-dir=/backup/full
+
+# Restore
+xtrabackup --copy-back --target-dir=/backup/full
+chown -R mysql:mysql /var/lib/mysql
+
+# Incremental backup
+xtrabackup --backup --target-dir=/backup/inc1 --incremental-basedir=/backup/full
+```
+
+---
+
+## Replication
+
+### Primary (Master) Setup
+
+```sql
+-- On primary server
+SHOW MASTER STATUS;                    -- Get file and position
+CREATE USER 'repl'@'%' IDENTIFIED BY 'repl_password';
+GRANT REPLICATION SLAVE ON *.* TO 'repl'@'%';
+FLUSH PRIVILEGES;
+
+-- my.cnf on primary
+-- server-id=1
+-- log-bin=mysql-bin
+-- binlog-format=ROW
+-- sync_binlog=1
+```
+
+### Replica (Slave) Setup
+
+```sql
+-- On replica server
+STOP REPLICA;  -- or STOP SLAVE in older versions
+CHANGE REPLICATION SOURCE TO
+  SOURCE_HOST='primary-host',
+  SOURCE_USER='repl',
+  SOURCE_PASSWORD='repl_password',
+  SOURCE_LOG_FILE='mysql-bin.000001',
+  SOURCE_LOG_POS=154;
+START REPLICA;  -- or START SLAVE in older versions
+SHOW REPLICA STATUS\G  -- or SHOW SLAVE STATUS\G
+
+-- GTID-based replication (recommended)
+CHANGE REPLICATION SOURCE TO
+  SOURCE_HOST='primary-host',
+  SOURCE_USER='repl',
+  SOURCE_PASSWORD='repl_password',
+  SOURCE_AUTO_POSITION=1;
+```
+
+### Group Replication (MySQL 8.0+)
+
+```sql
+-- my.cnf
+-- plugin_load_add='group_replication.so'
+-- group_replication_group_name="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+-- group_replication_start_on_boot=OFF
+-- group_replication_local_address="node1:33061"
+-- group_replication_group_seeds="node1:33061,node2:33061,node3:33061"
+-- group_replication_single_primary_mode=ON
+
+-- Initialize and start (on primary)
+SET GLOBAL group_replication_bootstrap_group=ON;
+START GROUP_REPLICATION;
+SET GLOBAL group_replication_bootstrap_group=OFF;
+
+-- On other nodes
+START GROUP_REPLICATION;
+SELECT * FROM performance_schema.replication_group_members;
+```
+
+---
+
+## Performance Tuning
+
+### Key Variables to Tune
+
+```bash
+# In my.cnf
+[mysqld]
+# Connection
+max_connections = 500
+wait_timeout = 600
+interactive_timeout = 600
+
+# InnoDB Buffer Pool (set to ~70-80% of RAM)
+innodb_buffer_pool_size = 4G
+innodb_buffer_pool_instances = 4
+
+# InnoDB Log
+innodb_log_file_size = 1G
+innodb_log_buffer_size = 64M
+innodb_flush_log_at_trx_commit = 1  # 1=safest, 2=performance
+innodb_flush_method = O_DIRECT
+
+# Query Cache (deprecated in MySQL 8.0, use proxy or application caching)
+# query_cache_type = 1
+# query_cache_size = 64M
+
+# Thread
+thread_cache_size = 32
+table_open_cache = 4000
+tmp_table_size = 64M
+max_heap_table_size = 64M
+
+# Binary Logging
+server-id = 1
+log-bin = mysql-bin
+binlog_format = ROW
+sync_binlog = 1
+
+# Slow Query Log
+slow_query_log = 1
+slow_query_log_file = /var/log/mysql/slow.log
+long_query_time = 1
+log_queries_not_using_indexes = 1
+```
+
+### Monitor Performance
+
+```sql
+-- Current connections and threads
+SHOW STATUS LIKE 'Threads%';
+SHOW STATUS LIKE 'Connections';
+
+-- InnoDB buffer pool
+SHOW STATUS LIKE 'Innodb_buffer_pool%';
+
+-- Slow queries
+SHOW STATUS LIKE 'Slow_queries';
+
+-- Open tables
+SHOW STATUS LIKE 'Open%tables';
+
+-- Key reads (cache hits vs disk reads)
+SHOW STATUS LIKE 'Key_read%';
+
+-- Query cache (MySQL 5.7 and earlier)
+SHOW STATUS LIKE 'Qcache%';
+
+-- Active queries
+SHOW FULL PROCESSLIST;
+
+-- Kill a long-running query
+KILL <process_id>;
+```
+
+---
+
+## Useful Queries
+
+### Schema Introspection
+
+```sql
+-- List all tables with row counts
+SELECT table_name, table_rows
+FROM information_schema.tables
+WHERE table_schema = 'mydb'
+ORDER BY table_rows DESC;
+
+-- List all columns for a table
+SELECT column_name, data_type, is_nullable, column_default
+FROM information_schema.columns
+WHERE table_schema = 'mydb' AND table_name = 'users'
+ORDER BY ordinal_position;
+
+-- List all indexes for a table
+SHOW INDEX FROM users;
+
+-- List all foreign keys
+SELECT
+  constraint_name,
+  table_name,
+  column_name,
+  referenced_table_name,
+  referenced_column_name
+FROM information_schema.key_column_usage
+WHERE referenced_table_name IS NOT NULL
+  AND table_schema = 'mydb';
+
+-- List all triggers
+SHOW TRIGGERS FROM mydb;
+
+-- Show table size on disk
+SELECT
+  table_name AS 'Table',
+  ROUND(((data_length + index_length) / 1024 / 1024), 2) AS 'Size (MB)'
+FROM information_schema.tables
+WHERE table_schema = 'mydb'
+ORDER BY (data_length + index_length) DESC;
+```
+
+### MySQL Shell (mysqlsh) — MySQL 8.0+
+
+```bash
+# Launch MySQL Shell
+mysqlsh
+
+# Connect and switch to SQL mode
+\connect root@localhost:3306
+\sql
+
+# Check instance configuration
+util.checkForServerUpgrade()
+
+# Dump and load (faster than mysqldump for large DBs)
+util.dumpInstance('/backup/dump')
+util.loadDump('/backup/dump')
+
+# Export/import with MySQL Shell
+\js util.exportTable('users', '/tmp/users.json')
+\js util.importTable('/tmp/users.json', {schema: 'mydb', table: 'users'})
+```
+
+---
+
+## Security Best Practices
+
+```bash
+# Remove anonymous users
+DELETE FROM mysql.user WHERE User='';
+
+# Remove test database
+DROP DATABASE IF EXISTS test;
+DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%';
+
+# Remove remote root access
+DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');
+
+# Disable local_infile
+SET GLOBAL local_infile = 0;
+
+# Require SSL for connections
+ALTER USER 'appuser'@'localhost' REQUIRE SSL;
+
+# Audit plugin (MySQL Enterprise)
+INSTALL PLUGIN audit_log SONAME 'audit_log.so';
+
+# Log all connections
+[mysqld]
+general_log = 1
+general_log_file = /var/log/mysql/general.log
+```
+
+---
+
+## Troubleshooting
+
+```bash
+# Connection refused
+sudo systemctl status mysql              # Check if running
+sudo systemctl start mysql               # Start server
+sudo cat /var/log/mysql/error.log        # Check error log
+
+# Access denied
+mysql -u root -p -e "SELECT user, host FROM mysql.user;"  # Check users
+mysql -u root -p -e "SHOW GRANTS FOR 'user'@'host';"     # Check grants
+
+# Too many connections
+mysql -u root -p -e "SHOW STATUS LIKE 'Max_used_connections';"
+mysql -u root -p -e "SET GLOBAL max_connections = 1000;"
+mysql -u root -p -e "SHOW PROCESSLIST;"
+
+# Table is locked
+mysql -u root -p -e "SHOW OPEN TABLES WHERE In_use > 0;"
+mysql -u root -p -e "SHOW PROCESSLIST;"   # Find blocking query
+mysql -u root -p -e "KILL <id>;"          # Kill blocking query
+
+# Replication lag
+mysql -u root -p -e "SHOW REPLICA STATUS\G"  # Check Seconds_Behind_Source
+mysql -u root -p -e "SHOW SLAVE STATUS\G"    # Older versions
+```
+
+---
+
+## Output Formatting
+
+### Within MySQL Client
+
+```bash
+# Vertical output (for wide rows)
+SELECT * FROM users WHERE id = 1\G
+
+# Tab-separated output
+SELECT * FROM users\T
+
+# CSV output
+SELECT * FROM users INTO OUTFILE '/tmp/users.csv'
+  FIELDS TERMINATED BY ',' ENCLOSED BY '"'
+  LINES TERMINATED BY '\n';
+
+# HTML output
+mysql -u root -p --html -e "SELECT * FROM mydb.users;" > users.html
+
+# XML output
+mysql -u root -p --xml -e "SELECT * FROM mydb.users;" > users.xml
+```
+
+### Command-Line Query Execution
+
+```bash
+# One-liner queries
+mysql -u root -p -N -e "SELECT COUNT(*) FROM mydb.users;"
+mysql -u root -p --batch -e "SELECT * FROM mydb.users;" > results.tsv
+mysql -u root -p --raw -e "SELECT * FROM mydb.users;"
+```
+
+---
