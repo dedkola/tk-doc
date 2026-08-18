@@ -7,10 +7,11 @@
 
 **A modern, high-performance documentation platform built with Next.js 16 and MDX**
 
-[![Next.js](https://img.shields.io/badge/Next.js-16.1-black?logo=next.js)](https://nextjs.org/)
+[![Next.js](https://img.shields.io/badge/Next.js-16.2-black?logo=next.js)](https://nextjs.org/)
 [![React](https://img.shields.io/badge/React-19-61dafb?logo=react&logoColor=white)](https://react.dev/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178c6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-6-3178c6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-38bdf8?logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
+[![Cloudflare Workers](https://img.shields.io/badge/Cloudflare_Workers-ready-f38020?logo=cloudflare&logoColor=white)](wrangler.jsonc)
 [![Docker](https://img.shields.io/badge/Docker-ready-2496ed?logo=docker&logoColor=white)](Dockerfile)
 [![Helm](https://img.shields.io/badge/Helm-chart-0F1689?logo=helm&logoColor=white)](https://dedkola.github.io/tk-doc)
 [![pnpm](https://img.shields.io/badge/pnpm-fast-f69220?logo=pnpm&logoColor=white)](https://pnpm.io/)
@@ -20,7 +21,7 @@
 [![GitHub last commit](https://img.shields.io/github/last-commit/dedkola/tk-doc?style=flat&logo=github)](https://github.com/dedkola/tk-doc/commits/main)
 [![GitHub license](https://img.shields.io/github/license/dedkola/tk-doc?style=flat)](LICENSE)
 
-[Features](#-features) • [Quick Start](#-quick-start) • [Documentation](#-documentation) • [Project Structure](#-project-structure) • [Helm](#-helm) • [Contributing](#-contributing)
+[Features](#-features) • [Quick Start](#-quick-start) • [Documentation](#-documentation) • [Project Structure](#-project-structure) • [Deployment](#-deployment) • [Helm](#-helm) • [Contributing](#-contributing)
 
 </div>
 
@@ -36,11 +37,11 @@ Perfect for technical documentation, API references, knowledge bases, and develo
 
 ### 🚀 Performance & Modern Stack
 
-- **Next.js 16** with App Router for optimal performance
+- **Next.js 16.2** with App Router for optimal performance
 - **React 19** with Server Components
 - **TypeScript** for type safety
 - **Tailwind CSS 4** for modern styling
-- **pnpm** for fast, efficient package management
+- **pnpm 11** for fast, efficient package management
 
 ### 📝 Content Management
 
@@ -48,7 +49,7 @@ Perfect for technical documentation, API references, knowledge bases, and develo
 - **Frontmatter** - Metadata support for title, description, and tags
 - **Code Highlighting** - Beautiful syntax highlighting with Prism
 - **Auto-generated Sidebar** - Automatic navigation from folder structure
-- **Table of Contents** - Automatic heading extraction
+- **Table of Contents** - Automatic H2-H4 heading extraction with anchor links
 
 ### 🎨 UI Components
 
@@ -57,7 +58,8 @@ Perfect for technical documentation, API references, knowledge bases, and develo
 - **PascalCase Naming** - React-consistent naming conventions for easy identification
 - **Radix UI Primitives** - Accessible, unstyled components
 - **Responsive Design** - Mobile-first approach
-- **Custom Fonts** - Inter for text, JetBrains Mono for code
+- **Geist Typography** - Geist Sans for text and Geist Mono for code
+- **Refined Design System** - Unified light/dark color tokens, spacing, radii, and focus states
 - **Performance Optimized** - Dynamic imports for non-critical components
 
 ### 🌗 Dark Mode
@@ -86,13 +88,14 @@ Perfect for technical documentation, API references, knowledge bases, and develo
 - **ESLint** - Code quality checks
 - **TypeScript Strict Mode** - Maximum type safety
 - **Component Examples** - [View all available components](/content/component-examples.mdx)
+- **Flexible Deployment** - Standard Next.js, Docker standalone, Cloudflare Workers static assets, and Helm
 
 ## 🚀 Quick Start
 
 ### Prerequisites
 
-- **Node.js** 18.17 or higher
-- **pnpm** (recommended) or npm/yarn
+- **Node.js** 20.9 or higher
+- **pnpm** 11.15.1 (declared by `packageManager`)
 
 ### Installation
 
@@ -380,6 +383,8 @@ tk-doc/
 │   │   └── [...slug]/           # Dynamic MDX routes
 │   ├── feed.xml/
 │   │   └── route.ts             # RSS feed generation
+│   ├── robots.ts                # Generated robots.txt
+│   ├── sitemap.ts               # Generated sitemap
 │   └── ui/
 │       ├── search.tsx           # Search component
 │       └── interface/           # Layout components
@@ -420,15 +425,50 @@ tk-doc/
 │   ├── extract-headings.ts      # TOC extraction
 │   └── utils.ts                 # General utilities
 ├── public/                       # Static assets
-│   ├── robots.txt
-│   └── assets/
+│   └── _headers                  # Cloudflare security and cache headers
 ├── charts/                       # Helm chart
 ├── types/                        # TypeScript definitions
 ├── next.config.mjs              # Next.js configuration
-├── tailwind.config.ts           # Tailwind configuration
+├── pnpm-workspace.yaml           # Dependency overrides and build policy
+├── wrangler.jsonc                # Cloudflare Workers static asset deployment
 ├── tsconfig.json                # TypeScript configuration
 └── package.json                 # Dependencies & scripts
 ```
+
+## ☁️ Deployment
+
+TK Doc supports a regular Next.js server build, a Docker standalone build, and
+a static Cloudflare Workers deployment.
+
+### Cloudflare Workers
+
+The Wrangler configuration builds the site as a static export and deploys the
+generated `out/` directory as Worker assets:
+
+```bash
+pnpm install --frozen-lockfile
+pnpm exec wrangler login
+pnpm exec wrangler deploy
+```
+
+`wrangler deploy` runs the configured `pnpm run build:worker` command before
+uploading. To verify the static export locally without deploying, run:
+
+```bash
+pnpm run build:worker
+```
+
+The Worker serves the generated `404.html` for missing assets. The exported
+`public/_headers` rules apply the site security policy and one-year immutable
+browser caching to Next.js's content-hashed `/_next/static/*` assets. Update the
+Worker name or compatibility date in `wrangler.jsonc` when adapting the template
+for another project.
+
+### Docker
+
+The Docker build uses Next.js standalone output. See
+[DOCKER-BUILD-PUSH.md](DOCKER-BUILD-PUSH.md) for local, multi-architecture, and
+push instructions.
 
 ## ⛵ Helm
 
@@ -523,6 +563,7 @@ helm upgrade tk-doc tk-doc/tk-doc \
 | [React 19](https://react.dev/)                              | UI library                      |
 | [TypeScript](https://www.typescriptlang.org/)               | Type safety                     |
 | [Tailwind CSS 4](https://tailwindcss.com/)                  | Utility-first CSS               |
+| [Cloudflare Workers](https://workers.cloudflare.com/)       | Static asset deployment         |
 | [MDX](https://mdxjs.com/)                                   | Markdown + JSX                  |
 | [Radix UI](https://www.radix-ui.com/)                       | Accessible component primitives |
 | [Lucide](https://lucide.dev/)                               | Icon library                    |
@@ -648,6 +689,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 🙏 Acknowledgments
 
 - [Vercel](https://vercel.com) for Next.js
+- [Cloudflare](https://www.cloudflare.com/) for Workers deployment
 - [Radix UI](https://www.radix-ui.com/) for accessible components
 - [shadcn/ui](https://ui.shadcn.com/) for component inspiration
 
