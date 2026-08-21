@@ -1,0 +1,62 @@
+---
+title: Postgresql install on Ubuntu
+description: Install Postgresql on Ubuntu
+tags: [sql, postgresql, ubuntu, database]
+created: 2024-08-21
+---
+
+## Install Postgresql on Ubuntu
+
+```bash
+
+sudo apt install postgresql
+```
+
+### Set the Password for the postgres User
+
+```bash
+sudo -u postgres psql
+```
+
+```sql
+ALTER USER postgres PASSWORD 'your_secure_password';
+```
+
+### Test Your Connection
+
+```bash
+psql -U postgres -h localhost -W
+```
+
+## Remote Connection
+
+```bash
+sudo -u postgres psql -c "SHOW config_file;"
+```
+
+```bash
+sudo nano /etc/postgresql/16/main/postgresql.conf
+```
+
+replace `#listen_addresses = 'localhost'` with `listen_addresses = '*'`
+
+Allow your remote client
+
+```bash
+sudo nano /etc/postgresql/16/main/pg_hba.conf
+
+```
+
+Add the following line to the end of the file:
+
+```
+host    all             all             your_remote_ip/32            md5
+```
+
+where all is the database name, all is the username, your_remote_ip is the IP address of the remote client, and md5 is the authentication method.
+
+### Connect Remotely
+
+```bash
+psql -h 192.168.1.100 -U myapp -d myapp
+```

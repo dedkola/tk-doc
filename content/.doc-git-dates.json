@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-18T09:45:15.630Z",
+  "generatedAt": "2026-08-21T11:28:38.183Z",
   "files": {
     "Cheat Sheets/ansible-handbook.mdx": {
       "createdAt": "2026-06-24T10:29:10+03:00",
@@ -25,6 +25,10 @@
       "createdAt": "2026-06-24T10:29:10+03:00",
       "updatedAt": "2026-06-24T10:29:10+03:00"
     },
+    "Cheat Sheets/influxdb-cli-handbook.mdx": {
+      "createdAt": "2026-08-18T12:53:44+03:00",
+      "updatedAt": "2026-08-18T12:53:44+03:00"
+    },
     "Cheat Sheets/kubernetes-handbook.mdx": {
       "createdAt": "2026-06-24T10:29:10+03:00",
       "updatedAt": "2026-06-24T10:29:10+03:00"
@@ -33,9 +37,37 @@
       "createdAt": "2026-06-24T10:29:10+03:00",
       "updatedAt": "2026-06-24T10:29:10+03:00"
     },
+    "Cheat Sheets/mongodb-cli-handbook.mdx": {
+      "createdAt": "2026-08-18T12:53:44+03:00",
+      "updatedAt": "2026-08-18T12:53:44+03:00"
+    },
+    "Cheat Sheets/mysql-cli-handbook.mdx": {
+      "createdAt": "2026-08-18T12:53:44+03:00",
+      "updatedAt": "2026-08-18T14:11:28+03:00"
+    },
+    "Cheat Sheets/nginx-cli-handbook.mdx": {
+      "createdAt": "2026-08-18T12:53:44+03:00",
+      "updatedAt": "2026-08-18T14:11:28+03:00"
+    },
+    "Cheat Sheets/phpfpm-cli-handbook.mdx": {
+      "createdAt": "2026-08-18T12:53:44+03:00",
+      "updatedAt": "2026-08-18T12:53:44+03:00"
+    },
     "Cheat Sheets/podman-cli-handbook.mdx": {
       "createdAt": "2026-08-18T12:25:38+03:00",
       "updatedAt": "2026-08-18T12:25:38+03:00"
+    },
+    "Cheat Sheets/postgresql-cli-handbook.mdx": {
+      "createdAt": "2026-08-18T12:53:44+03:00",
+      "updatedAt": "2026-08-18T12:53:44+03:00"
+    },
+    "Cheat Sheets/proxmox-cli-handbook.mdx": {
+      "createdAt": "2026-08-18T12:53:44+03:00",
+      "updatedAt": "2026-08-18T12:53:44+03:00"
+    },
+    "Cheat Sheets/sqlite-cli-handbook.mdx": {
+      "createdAt": "2026-08-18T12:53:44+03:00",
+      "updatedAt": "2026-08-18T12:53:44+03:00"
     },
     "Cheat Sheets/terraform-handbook.mdx": {
       "createdAt": "2026-06-24T10:29:10+03:00",
@@ -67,7 +99,7 @@
     },
     "Docker/mcp-defaut-mount-playwright.mdx": {
       "createdAt": "2026-06-24T10:29:10+03:00",
-      "updatedAt": "2026-06-24T10:29:10+03:00"
+      "updatedAt": "2026-08-18T14:11:28+03:00"
     },
     "Docker/nextjs_app_to_docker.mdx": {
       "createdAt": "2026-06-24T10:29:10+03:00",
@@ -99,7 +131,7 @@
     },
     "Fedora/fix-nigh-contrast-eco-mode.mdx": {
       "createdAt": "2026-06-24T10:29:10+03:00",
-      "updatedAt": "2026-06-24T10:29:10+03:00"
+      "updatedAt": "2026-08-18T14:11:28+03:00"
     },
     "Fedora/mount-win-partition-fedora.mdx": {
       "createdAt": "2026-06-24T10:29:10+03:00",
@@ -139,7 +171,7 @@
     },
     "Kubernetes/k3s-api-cf-tunnel.mdx": {
       "createdAt": "2026-06-24T10:29:10+03:00",
-      "updatedAt": "2026-06-24T10:29:10+03:00"
+      "updatedAt": "2026-08-18T14:11:28+03:00"
     },
     "Kubernetes/k3s_add_node.mdx": {
       "createdAt": "2026-06-24T10:29:10+03:00",
@@ -191,7 +223,7 @@
     },
     "Kubernetes/nginx_loadbalancer_k3s.mdx": {
       "createdAt": "2026-06-24T10:29:10+03:00",
-      "updatedAt": "2026-06-24T10:29:10+03:00"
+      "updatedAt": "2026-08-18T14:11:28+03:00"
     },
     "Kubernetes/setup-argocd-k8s.mdx": {
       "createdAt": "2026-06-24T10:29:10+03:00",
@@ -227,7 +259,7 @@
     },
     "Misc/install-prettier-local.mdx": {
       "createdAt": "2026-06-24T10:29:10+03:00",
-      "updatedAt": "2026-06-24T10:29:10+03:00"
+      "updatedAt": "2026-08-18T14:11:28+03:00"
     },
     "Misc/linux-nodejs-install.mdx": {
       "createdAt": "2026-06-24T10:29:10+03:00",
@@ -255,11 +287,11 @@
     },
     "Misc/ollama-ui.mdx": {
       "createdAt": "2026-06-24T10:29:10+03:00",
-      "updatedAt": "2026-06-24T10:29:10+03:00"
+      "updatedAt": "2026-08-18T14:11:28+03:00"
     },
     "Misc/php-fpm_nginx.mdx": {
       "createdAt": "2026-06-24T10:29:10+03:00",
-      "updatedAt": "2026-06-24T10:29:10+03:00"
+      "updatedAt": "2026-08-18T14:11:28+03:00"
     },
     "Misc/rclone_gdrive_ubuntu_cli.mdx": {
       "createdAt": "2026-06-24T10:29:10+03:00",
@@ -411,7 +443,7 @@
     },
     "VM/wsl-enable-host-mode.mdx": {
       "createdAt": "2026-06-24T10:29:10+03:00",
-      "updatedAt": "2026-06-24T10:29:10+03:00"
+      "updatedAt": "2026-08-18T14:11:28+03:00"
     },
     "Wordpress/add-wp-date-to-post.mdx": {
       "createdAt": "2026-06-24T10:29:10+03:00",
