@@ -1,0 +1,267 @@
+---
+title: Mirror Github Repos to local Gitea
+description: Mirror Github Repos to local Gitea
+tags: [gitea, github, mirror, git]
+created: 2024-08-21
+---
+
+### Setup
+
+```bash
+export GITEA_TOKEN="xxxxxxxxxxxxxxxxxxxxxxxx"
+export GITEA_URL="http://192.168.0.100:3000"
+```
+
+```bash
+
+python3 -m venv .venv
+source .venv/bin/activate
+pip install requests
+```
+
+```bash
+nano github-to-gitea.py
+```
+
+```python
+#!/usr/bin/env python3
+
+import os
+import sys
+import requests
+
+
+# ============================================================
+# Configuration
+# ============================================================
+
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
+GITEA_URL = os.getenv("GITEA_URL", "http://192.168.0.100:3000")
+GITEA_TOKEN = os.getenv("GITEA_TOKEN")
+GITEA_OWNER = os.getenv("GITEA_OWNER", "ded")
+
+# Mirror interval accepted by Gitea.
+# Examples: "8h", "24h", "168h"
+MIRROR_INTERVAL = os.getenv("MIRROR_INTERVAL", "24h")
+
+# Set to "true" if you want to mirror only private repos.
+PRIVATE_ONLY = os.getenv("PRIVATE_ONLY", "false").lower() == "true"
+
+
+# ============================================================
+# Validation
+# ============================================================
+
+if not GITHUB_TOKEN:
+    print("ERROR: GITHUB_TOKEN is not set")
+    sys.exit(1)
+
+if not GITEA_TOKEN:
+    print("ERROR: GITEA_TOKEN is not set")
+    sys.exit(1)
+
+
+GITEA_URL = GITEA_URL.rstrip("/")
+
+
+github_headers = {
+    "Accept": "application/vnd.github+json",
+    "Authorization": f"Bearer {GITHUB_TOKEN}",
+    "X-GitHub-Api-Version": "2026-03-10",
+}
+
+gitea_headers = {
+    "Authorization": f"token {GITEA_TOKEN}",
+    "Content-Type": "application/json",
+}
+
+
+# ============================================================
+# GitHub
+# ============================================================
+
+def get_github_repos():
+    """
+    Get all repositories accessible to the authenticated user,
+    but keep only repositories owned by that user.
+    """
+
+    repos = []
+    page = 1
+
+    while True:
+        response = requests.get(
+            "https://api.github.com/user/repos",
+            headers=github_headers,
+            params={
+                "per_page": 100,
+                "page": page,
+                "affiliation": "owner",
+                "sort": "full_name",
+                "direction": "asc",
+            },
+            timeout=30,
+        )
+
+        response.raise_for_status()
+
+        batch = response.json()
+
+        if not batch:
+            break
+
+        repos.extend(batch)
+        page += 1
+
+    return repos
+
+
+# ============================================================
+# Gitea
+# ============================================================
+
+def gitea_repo_exists(owner, repo):
+    response = requests.get(
+        f"{GITEA_URL}/api/v1/repos/{owner}/{repo}",
+        headers=gitea_headers,
+        timeout=30,
+    )
+
+    if response.status_code == 200:
+        return True
+
+    if response.status_code == 404:
+        return False
+
+    response.raise_for_status()
+
+
+def create_mirror(repo):
+    name = repo["name"]
+
+    payload = {
+        "clone_addr": repo["clone_url"],
+
+        # GitHub authentication used by Gitea
+        "auth_token": GITHUB_TOKEN,
+
+        # Gitea destination
+        "repo_owner": GITEA_OWNER,
+        "repo_name": name,
+
+        # Tell Gitea this is a GitHub repository
+        "service": "github",
+
+        # Create pull mirror
+        "mirror": True,
+        "mirror_interval": MIRROR_INTERVAL,
+
+        # Preserve metadata where possible
+        "private": repo["private"],
+        "description": repo.get("description") or "",
+
+        "issues": repo.get("has_issues", False),
+        "pull_requests": True,
+        "releases": True,
+        "wiki": repo.get("has_wiki", False),
+        "labels": True,
+        "milestones": True,
+        "lfs": True,
+    }
+
+    response = requests.post(
+        f"{GITEA_URL}/api/v1/repos/migrate",
+        headers=gitea_headers,
+        json=payload,
+        timeout=120,
+    )
+
+    return response
+
+
+# ============================================================
+# Main
+# ============================================================
+
+def main():
+
+    print("=" * 60)
+    print("GitHub → Gitea mirror")
+    print("=" * 60)
+
+    print(f"GitHub: https://github.com")
+    print(f"Gitea:  {GITEA_URL}")
+    print(f"Owner:  {GITEA_OWNER}")
+    print(f"Interval: {MIRROR_INTERVAL}")
+    print()
+
+    print("Fetching GitHub repositories...")
+
+    try:
+        repos = get_github_repos()
+    except requests.RequestException as e:
+        print(f"ERROR: Cannot access GitHub API: {e}")
+        sys.exit(1)
+
+    print(f"Found {len(repos)} repositories.")
+    print()
+
+    created = 0
+    skipped = 0
+    failed = 0
+
+    for repo in repos:
+
+        name = repo["name"]
+        full_name = repo["full_name"]
+
+        if PRIVATE_ONLY and not repo["private"]:
+            print(f"[SKIP]   {full_name} (public)")
+            skipped += 1
+            continue
+
+        print(f"[CHECK]  {full_name}")
+
+        try:
+            if gitea_repo_exists(GITEA_OWNER, name):
+                print(f"[EXISTS] {GITEA_OWNER}/{name}")
+                skipped += 1
+                continue
+
+            print(f"[CREATE] {GITEA_OWNER}/{name}")
+
+            response = create_mirror(repo)
+
+            if response.status_code == 201:
+                print(f"[OK]     {GITEA_OWNER}/{name}")
+                created += 1
+
+            else:
+                print(
+                    f"[ERROR]  {GITEA_OWNER}/{name}: "
+                    f"{response.status_code} {response.text}"
+                )
+                failed += 1
+
+        except requests.RequestException as e:
+            print(f"[ERROR]  {full_name}: {e}")
+            failed += 1
+
+        print()
+
+    print("=" * 60)
+    print("Finished")
+    print("=" * 60)
+
+    print(f"Found:   {len(repos)}")
+    print(f"Created: {created}")
+    print(f"Skipped: {skipped}")
+    print(f"Failed:  {failed}")
+
+    if failed:
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
+```

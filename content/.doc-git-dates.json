@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-21T11:28:38.183Z",
+  "generatedAt": "2026-08-21T12:34:27.280Z",
   "files": {
     "Cheat Sheets/ansible-handbook.mdx": {
       "createdAt": "2026-06-24T10:29:10+03:00",
@@ -396,6 +396,10 @@
     "Ubuntu/postgresql-ubuntu-server.mdx": {
       "createdAt": "2026-06-24T10:29:10+03:00",
       "updatedAt": "2026-06-24T10:29:10+03:00"
+    },
+    "Ubuntu/postgresql-ubuntu.mdx": {
+      "createdAt": "2026-08-21T14:30:02+03:00",
+      "updatedAt": "2026-08-21T14:30:02+03:00"
     },
     "Ubuntu/screen_microk8s_basic.mdx": {
       "createdAt": "2026-06-24T10:29:10+03:00",
