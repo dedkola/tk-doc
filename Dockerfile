@@ -7,7 +7,7 @@
 # Want to help us make this template better? Share your feedback here: https://forms.gle/ybq9Krt8jtBL3iCk7
 
 ARG NODE_VERSION=24
-ARG PNPM_VERSION=11.1.0
+ARG PNPM_VERSION=11.15.1
 
 ################################################################################
 # Use node image for base image for all stages.
@@ -16,7 +16,9 @@ FROM node:${NODE_VERSION}-bookworm-slim AS base
 # Set working directory for all build stages.
 WORKDIR /usr/src/app
 
-# Install pnpm.
+# Install pnpm. libatomic1 is required by the standalone pnpm binary that is
+# downloaded to honour the packageManager field in package.json.
+RUN apt-get update && apt-get install -y --no-install-recommends libatomic1 && rm -rf /var/lib/apt/lists/*
 RUN --mount=type=cache,target=/root/.npm \
     npm install -g pnpm@${PNPM_VERSION}
 
@@ -36,7 +38,7 @@ RUN --mount=type=bind,source=package.json,target=package.json \
 
 ################################################################################
 # Create a stage for building the application.
-FROM deps as build
+FROM deps AS build
 
 # Download additional development dependencies before building, as some projects require
 # "devDependencies" to be installed to build. If you don't need this, remove this step.
@@ -58,7 +60,7 @@ RUN pnpm run build
 # where the necessary files are copied from the build stage.
 FROM node:${NODE_VERSION}-bookworm-slim AS final
 # Use production node environment by default.
-ENV NODE_ENV production
+ENV NODE_ENV=production
 
 # Run the application as a non-root user.
 USER node
@@ -74,4 +76,4 @@ COPY --from=build /usr/src/app/content ./content
 EXPOSE 3000
 
 # Run the application.
-CMD node server.js
+CMD ["node", "server.js"]
