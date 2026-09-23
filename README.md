@@ -94,7 +94,7 @@ Perfect for technical documentation, API references, knowledge bases, and develo
 
 ### Prerequisites
 
-- **Node.js** 20.9 or higher
+- **Node.js** 24 LTS
 - **pnpm** 11.15.1 (declared by `packageManager`)
 
 ### Installation
