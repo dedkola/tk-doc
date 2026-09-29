@@ -1,15 +1,23 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { ReactNode, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { useSearch } from "./search-context";
-import type { MDXFile } from "@/lib/mdx-utils";
-import SearchResults from "./search-results";
+import type { MDXFileSummary } from "@/lib/mdx-utils";
+
+const SearchResults = dynamic(() => import("./search-results"), {
+  loading: () => (
+    <div className="mx-auto w-full max-w-7xl px-4 py-8 text-sm text-muted-foreground">
+      Loading search…
+    </div>
+  ),
+});
 
 interface LayoutClientProps {
   children: ReactNode;
   sideNav: ReactNode;
-  groupedFiles: Record<string, MDXFile[]>;
+  groupedFiles: Record<string, MDXFileSummary[]>;
   footer: ReactNode;
 }
 

@@ -4,7 +4,11 @@ import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import SideNav from "@app/ui/interface/sidenav";
 import LayoutClient from "@app/ui/interface/layout-client";
-import { getAllMDXFiles, groupByFolder } from "@/lib/mdx-utils";
+import {
+  getAllMDXFiles,
+  groupByFolder,
+  summarizeMDXFiles,
+} from "@/lib/mdx-utils";
 import Header from "@/components/header";
 import { SearchProvider } from "@/app/ui/interface/search-context";
 import { ThemeProvider } from "@/components/ThemeProvider";
@@ -87,7 +91,7 @@ export default function RootLayout({
   children: ReactNode;
 }>) {
   const allMDXFiles = getAllMDXFiles();
-  const groupedFiles = groupByFolder(allMDXFiles);
+  const groupedFiles = groupByFolder(summarizeMDXFiles(allMDXFiles));
 
   return (
     <html
