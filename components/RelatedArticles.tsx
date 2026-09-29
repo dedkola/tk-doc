@@ -46,6 +46,7 @@ export function RelatedArticles({
           <Link
             key={file.slug.join("/")}
             href={`/docs/${file.slug.join("/")}`}
+            prefetch={false}
             className="group block rounded-lg border border-border p-4 hover:border-primary/50 hover:shadow-sm transition-all"
           >
             <h3 className="font-medium text-foreground group-hover:text-primary transition-colors line-clamp-2">

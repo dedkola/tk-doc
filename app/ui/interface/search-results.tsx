@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import type { MDXFile } from "@/lib/mdx-utils";
+import type { MDXFile, MDXFileSummary, SearchIndexFile } from "@/lib/mdx-utils";
 import { useSearch } from "./search-context";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -11,12 +11,63 @@ import { Button } from "@/components/ui/Button";
 import { searchFiles, tokenize, type SearchResult } from "@/lib/search-utils";
 
 interface SearchResultsProps {
-  groupedFiles: Record<string, MDXFile[]>;
+  groupedFiles: Record<string, MDXFileSummary[]>;
+}
+
+let searchIndexPromise: Promise<SearchIndexFile[]> | null = null;
+
+function loadSearchIndex() {
+  if (!searchIndexPromise) {
+    searchIndexPromise = fetch("/search-index.json").then((response) => {
+      if (!response.ok) {
+        throw new Error(`Search index request failed (${response.status})`);
+      }
+      return response.json() as Promise<SearchIndexFile[]>;
+    });
+  }
+  return searchIndexPromise;
+}
+
+function groupSearchIndex(files: SearchIndexFile[]) {
+  const grouped: Record<string, MDXFile[]> = {};
+  for (const file of files) {
+    const folder = file.folder || "Root";
+    grouped[folder] ??= [];
+    grouped[folder].push({
+      ...file,
+      lastModified: new Date(file.lastModified),
+    });
+  }
+  return grouped;
 }
 
 export default function SearchResults({ groupedFiles }: SearchResultsProps) {
   const { searchQuery, setSearchQuery, selectedTag, setSelectedTag } =
     useSearch();
+  const [searchFilesByFolder, setSearchFilesByFolder] = useState<Record<
+    string,
+    MDXFile[]
+  > | null>(null);
+  const [searchError, setSearchError] = useState(false);
+
+  useEffect(() => {
+    if (selectedTag || !searchQuery.trim() || searchFilesByFolder) return;
+
+    let active = true;
+    loadSearchIndex()
+      .then((files) => {
+        if (active) setSearchFilesByFolder(groupSearchIndex(files));
+      })
+      .catch((error) => {
+        console.error("Failed to load search index", error);
+        searchIndexPromise = null;
+        if (active) setSearchError(true);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [searchFilesByFolder, searchQuery, selectedTag]);
 
   const searchResults = useMemo<SearchResult[] | null>(() => {
     // Tag filtering (unchanged — exact match on tag name)
@@ -47,8 +98,9 @@ export default function SearchResults({ groupedFiles }: SearchResultsProps) {
       return null;
     }
 
-    return searchFiles(groupedFiles, searchQuery);
-  }, [groupedFiles, searchQuery, selectedTag]);
+    if (!searchFilesByFolder) return null;
+    return searchFiles(searchFilesByFolder, searchQuery);
+  }, [groupedFiles, searchFilesByFolder, searchQuery, selectedTag]);
 
   // Highlight individual query words in text
   const queryWords = useMemo(() => tokenize(searchQuery), [searchQuery]);
@@ -59,6 +111,7 @@ export default function SearchResults({ groupedFiles }: SearchResultsProps) {
 
   const displayQuery = selectedTag || searchQuery;
   const isTagFilter = !!selectedTag;
+  const isLoading = !isTagFilter && !searchFilesByFolder && !searchError;
 
   const HighlightText = ({
     text,
@@ -121,12 +174,26 @@ export default function SearchResults({ groupedFiles }: SearchResultsProps) {
         </div>
       </div>
 
-      {searchResults && searchResults.length > 0 ? (
+      {isLoading ? (
+        <div className="flex items-center justify-center py-16 text-sm text-muted-foreground">
+          Loading full-text search…
+        </div>
+      ) : searchError ? (
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <h3 className="text-xl font-semibold text-foreground mb-2">
+            Search is temporarily unavailable
+          </h3>
+          <p className="text-muted-foreground max-w-sm">
+            The search index could not be loaded. Please try again.
+          </p>
+        </div>
+      ) : searchResults && searchResults.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {searchResults.map(({ folder, file, excerpt, matchType }) => (
             <Link
               key={file.slug.join("/")}
               href={`/docs/${file.slug.join("/")}`}
+              prefetch={false}
               className="group block h-full"
             >
               <Card className="h-full flex flex-col overflow-hidden border-border/50 bg-card/50 backdrop-blur-sm hover:bg-card hover:shadow-lg hover:border-primary/20 transition-all duration-300 hover:-translate-y-1">

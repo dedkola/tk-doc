@@ -11,6 +11,7 @@ const nextConfig = {
   devIndicators: false,
 
   experimental: {
+    inlineCss: true,
     optimizePackageImports: ["lucide-react", "cmdk"],
     turbopackFileSystemCacheForDev: true,
     turbopackFileSystemCacheForBuild: true,

@@ -1,12 +1,12 @@
 "use client";
 
-import type { MDXFile } from "@/lib/mdx-utils";
+import type { MDXFileSummary } from "@/lib/mdx-utils";
 import AccordionMenu from "./accordion-menu";
 import { useSearch } from "./search-context";
 import { Badge } from "@/components/ui/Badge";
 
 interface SideNavClientProps {
-  groupedFiles: Record<string, MDXFile[]>;
+  groupedFiles: Record<string, MDXFileSummary[]>;
   topTags: [string, number][];
 }
 

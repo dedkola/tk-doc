@@ -14,6 +14,12 @@ export interface MDXFile {
   lastModified: Date;
 }
 
+export type MDXFileSummary = Omit<MDXFile, "content">;
+
+export interface SearchIndexFile extends Omit<MDXFile, "lastModified"> {
+  lastModified: string;
+}
+
 import { cache } from "react";
 import matter from "gray-matter";
 import { resolveDocDates } from "@/lib/doc-dates";
@@ -145,8 +151,8 @@ export function getMDXFiles(dir: string, baseDir: string = dir): MDXFile[] {
   return files;
 }
 
-export function groupByFolder(files: MDXFile[]) {
-  const grouped: Record<string, MDXFile[]> = {};
+export function groupByFolder<T extends Pick<MDXFile, "folder">>(files: T[]) {
+  const grouped: Record<string, T[]> = {};
 
   files.forEach((file) => {
     const key = file.folder || "Root";
@@ -155,6 +161,20 @@ export function groupByFolder(files: MDXFile[]) {
   });
 
   return grouped;
+}
+
+export function summarizeMDXFiles(files: MDXFile[]): MDXFileSummary[] {
+  return files.map(({ content, ...file }) => {
+    void content;
+    return file;
+  });
+}
+
+export function createSearchIndex(files: MDXFile[]): SearchIndexFile[] {
+  return files.map((file) => ({
+    ...file,
+    lastModified: file.lastModified.toISOString(),
+  }));
 }
 
 export const getAllMDXFiles = cache((): MDXFile[] => {

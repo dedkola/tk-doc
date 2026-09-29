@@ -286,6 +286,7 @@ export default async function Page({
                 <Link
                   key={`${tag}-${index}`}
                   href={`/?tag=${encodeURIComponent(tag)}`}
+                  prefetch={false}
                 >
                   <Badge
                     variant="secondary"
