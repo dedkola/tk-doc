@@ -7,7 +7,7 @@
 
 **A modern, high-performance documentation platform built with Next.js 16 and MDX**
 
-[![Next.js](https://img.shields.io/badge/Next.js-16.2-black?logo=next.js)](https://nextjs.org/)
+[![Next.js](https://img.shields.io/badge/Next.js-16.3-black?logo=next.js)](https://nextjs.org/)
 [![React](https://img.shields.io/badge/React-19-61dafb?logo=react&logoColor=white)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-6-3178c6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-38bdf8?logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
@@ -37,7 +37,7 @@ Perfect for technical documentation, API references, knowledge bases, and develo
 
 ### 🚀 Performance & Modern Stack
 
-- **Next.js 16.2** with App Router for optimal performance
+- **Next.js 16.3** with App Router for optimal performance
 - **React 19** with Server Components
 - **TypeScript** for type safety
 - **Tailwind CSS 4** for modern styling
@@ -53,8 +53,8 @@ Perfect for technical documentation, API references, knowledge bases, and develo
 
 ### 🎨 UI Components
 
-- **30+ Pre-built Components** - Accordion, Alert, Badge, Card, Tabs, and more
-- **Organized Structure** - Components organized by category (buttons, forms, modals)
+- **28 Pre-built UI Components** - Accordion, Alert, Badge, Card, Tabs, and more
+- **Component Library** - UI components in `components/ui/` with PascalCase filenames
 - **PascalCase Naming** - React-consistent naming conventions for easy identification
 - **Radix UI Primitives** - Accessible, unstyled components
 - **Responsive Design** - Mobile-first approach
@@ -71,9 +71,12 @@ Perfect for technical documentation, API references, knowledge bases, and develo
 ### 🔍 Enhanced UX
 
 - **Command Palette** - Quick search with `/`
+- **Full-Text Search** - Ranked results across titles, tags, keywords, descriptions, folders, and content; the search index loads on demand
+- **Tag Filtering** - Browse related documentation by tag
+- **Article Metadata** - Publication and update dates from frontmatter or Git history, plus estimated reading time
 - **Keyboard Shortcuts** - Press `?` to view all available keyboard shortcuts
 - **Back to Top** - Floating button appears on scroll for quick navigation
-- **Click-to-Copy Inline Code** - Click any inline `code` snippet to copy it to clipboard
+- **Code Block Copying** - Copy fenced code blocks with the built-in copy button
 - **Related Articles** - Tag-based related content suggestions at the bottom of each page
 - **Social Sharing** - Share buttons for Twitter, Bluesky, LinkedIn, WhatsApp, Email, and copy link
 - **Responsive Table of Contents** - Collapsible mobile-friendly TOC with active heading tracking
@@ -133,7 +136,7 @@ pnpm start
 
 ### Creating Your First Page
 
-The template includes one example file: `component-examples.mdx` showing all available components.
+The repository includes documentation organized by topic, plus `component-examples.mdx` showing the available UI components.
 
 **To add your own content:**
 
@@ -172,7 +175,7 @@ npm install your-package
 
 ### Using Components
 
-All UI components are available in MDX files. See the complete list with examples:
+The registered UI components are available in MDX files without imports. See the component reference for examples:
 
 👉 **[View Component Examples](content/component-examples.mdx)**
 
@@ -182,18 +185,35 @@ All UI components are available in MDX files. See the complete list with example
     <TabsTrigger value="npm">npm</TabsTrigger>
     <TabsTrigger value="pnpm">pnpm</TabsTrigger>
   </TabsList>
-  <TabsContent value="npm">```bash npm install package ```</TabsContent>
-  <TabsContent value="pnpm">```bash pnpm add package ```</TabsContent>
+  <TabsContent value="npm">
+
+```bash
+npm install package
+```
+
+  </TabsContent>
+  <TabsContent value="pnpm">
+
+```bash
+pnpm add package
+```
+
+  </TabsContent>
 </Tabs>
 ````
 
 ### Organizing Content
 
-The `content/` folder starts with only one file:
+The `content/` folder contains the component reference and documentation grouped by topic:
 
 ```
 content/
-└── component-examples.mdx    # Component showcase & reference
+├── component-examples.mdx    # Component showcase & reference
+├── Docker/
+├── Kubernetes/
+├── Misc/
+├── Ubuntu/
+└── ...                      # Other topic folders
 ```
 
 **To add your documentation:**
@@ -267,7 +287,7 @@ export const privateConfig: Partial<BaseSiteConfig> = {
 
   // Open Graph Image (for social sharing)
   og: {
-    image: "/og-image.png",
+    image: "/opengraph-image.png",
     imageWidth: 1200,
     imageHeight: 630,
   },
@@ -280,11 +300,12 @@ export const privateConfig: Partial<BaseSiteConfig> = {
   // Footer Branding
   footer: {
     companyName: "YourCompany",
+    copyright: `© ${new Date().getFullYear()} All rights reserved.`,
   },
 };
 ```
 
-> **Note:** You only need to specify fields you want to override. Unspecified fields use defaults from `config.base.ts`. Dev-only changes go in `config.local.ts`.
+> **Note:** Top-level fields are optional in `Partial<BaseSiteConfig>`, but a supplied nested section must include all fields required by its type. Omitted sections use defaults from `config.base.ts`. Dev-only changes go in `config.local.ts`. The bundled Open Graph image lives at `app/opengraph-image.png`; put custom images in `public/` and reference their URL path.
 
 #### Why This Approach?
 
@@ -343,16 +364,19 @@ export const privateConfig: Partial<BaseSiteConfig> = {
   },
 
   og: {
-    image: "/og-image.png",
+    image: "/opengraph-image.png",
+    imageWidth: 1200,
+    imageHeight: 630,
   },
 
   footer: {
     companyName: "Client Inc",
+    copyright: `© ${new Date().getFullYear()} All rights reserved.`,
   },
 } as const;
 ```
 
-That's it! All branding updates instantly across the entire site.
+Restart the dev server or rebuild and redeploy to apply the branding changes.
 
 #### Analytics (Google Analytics)
 
@@ -381,6 +405,8 @@ tk-doc/
 │   ├── globals.css              # Global styles
 │   ├── docs/
 │   │   └── [...slug]/           # Dynamic MDX routes
+│   ├── search-index.json/
+│   │   └── route.ts             # Static full-text search index
 │   ├── feed.xml/
 │   │   └── route.ts             # RSS feed generation
 │   ├── robots.ts                # Generated robots.txt
@@ -397,11 +423,11 @@ tk-doc/
 │   │   ├── Card.tsx
 │   │   ├── Tabs.tsx
 │   │   ├── README.md            # Component documentation
-│   │   └── ... (30+ components)
+│   │   └── ... (28 UI component files)
 │   ├── analytics.tsx            # Analytics (dynamically loaded)
 │   ├── BackToTop.tsx            # Floating back-to-top button
 │   ├── Code.tsx                 # Prism syntax-highlighted code blocks
-│   ├── InlineCode.tsx           # Click-to-copy inline code
+│   ├── CodeCopyButton.tsx       # Client-side code block copying
 │   ├── KeyboardShortcutsHelp.tsx # Keyboard shortcuts dialog ("?" key)
 │   ├── RelatedArticles.tsx      # Tag-based related content
 │   ├── ShareButtons.tsx         # Social sharing buttons
@@ -416,13 +442,17 @@ tk-doc/
 │   ├── config.local.example.ts  # Example dev overrides (copy to config.local.ts)
 │   └── site.ts                  # Aggregator that merges all configs
 ├── content/                      # MDX documentation files
-│   └── component-examples.mdx   # Component showcase (reference)
+│   ├── component-examples.mdx   # Component showcase (reference)
+│   └── ...                      # Documentation grouped by topic
 ├── hooks/                        # Custom React hooks
 │   ├── use-mobile.ts
 │   └── use-toast.ts
 ├── lib/                          # Utility functions
 │   ├── mdx-utils.ts             # MDX parsing utilities
 │   ├── extract-headings.ts      # TOC extraction
+│   ├── doc-dates.ts             # Frontmatter and Git date resolution
+│   ├── mdx-page-components.tsx  # Components registered for MDX
+│   ├── search-utils.ts          # Ranked full-text search
 │   └── utils.ts                 # General utilities
 ├── public/                       # Static assets
 │   └── _headers                  # Cloudflare security and cache headers
@@ -462,7 +492,8 @@ The Worker serves the generated `404.html` for missing assets. The exported
 `public/_headers` rules apply the site security policy and one-year immutable
 browser caching to Next.js's content-hashed `/_next/static/*` assets. Update the
 Worker name or compatibility date in `wrangler.jsonc` when adapting the template
-for another project.
+for another project. The `previews` block enables branch previews in Cloudflare
+Workers Builds.
 
 ### Docker
 
@@ -586,12 +617,13 @@ See the [Configuring Your Site](#configuring-your-site) section above for all op
 ### Advanced Customization
 
 - **Global styles:** `app/globals.css`
-- **Tailwind config:** `tailwind.config.ts`
-- **Code highlighting:** `app/code-highlight.css`
+- **Tailwind theme tokens:** `@theme` in `app/globals.css`
+- **Code highlighting styles:** `.code-highlight` and `.token` rules in `app/globals.css`
+- **Code languages:** `config/code-languages.mjs` and `components/Code.tsx`
 
 ### Components
 
-Add custom components in `components/` and import them in MDX files.
+Add custom components in `components/` and register them in `lib/mdx-page-components.tsx` to make them available in documentation pages.
 
 ### Performance Optimization
 
@@ -599,7 +631,10 @@ The application implements performance best practices:
 
 - **Dynamic Imports** - Non-critical components (`Footer`, `Analytics`) are dynamically imported in `app/layout.tsx`
 - **Server Components** - Layout and pages use Next.js Server Components by default for better performance
-- **Lazy Loading** - Components are loaded only when needed, reducing initial bundle size
+- **Deferred Search Index** - Navigation receives metadata only; full-text content is fetched from `/search-index.json` when a text query is entered
+- **Server-Rendered Code Highlighting** - Prism runs on the server; only the copy button requires client interaction
+- **Document Navigation** - Document links disable speculative prefetch to avoid downloading pages before they are opened
+- **Inline CSS** - `experimental.inlineCss` is enabled in `next.config.mjs`
 
 **Example - Dynamic Import Pattern:**
 
@@ -673,6 +708,18 @@ export { Button };
 - Keep MDX files focused and modular
 
 ## 🤝 Contributing
+
+Before submitting changes, run:
+
+```bash
+pnpm lint
+pnpm exec tsc --noEmit
+pnpm format:check
+pnpm run build:worker
+```
+
+The lint command also checks fenced code blocks. Development and production
+builds regenerate `content/.doc-git-dates.json` from Git history.
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
