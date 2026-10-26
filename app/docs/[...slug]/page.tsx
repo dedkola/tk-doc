@@ -285,7 +285,7 @@ export default async function Page({
               {tags.map((tag: string, index: number) => (
                 <Link
                   key={`${tag}-${index}`}
-                  href={`/?tag=${encodeURIComponent(tag)}`}
+                  href={`/docs?tag=${encodeURIComponent(tag)}`}
                   prefetch={false}
                 >
                   <Badge
