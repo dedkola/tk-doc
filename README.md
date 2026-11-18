@@ -7,7 +7,7 @@
 
 **A modern, high-performance documentation platform built with Next.js 16 and MDX**
 
-[![Next.js](https://img.shields.io/badge/Next.js-16.3-black?logo=next.js)](https://nextjs.org/)
+[![Next.js](https://img.shields.io/badge/Next.js-16.4-black?logo=next.js)](https://nextjs.org/)
 [![React](https://img.shields.io/badge/React-19-61dafb?logo=react&logoColor=white)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-6-3178c6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-38bdf8?logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
@@ -37,7 +37,7 @@ Perfect for technical documentation, API references, knowledge bases, and develo
 
 ### 🚀 Performance & Modern Stack
 
-- **Next.js 16.3** with App Router for optimal performance
+- **Next.js 16.4** with App Router for optimal performance
 - **React 19** with Server Components
 - **TypeScript** for type safety
 - **Tailwind CSS 4** for modern styling
@@ -50,6 +50,7 @@ Perfect for technical documentation, API references, knowledge bases, and develo
 - **Code Highlighting** - Beautiful syntax highlighting with Prism
 - **Auto-generated Sidebar** - Automatic navigation from folder structure
 - **Table of Contents** - Automatic H2-H4 heading extraction with anchor links
+- **Git-Powered Page Dates** - "Last updated" timestamps generated from Git history
 
 ### 🎨 UI Components
 
@@ -90,7 +91,8 @@ Perfect for technical documentation, API references, knowledge bases, and develo
 - **Hot Reload** - Instant feedback during development
 - **ESLint** - Code quality checks
 - **TypeScript Strict Mode** - Maximum type safety
-- **Component Examples** - [View all available components](/content/component-examples.mdx)
+- **Component Reference** - Browse [`components/ui/`](components/ui/) (see its [README](components/ui/README.md))
+- **Code Fence Validation** - `pnpm lint` also checks MDX files for unclosed code fences
 - **Flexible Deployment** - Standard Next.js, Docker standalone, Cloudflare Workers static assets, and Helm
 
 ## 🚀 Quick Start
@@ -136,7 +138,7 @@ pnpm start
 
 ### Creating Your First Page
 
-The repository includes documentation organized by topic, plus `component-examples.mdx` showing the available UI components.
+The `content/` directory is organized into topic folders (`Cheat Sheets`, `Docker`, `Fedora`, `Kubernetes`, `Misc`, `Network`, `Ubuntu`, `VM`, `Wordpress`, `macOS`). Each `.mdx` file becomes a page, and each folder becomes a sidebar section.
 
 **To add your own content:**
 
@@ -171,13 +173,12 @@ npm install your-package
 
 2. The page will automatically appear in the sidebar based on the folder structure
 3. Organize pages into folders for better navigation (e.g., `content/guides/getting-started.mdx`)
-4. You can safely remove `component-examples.mdx` once you're familiar with the components
 
 ### Using Components
 
 The registered UI components are available in MDX files without imports. See the component reference for examples:
 
-👉 **[View Component Examples](content/component-examples.mdx)**
+👉 **[components/ui/README.md](components/ui/README.md)**
 
 ````mdx
 <Tabs defaultValue="npm">
@@ -204,40 +205,34 @@ pnpm add package
 
 ### Organizing Content
 
-The `content/` folder contains the component reference and documentation grouped by topic:
+> **⚠️ Important:** Everything in the `content/` folder is the author's own documentation, included for **demo purposes only**. When using this template, delete it and replace it with your own content.
+
+The `content/` folder is organized by topic:
 
 ```
 content/
-├── component-examples.mdx    # Component showcase & reference
-├── Docker/
-├── Kubernetes/
-├── Misc/
-├── Ubuntu/
-└── ...                      # Other topic folders
+├── Cheat Sheets/     # CLI handbooks (git, docker, k8s, ansible, ...)
+├── Docker/          # Container setup and CI guides
+├── Fedora/          # Fedora desktop fixes and drivers
+├── Kubernetes/      # k3s/MicroK8s, Flux, Argo CD, storage, ingress
+├── Misc/            # Standalone how-tos and troubleshooting
+├── Network/         # DNS, VPN, tunnels, and monitoring
+├── Ubuntu/          # Ubuntu server setup
+├── VM/              # Virtual machines and hypervisors
+├── Wordpress/       # WordPress deployments
+└── macOS/           # macOS tips and fixes
 ```
 
 **To add your documentation:**
 
-1. Create folders for different sections (e.g., `guides/`, `api/`, `tutorials/`)
-2. Add `.mdx` files inside these folders
-3. The sidebar navigation will be auto-generated from your folder structure
-
-**Example structure you might create:**
-
-```
-content/
-├── component-examples.mdx    # Keep this as reference
-├── getting-started/
-│   ├── installation.mdx
-│   └── quick-start.mdx
-├── guides/
-│   ├── authentication.mdx
-│   └── deployment.mdx
-└── api/
-    └── reference.mdx
-```
+1. Create a new `.mdx` file in an existing folder (or add a new folder to start a new section)
+2. The sidebar navigation updates automatically from the folder structure
 
 Each folder becomes a section in the sidebar, and files within become pages.
+
+### Page Dates from Git
+
+Every `pnpm dev` and `pnpm build` first runs `scripts/generate-doc-git-dates.mjs`, which records the last commit date of each MDX file into `content/.doc-git-dates.json`. Doc pages resolve these dates via `lib/doc-dates.ts` to display accurate "last updated" timestamps — no manual frontmatter maintenance required.
 
 ### Configuring Your Site
 
@@ -402,7 +397,9 @@ tk-doc/
 ├── app/                          # Next.js App Router
 │   ├── layout.tsx               # Root layout with sidebar & dynamic imports
 │   ├── page.tsx                 # Homepage
-│   ├── globals.css              # Global styles
+│   ├── error.tsx                # Error boundary
+│   ├── not-found.tsx            # 404 page
+│   ├── globals.css              # Global styles & Tailwind CSS 4 theme tokens
 │   ├── docs/
 │   │   └── [...slug]/           # Dynamic MDX routes
 │   ├── search-index.json/
@@ -415,7 +412,7 @@ tk-doc/
 │       ├── search.tsx           # Search component
 │       └── interface/           # Layout components
 ├── components/                   # React components
-│   ├── ui/                      # Radix UI components (PascalCase)
+│   ├── ui/                      # Radix UI components (PascalCase, 28 total)
 │   │   ├── Accordion.tsx
 │   │   ├── Alert.tsx
 │   │   ├── Badge.tsx
@@ -431,19 +428,21 @@ tk-doc/
 │   ├── KeyboardShortcutsHelp.tsx # Keyboard shortcuts dialog ("?" key)
 │   ├── RelatedArticles.tsx      # Tag-based related content
 │   ├── ShareButtons.tsx         # Social sharing buttons
+│   ├── SocialIcons.tsx          # Header/footer social icons
 │   ├── TableOfContents.tsx      # Responsive TOC with active tracking
 │   ├── ThemeProvider.tsx        # next-themes provider wrapper
 │   ├── ThemeToggle.tsx          # Dark/light mode toggle
 │   ├── header.tsx               # Site header
-│   └── footer.tsx               # Site footer (dynamically loaded)
+│   ├── footer.tsx               # Site footer (dynamically loaded)
+│   └── logo.tsx                 # Site logo
 ├── config/                       # Configuration files
+│   ├── code-languages.mjs       # Prism language aliases for code blocks
 │   ├── config.base.ts           # Base configuration (template defaults)
 │   ├── config.private.ts        # Production overrides (committed)
 │   ├── config.local.example.ts  # Example dev overrides (copy to config.local.ts)
 │   └── site.ts                  # Aggregator that merges all configs
-├── content/                      # MDX documentation files
-│   ├── component-examples.mdx   # Component showcase (reference)
-│   └── ...                      # Documentation grouped by topic
+├── content/                      # MDX documentation, organized by topic
+│   └── .doc-git-dates.json      # Generated last-commit date per page
 ├── hooks/                        # Custom React hooks
 │   ├── use-mobile.ts
 │   └── use-toast.ts
@@ -454,10 +453,18 @@ tk-doc/
 │   ├── mdx-page-components.tsx  # Components registered for MDX
 │   ├── search-utils.ts          # Ranked full-text search
 │   └── utils.ts                 # General utilities
+├── scripts/                      # Build/dev helper scripts
+│   ├── check-code-fences.mjs    # MDX code-fence validation (part of lint)
+│   └── generate-doc-git-dates.mjs # Git date manifest generation
 ├── public/                       # Static assets
 │   └── _headers                  # Cloudflare security and cache headers
 ├── charts/                       # Helm chart
+├── k8s/                          # Raw Kubernetes manifests (kustomize)
 ├── types/                        # TypeScript definitions
+│   └── prismjs.d.ts
+├── compose.yaml                  # Local Docker Compose
+├── skaffold.yaml                 # Skaffold config for k8s development
+├── cr.yaml                       # Chart Releaser config
 ├── next.config.mjs              # Next.js configuration
 ├── pnpm-workspace.yaml           # Dependency overrides and build policy
 ├── wrangler.jsonc                # Cloudflare Workers static asset deployment
