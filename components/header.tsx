@@ -46,6 +46,7 @@ export default function Header() {
           </Button>
           <Link
             href="/"
+            prefetch={false}
             onClick={handleGoHome}
             className="flex items-center gap-2 group"
           >

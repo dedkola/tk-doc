@@ -258,6 +258,148 @@ html {
   animation-name: fade-in, zoom-in;
 }
 
+/* Prism tokens are rendered during the static build, so changing themes does
+   not load or rerun the highlighter in the browser. */
+.code-highlight {
+  color: #393a34;
+}
+
+.code-highlight .token.comment,
+.code-highlight .token.prolog,
+.code-highlight .token.doctype,
+.code-highlight .token.cdata {
+  color: #999988;
+  font-style: italic;
+}
+
+.code-highlight .token.namespace {
+  opacity: 0.7;
+}
+
+.code-highlight .token.string,
+.code-highlight .token.attr-value {
+  color: #e3116c;
+}
+
+.code-highlight .token.punctuation,
+.code-highlight .token.operator {
+  color: #393a34;
+}
+
+.code-highlight .token.entity,
+.code-highlight .token.url,
+.code-highlight .token.symbol,
+.code-highlight .token.number,
+.code-highlight .token.boolean,
+.code-highlight .token.variable,
+.code-highlight .token.constant,
+.code-highlight .token.property,
+.code-highlight .token.regex,
+.code-highlight .token.inserted {
+  color: #36acaa;
+}
+
+.code-highlight .token.atrule,
+.code-highlight .token.attr-name,
+.code-highlight .token.selector {
+  color: #00a4db;
+}
+
+.code-highlight .token.function,
+.code-highlight .token.deleted,
+.code-highlight .token.tag {
+  color: #d73a49;
+}
+
+.code-highlight .token.function-variable {
+  color: #6f42c1;
+}
+
+.code-highlight .token.tag,
+.code-highlight .token.selector,
+.code-highlight .token.keyword {
+  color: #00009f;
+}
+
+.dark .code-highlight {
+  color: #d6deeb;
+}
+
+.dark .code-highlight .token.comment {
+  color: rgb(99 119 119);
+  font-style: italic;
+}
+
+.dark .code-highlight .token.string,
+.dark .code-highlight .token.url {
+  color: rgb(173 219 103);
+}
+
+.dark .code-highlight .token.variable {
+  color: rgb(214 222 235);
+}
+
+.dark .code-highlight .token.number {
+  color: rgb(247 140 108);
+}
+
+.dark .code-highlight .token.builtin,
+.dark .code-highlight .token.char,
+.dark .code-highlight .token.constant,
+.dark .code-highlight .token.function {
+  color: rgb(130 170 255);
+}
+
+.dark .code-highlight .token.punctuation,
+.dark .code-highlight .token.selector,
+.dark .code-highlight .token.doctype {
+  color: rgb(199 146 234);
+}
+
+.dark .code-highlight .token.selector,
+.dark .code-highlight .token.doctype,
+.dark .code-highlight .token.changed,
+.dark .code-highlight .token.deleted,
+.dark .code-highlight .token.inserted,
+.dark .code-highlight .token.attr-name {
+  font-style: italic;
+}
+
+.dark .code-highlight .token.class-name {
+  color: rgb(255 203 139);
+}
+
+.dark .code-highlight .token.tag,
+.dark .code-highlight .token.operator,
+.dark .code-highlight .token.keyword {
+  color: rgb(127 219 202);
+}
+
+.dark .code-highlight .token.boolean {
+  color: rgb(255 88 116);
+}
+
+.dark .code-highlight .token.property {
+  color: rgb(128 203 196);
+}
+
+.dark .code-highlight .token.namespace {
+  color: rgb(178 204 214);
+}
+
+.dark .code-highlight .token.changed {
+  color: rgb(162 191 252);
+}
+
+.dark .code-highlight .token.deleted {
+  color: rgb(239 83 80 / 56%);
+}
+
+.dark .code-highlight .token.inserted,
+.dark .code-highlight .token.attr-name {
+  color: rgb(173 219 103);
+}
+
 /* Print-friendly styles */
 @media print {
   header,

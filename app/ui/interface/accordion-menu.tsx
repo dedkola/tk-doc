@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { MDXFile } from "@/lib/mdx-utils";
+import type { MDXFileSummary } from "@/lib/mdx-utils";
 import {
   ChevronDown,
   Box,
@@ -19,7 +19,7 @@ import {
 import { ScrollArea } from "@/components/ui/ScrollArea";
 
 interface AccordionMenuProps {
-  groupedFiles: Record<string, MDXFile[]>;
+  groupedFiles: Record<string, MDXFileSummary[]>;
 }
 
 // Map folder names to icons
@@ -156,6 +156,7 @@ export default function AccordionMenu({ groupedFiles }: AccordionMenuProps) {
                       <Link
                         key={file.slug.join("/")}
                         href={href}
+                        prefetch={false}
                         ref={isActive ? activeLinkRef : null}
                         className={`block pl-4 pr-3 py-2 text-sm rounded-r-md transition-colors border-l-2 ${
                           isActive

@@ -17,6 +17,7 @@ export default function Footer() {
           <div className="space-y-4">
             <Link
               href="/"
+              prefetch={false}
               className="flex items-center justify-center md:justify-start gap-2 group"
             >
               <Logo />
@@ -34,12 +35,13 @@ export default function Footer() {
               <li>
                 <Link
                   href="/docs"
+                  prefetch={false}
                   className="text-muted-foreground hover:text-primary transition-colors"
                 >
                   Browse Docs
                 </Link>
               </li>
-              </ul>
+            </ul>
           </div>
 
           {/* Resources */}

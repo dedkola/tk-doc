@@ -16,7 +16,7 @@ updatedAt: "2024-06-15"
 ## Context
 
 - **k3s** with built-in Traefik (v3.x, deployed via Helm)
-- **Domain**: `test.tkweb.site`
+- **Domain**: `test.tkweb.dev`
 - **ACME challenge**: HTTP-01 (port 80 must be publicly reachable)
 
 ## Step 1 — Create the HTTP→HTTPS redirect Middleware
@@ -61,7 +61,7 @@ metadata:
 spec:
   ingressClassName: traefik
   rules:
-    - host: test.tkweb.site
+    - host: test.tkweb.dev
       http:
         paths:
           - path: /
@@ -84,9 +84,9 @@ spec:
   ingressClassName: traefik
   tls:
     - hosts:
-        - test.tkweb.site
+        - test.tkweb.dev
   rules:
-    - host: test.tkweb.site
+    - host: test.tkweb.dev
       http:
         paths:
           - path: /
@@ -190,14 +190,14 @@ INF Register... providerName=letsencrypt.acme
 **Test HTTP redirect:**
 
 ```bash
-curl -sv http://10.10.0.210 -H "host: test.tkweb.site" 2>&1 | grep -E "HTTP|Location"
-# Expected: HTTP/1.1 301 Moved Permanently  +  Location: https://test.tkweb.site/
+curl -sv http://10.10.0.210 -H "host: test.tkweb.dev" 2>&1 | grep -E "HTTP|Location"
+# Expected: HTTP/1.1 301 Moved Permanently  +  Location: https://test.tkweb.dev/
 ```
 
 **Test HTTPS:**
 
 ```bash
-curl -sk https://test.tkweb.site
+curl -sk https://test.tkweb.dev
 # Expected: 200 OK with a valid Let's Encrypt cert (after first public request triggers issuance)
 ```
 
@@ -205,13 +205,13 @@ curl -sk https://test.tkweb.site
 
 ## How Let's Encrypt cert issuance works
 
-1. First real request to `https://test.tkweb.site` from the internet triggers Traefik to request a cert.
-2. Let's Encrypt sends an HTTP-01 challenge to `http://test.tkweb.site/.well-known/acme-challenge/<token>`.
+1. First real request to `https://test.tkweb.dev` from the internet triggers Traefik to request a cert.
+2. Let's Encrypt sends an HTTP-01 challenge to `http://test.tkweb.dev/.well-known/acme-challenge/<token>`.
 3. Traefik answers the challenge automatically.
 4. Certificate is issued and stored in `/data/acme.json` inside the Traefik pod (persisted via PVC).
 5. Subsequent requests use the real cert — no more "TRAEFIK DEFAULT CERT" warning.
 
-> **Requirement**: Port 80 of `test.tkweb.site` must be publicly reachable from the internet.
+> **Requirement**: Port 80 of `test.tkweb.dev` must be publicly reachable from the internet.
 
 ---
 

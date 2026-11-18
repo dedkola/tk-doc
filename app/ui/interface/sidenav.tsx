@@ -1,14 +1,18 @@
-import { getAllMDXFiles, groupByFolder } from "@/lib/mdx-utils";
+import {
+  getAllMDXFiles,
+  groupByFolder,
+  summarizeMDXFiles,
+} from "@/lib/mdx-utils";
 import SideNavClient from "./sidenav-client";
 
 export default function SideNav() {
   const allMDXFiles = getAllMDXFiles();
-  const groupedFiles = groupByFolder(allMDXFiles);
+  const groupedFiles = groupByFolder(summarizeMDXFiles(allMDXFiles));
 
   // Collect all tags from groupedFiles
   const tagCount: Record<string, number> = {};
   Object.values(groupedFiles).forEach((files: unknown) => {
-    (files as import("@/lib/mdx-utils").MDXFile[]).forEach((file) => {
+    (files as import("@/lib/mdx-utils").MDXFileSummary[]).forEach((file) => {
       if (file.tags) {
         file.tags.forEach((tag: string) => {
           tagCount[tag] = (tagCount[tag] || 0) + 1;
